@@ -2,9 +2,11 @@
 package server
 
 import (
+	"context"
 	"database/sql"
 	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -15,21 +17,23 @@ import (
 	"github.com/mkende/golink-redirector/internal/templates"
 )
 
-// Server is the root HTTP handler.
+// Server is the root HTTP handler. It implements http.Handler via ServeHTTP.
 type Server struct {
-	router   chi.Router
-	cfg      *config.Config
-	links    db.LinkRepo
-	users    db.UserRepo
-	apiKeys  db.APIKeyRepo
-	logger   *slog.Logger
-	oidcH    *auth.OIDCHandler
-	renderer *templates.Renderer
+	router     chi.Router
+	cfg        *config.Config
+	links      db.LinkRepo
+	users      db.UserRepo
+	apiKeys    db.APIKeyRepo
+	logger     *slog.Logger
+	oidcH      *auth.OIDCHandler
+	renderer   *templates.Renderer
+	useCounter *db.UseCounter
 }
 
-// New creates a new Server and wires up all routes. The oidcHandler may be nil
-// when OIDC is disabled.
-func New(cfg *config.Config, sqlDB *sql.DB, logger *slog.Logger, oidcHandler *auth.OIDCHandler) http.Handler {
+// New creates a new Server, wires up all routes, and starts background
+// goroutines. Call Shutdown to drain them gracefully. The oidcHandler may be
+// nil when OIDC is disabled.
+func New(cfg *config.Config, sqlDB *sql.DB, logger *slog.Logger, oidcHandler *auth.OIDCHandler) *Server {
 	renderer, err := templates.New()
 	if err != nil {
 		// Template parse errors are programmer errors; panic early so they are
@@ -37,17 +41,39 @@ func New(cfg *config.Config, sqlDB *sql.DB, logger *slog.Logger, oidcHandler *au
 		panic("failed to parse templates: " + err.Error())
 	}
 
+	cacheSize := cfg.CacheSize
+	if cacheSize <= 0 {
+		cacheSize = 1000
+	}
+	baseRepo := db.NewLinkRepo(sqlDB)
+	cachingRepo, err := db.NewCachingLinkRepo(baseRepo, cacheSize)
+	if err != nil {
+		panic("failed to create link cache: " + err.Error())
+	}
+
 	s := &Server{
-		cfg:      cfg,
-		links:    db.NewLinkRepo(sqlDB),
-		users:    db.NewUserRepo(sqlDB),
-		apiKeys:  db.NewAPIKeyRepo(sqlDB),
-		logger:   logger,
-		oidcH:    oidcHandler,
-		renderer: renderer,
+		cfg:        cfg,
+		links:      cachingRepo,
+		users:      db.NewUserRepo(sqlDB),
+		apiKeys:    db.NewAPIKeyRepo(sqlDB),
+		logger:     logger,
+		oidcH:      oidcHandler,
+		renderer:   renderer,
+		useCounter: db.NewUseCounter(sqlDB, 2*time.Second),
 	}
 	s.router = s.buildRouter()
-	return s.router
+	return s
+}
+
+// ServeHTTP implements http.Handler, delegating to the underlying chi router.
+func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	s.router.ServeHTTP(w, r)
+}
+
+// Shutdown drains the use-count buffer and stops background goroutines. It
+// should be called after the HTTP server has stopped accepting new requests.
+func (s *Server) Shutdown(ctx context.Context) error {
+	return s.useCounter.Shutdown(ctx)
 }
 
 func (s *Server) buildRouter() chi.Router {

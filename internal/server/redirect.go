@@ -1,7 +1,6 @@
 package server
 
 import (
-	"context"
 	"errors"
 	"net/http"
 	"net/url"
@@ -77,12 +76,9 @@ func (s *Server) handleRedirect(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Async increment (sync for now; phase 9 will make this buffered)
-	go func() {
-		if err := s.links.IncrementUseCount(context.Background(), link.ID); err != nil {
-			s.logger.Error("failed to increment use count", "id", link.ID, "error", err)
-		}
-	}()
+	// Non-blocking buffered increment: the UseCounter batches these and flushes
+	// them to the database on a background ticker, avoiding write contention.
+	s.useCounter.Increment(link.ID)
 
 	http.Redirect(w, r, targetURL, http.StatusFound)
 }

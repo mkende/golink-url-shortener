@@ -69,6 +69,10 @@ func main() {
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 		httpSrv.Shutdown(shutdownCtx) //nolint:errcheck
+		// Flush any buffered use-count increments before exiting.
+		if err := srv.Shutdown(shutdownCtx); err != nil {
+			logger.Error("use-counter shutdown error", "error", err)
+		}
 		close(done)
 	}()
 

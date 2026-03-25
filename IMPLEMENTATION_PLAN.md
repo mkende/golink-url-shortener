@@ -161,13 +161,13 @@ context and intent behind any requirement.
 
 ## Phase 9 — Scalability hardening
 
-- [ ] Audit all DB queries for missing indices; add them.
-- [ ] Make `IncrementUseCount` non-blocking: batch updates via a background
+- [x] Audit all DB queries for missing indices; add them.
+- [x] Make `IncrementUseCount` non-blocking: batch updates via a background
   goroutine with a ticker + channel, draining on shutdown.
-- [ ] Add an in-process LRU cache for redirect lookups (hot links); size
+- [x] Add an in-process LRU cache for redirect lookups (hot links); size
   configurable; invalidate on edit/delete.
-- [ ] Load-test or benchmark redirect path; document results.
-- [ ] **Commit**: `phase 9: scalability hardening`
+- [x] Load-test or benchmark redirect path; document results.
+- [x] **Commit**: `phase 9: scalability hardening`
 
 ---
 

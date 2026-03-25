@@ -97,6 +97,11 @@ type Config struct {
 
 	// AdminGroup is the OIDC group name whose members are treated as admins.
 	AdminGroup string `toml:"admin_group"`
+
+	// CacheSize is the maximum number of links kept in the in-process LRU
+	// redirect cache. Increasing this reduces database reads on the hot path.
+	// Defaults to 1000.
+	CacheSize int `toml:"cache_size"`
 }
 
 // applyDefaults fills in zero-value fields with their documented defaults.
@@ -121,6 +126,9 @@ func applyDefaults(c *Config) {
 	}
 	if c.QuickLinkLength == 0 {
 		c.QuickLinkLength = 6
+	}
+	if c.CacheSize == 0 {
+		c.CacheSize = 1000
 	}
 }
 

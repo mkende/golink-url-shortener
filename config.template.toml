@@ -110,6 +110,14 @@ default_domain = ""
 # Default: "" (no restriction)
 required_domain = ""
 
+# ─── Performance ─────────────────────────────────────────────────────────────
+
+# Maximum number of links kept in the in-process LRU redirect cache. Hot links
+# are served from memory without a database round-trip. Increase for workloads
+# with many distinct popular links.
+# Default: 1000
+cache_size = 1000
+
 # ─── Admin ────────────────────────────────────────────────────────────────────
 
 # Email addresses of users who have full admin privileges.
