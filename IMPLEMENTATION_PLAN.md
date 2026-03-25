@@ -197,15 +197,15 @@ context and intent behind any requirement.
 
 ## Phase 12 — CI / CD
 
-- [ ] `.github/workflows/test.yml`: run `go test ./...` on PRs targeting
+- [x] `.github/workflows/test.yml`: run `go test ./...` on PRs targeting
   `main`.
-- [ ] `.github/workflows/docker.yml`:
+- [x] `.github/workflows/docker.yml`:
   - Build image on push to `main` (cache layers).
   - Publish to `ghcr.io/mkende/golink-redirector` on `vX.Y.Z` tags
     (reuse cached layers from the main-push job).
-- [ ] Add `Dockerfile` (multi-stage: builder + minimal runtime image).
-- [ ] Add `docker-compose.yml` example.
-- [ ] **Commit**: `phase 12: CI/CD`
+- [x] Add `Dockerfile` (multi-stage: builder + minimal runtime image).
+- [x] Add `docker-compose.yml` example.
+- [x] **Commit**: `phase 12: CI/CD`
 
 ---
 

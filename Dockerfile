@@ -1,0 +1,31 @@
+# syntax=docker/dockerfile:1
+
+## Build stage
+FROM golang:1.24-alpine AS builder
+
+WORKDIR /build
+
+# mattn/go-sqlite3 requires CGO; install gcc and SQLite headers
+RUN apk add --no-cache gcc musl-dev sqlite-dev
+
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY . .
+RUN CGO_ENABLED=1 go build -ldflags="-s -w" -o golink ./cmd/golink
+
+## Runtime stage
+FROM alpine:3.19
+
+RUN apk add --no-cache ca-certificates tzdata sqlite-libs
+
+WORKDIR /app
+COPY --from=builder /build/golink /app/golink
+
+# Default config location; mount your config here
+VOLUME ["/app/data"]
+
+EXPOSE 8080
+
+ENTRYPOINT ["/app/golink"]
+CMD ["-config", "/app/data/simple.conf"]
