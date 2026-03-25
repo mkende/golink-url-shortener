@@ -1,8 +1,10 @@
 package server
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"html"
 	"net/http"
 	"strconv"
 	"strings"
@@ -185,9 +187,18 @@ func (s *Server) handleEdit(w http.ResponseWriter, r *http.Request) {
 	}
 
 	id := auth.FromContext(r.Context())
-	if !canEdit(id, link) {
-		http.Error(w, "forbidden", http.StatusForbidden)
-		return
+	if !canEditBasic(id, link) {
+		// Check whether the user is in the share list before denying access.
+		ok, checkErr := s.isSharedWith(r.Context(), link.ID, id)
+		if checkErr != nil {
+			s.logger.Error("edit: check shares", "name", name, "error", checkErr)
+			http.Error(w, "internal server error", http.StatusInternalServerError)
+			return
+		}
+		if !ok {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
 	}
 
 	if r.Method == http.MethodGet {
@@ -229,7 +240,7 @@ func (s *Server) handleEdit(w http.ResponseWriter, r *http.Request) {
 	updated, err := s.links.Update(r.Context(), link.ID, link.Name, target, isAdvanced, requireAuth)
 	if err != nil {
 		s.logger.Error("edit: update link", "id", link.ID, "error", err)
-		renderError("Could not save changes: " + err.Error())
+		renderError("Could not save changes. Please try again.")
 		return
 	}
 
@@ -449,12 +460,12 @@ func (s *Server) handleQuickName(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	fmt.Fprintf(w, `<input class="input" type="text" name="name" value="%s" placeholder="my-link" required>`, name)
+	fmt.Fprintf(w, `<input class="input" type="text" name="name" value="%s" placeholder="my-link" required>`, html.EscapeString(name))
 }
 
 // requireEditAccess looks up the named link and checks that the current user
-// may edit it (owner or shared).  Returns false and writes an HTTP error when
-// access is denied.
+// may edit it (owner, shared user, or admin).  Returns false and writes an HTTP
+// error when access is denied.
 func (s *Server) requireEditAccess(w http.ResponseWriter, r *http.Request, nameLower string) (*db.Link, *auth.Identity, bool) {
 	link, err := s.links.GetByName(r.Context(), nameLower)
 	if err != nil {
@@ -467,17 +478,25 @@ func (s *Server) requireEditAccess(w http.ResponseWriter, r *http.Request, nameL
 		return nil, nil, false
 	}
 	id := auth.FromContext(r.Context())
-	if !canEdit(id, link) {
-		http.Error(w, "forbidden", http.StatusForbidden)
-		return nil, nil, false
+	if !canEditBasic(id, link) {
+		// Check whether the user is in the share list.
+		ok, checkErr := s.isSharedWith(r.Context(), link.ID, id)
+		if checkErr != nil {
+			s.logger.Error("edit access: check shares", "link", nameLower, "error", checkErr)
+			http.Error(w, "internal server error", http.StatusInternalServerError)
+			return nil, nil, false
+		}
+		if !ok {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return nil, nil, false
+		}
 	}
 	return link, id, true
 }
 
-// canEdit returns true when the identity may edit the given link.
-// Admins may edit any link; the owner may always edit their own link.
-// Shared users can also edit.
-func canEdit(id *auth.Identity, link *db.Link) bool {
+// canEditBasic returns true when the identity may edit the link based solely on
+// owner and admin status, without consulting the share list.
+func canEditBasic(id *auth.Identity, link *db.Link) bool {
 	if id == nil {
 		return false
 	}
@@ -485,6 +504,31 @@ func canEdit(id *auth.Identity, link *db.Link) bool {
 		return true
 	}
 	return strings.EqualFold(id.Email, link.OwnerEmail)
+}
+
+// canEdit returns true when the identity may edit the given link based on
+// owner and admin status.  Callers that need share-list checks should use
+// requireEditAccess instead.
+func canEdit(id *auth.Identity, link *db.Link) bool {
+	return canEditBasic(id, link)
+}
+
+// isSharedWith reports whether the given identity's email is in the share list
+// for the link.  Returns false (not an error) when id is nil.
+func (s *Server) isSharedWith(ctx context.Context, linkID int64, id *auth.Identity) (bool, error) {
+	if id == nil {
+		return false, nil
+	}
+	shares, err := s.links.GetShares(ctx, linkID)
+	if err != nil {
+		return false, err
+	}
+	for _, email := range shares {
+		if strings.EqualFold(email, id.Email) {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 // pageParam parses the ?page= query parameter, defaulting to 1.

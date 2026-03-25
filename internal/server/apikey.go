@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"net/http"
@@ -36,8 +37,11 @@ func (s *Server) APIKeyMiddleware(next http.Handler) http.Handler {
 			return
 		}
 		// Update last_used_at asynchronously to avoid adding latency.
+		// Use a detached context so cancellation of the request context does not
+		// abort the update.
+		keyID := key.ID
 		go func() {
-			s.apiKeys.UpdateLastUsed(r.Context(), key.ID) //nolint:errcheck
+			s.apiKeys.UpdateLastUsed(context.Background(), keyID) //nolint:errcheck
 		}()
 
 		id := &auth.Identity{

@@ -185,13 +185,13 @@ context and intent behind any requirement.
 
 ## Phase 11 — Security review
 
-- [ ] Audit all user-supplied inputs for injection vectors.
-- [ ] Verify open-redirect protection (stored URLs only; reject `javascript:`,
+- [x] Audit all user-supplied inputs for injection vectors.
+- [x] Verify open-redirect protection (stored URLs only; reject `javascript:`,
   `data:`, and relative-path-only targets that could be abused).
-- [ ] Confirm cookie flags: `Secure`, `HttpOnly`, `SameSite=Lax`.
-- [ ] Confirm API keys are stored only as hashes.
-- [ ] Run `go vet`, `staticcheck`, and `gosec`; fix all findings.
-- [ ] **Commit**: `phase 11: security review`
+- [x] Confirm cookie flags: `Secure`, `HttpOnly`, `SameSite=Lax`.
+- [x] Confirm API keys are stored only as hashes.
+- [x] Run `go vet`, `staticcheck`, and `gosec`; fix all findings.
+- [x] **Commit**: `phase 11: security review`
 
 ---
 

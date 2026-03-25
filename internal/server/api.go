@@ -193,8 +193,17 @@ func (s *Server) handleAPIUpdateLink(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if !canEdit(id, link) {
-		writeJSONError(w, http.StatusForbidden, "forbidden")
-		return
+		// Check the share list before denying access.
+		ok, checkErr := s.isSharedWith(r.Context(), link.ID, id)
+		if checkErr != nil {
+			s.logger.Error("api: update link check shares", "name", name, "error", checkErr)
+			writeJSONError(w, http.StatusInternalServerError, "internal server error")
+			return
+		}
+		if !ok {
+			writeJSONError(w, http.StatusForbidden, "forbidden")
+			return
+		}
 	}
 
 	var req updateLinkRequest

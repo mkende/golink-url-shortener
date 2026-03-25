@@ -8,6 +8,14 @@ import (
 	"text/template"
 )
 
+// isSafeURL returns true when the URL produced by an advanced template is safe
+// to redirect to.  It must use http or https; javascript:, data:, vbscript:
+// and protocol-relative URLs are all rejected.
+func isSafeURL(u string) bool {
+	lower := strings.ToLower(u)
+	return strings.HasPrefix(lower, "http://") || strings.HasPrefix(lower, "https://")
+}
+
 // TemplateVars holds the template variables available to advanced redirect templates.
 type TemplateVars struct {
 	// Path is the full path suffix after the link name (e.g. "/foo/bar").
@@ -69,7 +77,8 @@ func parseTemplate(templateStr string) (*template.Template, error) {
 }
 
 // ResolveAdvanced executes a Go template target with the given variables.
-// Returns the resulting URL string or an error if template execution fails.
+// Returns the resulting URL string or an error if template execution fails or
+// the produced URL uses a disallowed scheme.
 func ResolveAdvanced(templateStr string, vars TemplateVars) (string, error) {
 	t, err := parseTemplate(templateStr)
 	if err != nil {
@@ -81,7 +90,11 @@ func ResolveAdvanced(templateStr string, vars TemplateVars) (string, error) {
 		return "", fmt.Errorf("template execution error: %w", err)
 	}
 
-	return strings.TrimSpace(buf.String()), nil
+	result := strings.TrimSpace(buf.String())
+	if !isSafeURL(result) {
+		return "", fmt.Errorf("advanced template produced a disallowed URL scheme: %q", result)
+	}
+	return result, nil
 }
 
 // ValidateTemplate checks that a template string parses and is safe to use.

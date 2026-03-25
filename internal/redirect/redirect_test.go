@@ -144,6 +144,30 @@ func TestResolveAdvanced(t *testing.T) {
 			vars:        TemplateVars{},
 			wantErr:     true,
 		},
+		{
+			name:        "javascript scheme rejected",
+			templateStr: "javascript:alert(1)",
+			vars:        TemplateVars{},
+			wantErr:     true,
+		},
+		{
+			name:        "data scheme rejected",
+			templateStr: "data:text/html,<h1>hi</h1>",
+			vars:        TemplateVars{},
+			wantErr:     true,
+		},
+		{
+			name:        "protocol-relative URL rejected",
+			templateStr: "//evil.com/path",
+			vars:        TemplateVars{},
+			wantErr:     true,
+		},
+		{
+			name:        "relative path rejected",
+			templateStr: "/relative/path",
+			vars:        TemplateVars{},
+			wantErr:     true,
+		},
 	}
 
 	for _, tc := range tests {

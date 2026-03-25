@@ -87,7 +87,7 @@ func (s *Server) handleCreateAPIKey(w http.ResponseWriter, r *http.Request) {
 
 	if _, err := s.apiKeys.Create(r.Context(), name, HashAPIKey(rawKey), id.Email); err != nil {
 		s.logger.Error("apikeys create: db create", "error", err)
-		renderError("Could not create API key: " + err.Error())
+		renderError("Could not create API key. Please try again.")
 		return
 	}
 
