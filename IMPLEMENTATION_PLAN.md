@@ -82,14 +82,14 @@ context and intent behind any requirement.
 
 ## Phase 4 — HTTP server skeleton + domain redirect middleware
 
-- [ ] Wire up `chi` router.
-- [ ] Implement canonical-domain + HTTPS redirect middleware (skip for
+- [x] Wire up `chi` router.
+- [x] Implement canonical-domain + HTTPS redirect middleware (skip for
   direct redirect requests).
-- [ ] Implement per-request structured logging middleware.
-- [ ] Serve `go/linkname[/...]` redirect route (no auth yet).
-- [ ] Add health-check endpoint `GET /healthz`.
-- [ ] Integration-test: server starts, redirect route returns 301/302.
-- [ ] **Commit**: `phase 4: HTTP server + domain middleware`
+- [x] Implement per-request structured logging middleware.
+- [x] Serve `go/linkname[/...]` redirect route (no auth yet).
+- [x] Add health-check endpoint `GET /healthz`.
+- [x] Integration-test: server starts, redirect route returns 301/302.
+- [x] **Commit**: `phase 4: HTTP server + domain middleware`
 
 ---
 
