@@ -27,7 +27,7 @@ func newTestServer(t *testing.T) (http.Handler, db.LinkRepo) {
 		Title:      "Test GoLink",
 	}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	handler := server.New(cfg, sqlDB, logger)
+	handler := server.New(cfg, sqlDB, logger, nil)
 	links := db.NewLinkRepo(sqlDB)
 	return handler, links
 }
@@ -90,5 +90,65 @@ func TestRedirectNotFound(t *testing.T) {
 	handler.ServeHTTP(w, req)
 	if w.Code != http.StatusNotFound {
 		t.Errorf("expected 404, got %d", w.Code)
+	}
+}
+
+func TestRedirectRequireAuth_Unauthenticated(t *testing.T) {
+	handler, links := newTestServer(t)
+
+	// Create a link that requires auth (requireAuth = true)
+	_, err := links.Create(context.Background(), "secret", "https://secret.example.com", "owner@example.com", false, true)
+	if err != nil {
+		t.Fatalf("create link: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/secret", nil)
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusFound {
+		t.Errorf("expected 302 redirect to login, got %d", w.Code)
+	}
+	loc := w.Header().Get("Location")
+	if loc == "" {
+		t.Error("expected Location header")
+	}
+	// Should redirect to login, not to the target
+	if loc == "https://secret.example.com" {
+		t.Error("unauthenticated request should not reach the target URL")
+	}
+}
+
+func TestRedirectRequireAuthForRedirects_Unauthenticated(t *testing.T) {
+	sqlDB, err := db.Open(context.Background(), "sqlite3", ":memory:")
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	t.Cleanup(func() { sqlDB.Close() })
+
+	cfg := &config.Config{
+		ListenAddr:              ":8080",
+		Title:                   "Test GoLink",
+		RequireAuthForRedirects: true,
+	}
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	handler := server.New(cfg, sqlDB, logger, nil)
+	links := db.NewLinkRepo(sqlDB)
+
+	_, err = links.Create(context.Background(), "pub", "https://public.example.com", "owner@example.com", false, false)
+	if err != nil {
+		t.Fatalf("create link: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/pub", nil)
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusFound {
+		t.Errorf("expected 302 redirect to login, got %d", w.Code)
+	}
+	loc := w.Header().Get("Location")
+	if loc == "https://public.example.com" {
+		t.Error("unauthenticated request should not reach the target URL when require_auth_for_redirects is set")
 	}
 }
