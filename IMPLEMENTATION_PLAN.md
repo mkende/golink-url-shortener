@@ -49,22 +49,22 @@ context and intent behind any requirement.
 
 ## Phase 2 — Database layer
 
-- [ ] Define schema for:
+- [x] Define schema for:
   - `links` (id, name, name_lower, target, owner_email, is_advanced,
     require_auth, created_at, last_used_at, use_count)
   - `link_shares` (link_id, shared_with_email)
   - `users` (email, display_name, avatar_url, last_seen_at)
   - `groups` (email/name, source) + `group_members`
   - `api_keys` (id, name, key_hash, created_by, created_at, last_used_at)
-- [ ] Implement schema migrations via `golang-migrate/migrate` with embedded
+- [x] Implement schema migrations via `golang-migrate/migrate` with embedded
   versioned `.sql` files (`internal/db/migrations/`).
-- [ ] Repository interfaces + implementations:
+- [x] Repository interfaces + implementations:
   - `LinkRepo`: Create, Get, Update, Delete, List (paginated + sorted),
     Search, IncrementUseCount (async/buffered — see scalability note).
   - `UserRepo`: Upsert, Get, List.
   - `APIKeyRepo`: Create, Revoke, Validate.
-- [ ] Unit-test repositories against SQLite in-memory.
-- [ ] **Commit**: `phase 2: database layer`
+- [x] Unit-test repositories against SQLite in-memory.
+- [x] **Commit**: `phase 2: database layer`
 
 ---
 
