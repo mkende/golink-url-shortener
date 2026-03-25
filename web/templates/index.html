@@ -7,20 +7,24 @@
       <h2 class="subtitle">Quick Create</h2>
       <form method="POST" action="/new">
         <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
-        <div class="field has-addons">
-          <div class="control is-expanded">
-            <input class="input" type="text" name="name" placeholder="link-name" value="">
-          </div>
-          <div class="control">
-            <button type="button" class="button is-info"
-              hx-get="/api/quickname" hx-target="[name=name]" hx-swap="outerHTML">
-              Random
-            </button>
+        <div class="field">
+          <label class="label" for="quick-name">Link Name</label>
+          <div class="field has-addons">
+            <div class="control is-expanded">
+              <input id="quick-name" class="input" type="text" name="name" placeholder="link-name" value="">
+            </div>
+            <div class="control">
+              <button type="button" class="button is-info"
+                hx-get="/api/quickname" hx-target="[name=name]" hx-swap="outerHTML">
+                Random
+              </button>
+            </div>
           </div>
         </div>
         <div class="field">
+          <label class="label" for="quick-target">Target URL</label>
           <div class="control">
-            <input class="input" type="url" name="target" placeholder="https://example.com" required>
+            <input id="quick-target" class="input" type="url" name="target" placeholder="https://example.com" required>
           </div>
         </div>
         <div class="field">
