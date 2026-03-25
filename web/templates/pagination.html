@@ -1,0 +1,12 @@
+{{define "pagination"}}
+{{if gt .TotalPages 1}}
+<nav class="pagination" role="navigation">
+  {{if gt .Page 1}}
+  <a class="pagination-previous" href="?page={{sub .Page 1}}&q={{.Query}}">Previous</a>
+  {{end}}
+  {{if lt .Page .TotalPages}}
+  <a class="pagination-next" href="?page={{add .Page 1}}&q={{.Query}}">Next</a>
+  {{end}}
+</nav>
+{{end}}
+{{end}}

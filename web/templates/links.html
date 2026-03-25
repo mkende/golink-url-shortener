@@ -1,0 +1,16 @@
+{{template "base.html" .}}
+{{define "title"}}All Links — {{.Title}}{{end}}
+{{define "content"}}
+<h1 class="title">All Links</h1>
+<div class="field has-addons">
+  <div class="control is-expanded">
+    <input class="input" type="search" placeholder="Search links..."
+      hx-get="/links" hx-target="#links-table" hx-swap="innerHTML"
+      hx-trigger="input changed delay:300ms" name="q" value="{{.Query}}">
+  </div>
+</div>
+<div id="links-table">
+  {{template "link_table" .Links}}
+  {{template "pagination" .}}
+</div>
+{{end}}
