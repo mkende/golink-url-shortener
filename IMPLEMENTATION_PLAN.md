@@ -216,6 +216,7 @@ context and intent behind any requirement.
 - [x] Verify `config.template.toml` is complete and matches the live Config
   struct.
 - [ ] Tag `v0.1.0` once all phases are complete and CI is green.
+  (CI workflows exist; tagging deferred until CI run confirms green.)
 
 ---
 
