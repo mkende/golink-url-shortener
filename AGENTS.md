@@ -150,9 +150,15 @@ commit message.
 
 ---
 
+## Implementation progress
+
+Follow [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) in phase order.
+Mark each checkbox as done when the phase is committed.
+
+---
+
 ## Branch & commit hygiene
 
-- Development happens on the branch specified in `CLAUDE.md`.
 - Commit messages: imperative mood, ≤ 72 chars subject, blank line, then body
   explaining *why* if non-obvious.
 - Each implementation phase ends with the phase number and name in the commit
