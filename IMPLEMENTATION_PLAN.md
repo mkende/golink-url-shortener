@@ -9,9 +9,9 @@ context and intent behind any requirement.
 
 ## Phase 0 — Repository bootstrap
 
-- [ ] Add `LICENSE.txt` (MIT).
-- [ ] Initialise Go module (`go mod init github.com/mkende/golink-redirector`).
-- [ ] Create top-level directory skeleton:
+- [x] Add `LICENSE.txt` (MIT).
+- [x] Initialise Go module (`go mod init github.com/mkende/golink-redirector`).
+- [x] Create top-level directory skeleton:
   ```
   cmd/golink/          main entry-point
   internal/config/     config loading
@@ -25,9 +25,9 @@ context and intent behind any requirement.
   web/static/          CSS, JS, favicon
   web/templates/       HTML templates
   ```
-- [ ] Add `.gitignore` (Go binaries, `*.db`, `.env`, editor files).
-- [ ] Add a minimal `README.md` stub (to be completed in phase 10).
-- [ ] **Commit**: `phase 0: repository bootstrap`
+- [x] Add `.gitignore` (Go binaries, `*.db`, `.env`, editor files).
+- [x] Add a minimal `README.md` stub (to be completed in phase 10).
+- [x] **Commit**: `phase 0: repository bootstrap`
 
 ---
 
