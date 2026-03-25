@@ -33,16 +33,16 @@ context and intent behind any requirement.
 
 ## Phase 1 — Configuration
 
-- [ ] Define `Config` struct covering all options:
+- [x] Define `Config` struct covering all options:
   - Server: `listen_addr`, `canonical_domain`, `title`, `favicon_path`
   - Auth: `tailscale.enabled`, `oidc.*`, `require_auth_for_redirects`
   - Database: `db.driver` (`sqlite`/`postgres`), `db.dsn`
   - Links: `quick_link_length` (default 6), `default_domain`,
     `required_domain`
   - Admin: `admin_emails`, `admin_group`
-- [ ] Implement TOML loader with validation and helpful error messages.
-- [ ] Write `config.template.toml` documenting every option with its default.
-- [ ] Unit-test config loading (valid, missing required fields, bad types).
+- [x] Implement TOML loader with validation and helpful error messages.
+- [x] Write `config.template.toml` documenting every option with its default.
+- [x] Unit-test config loading (valid, missing required fields, bad types).
 - [ ] **Commit**: `phase 1: configuration`
 
 ---
