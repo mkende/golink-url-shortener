@@ -70,13 +70,13 @@ context and intent behind any requirement.
 
 ## Phase 3 — Core redirect engine
 
-- [ ] Implement simple redirect: append path suffix / fragment to target.
-- [ ] Implement advanced redirect: Go-template engine with custom functions
+- [x] Implement simple redirect: append path suffix / fragment to target.
+- [x] Implement advanced redirect: Go-template engine with custom functions
   (`match`, `extract`, `replace`) and template variables (`path`, `parts`,
   `args`, `ua`, `email`).
-- [ ] Validate advanced templates at creation time.
-- [ ] Unit-test both modes with table-driven tests.
-- [ ] **Commit**: `phase 3: redirect engine`
+- [x] Validate advanced templates at creation time.
+- [x] Unit-test both modes with table-driven tests.
+- [x] **Commit**: `phase 3: redirect engine`
 
 ---
 

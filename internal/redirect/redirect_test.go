@@ -1,0 +1,279 @@
+package redirect
+
+import (
+	"testing"
+)
+
+// ----------------------------------------------------------------------------
+// ResolveSimple
+// ----------------------------------------------------------------------------
+
+func TestResolveSimple(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		target  string
+		suffix  string
+		want    string
+		wantErr bool
+	}{
+		{
+			name:   "no suffix",
+			target: "https://example.com/docs",
+			suffix: "",
+			want:   "https://example.com/docs",
+		},
+		{
+			name:   "with path suffix",
+			target: "https://example.com/docs",
+			suffix: "/api/reference",
+			want:   "https://example.com/docs/api/reference",
+		},
+		{
+			name:   "target trailing slash with suffix",
+			target: "https://example.com/docs/",
+			suffix: "/api",
+			want:   "https://example.com/docs/api",
+		},
+		{
+			name:   "simple root target with suffix",
+			target: "https://example.com",
+			suffix: "/extra",
+			want:   "https://example.com/extra",
+		},
+		{
+			name:    "invalid target URL",
+			target:  "://bad",
+			suffix:  "/x",
+			wantErr: true,
+		},
+		{
+			name:    "target missing host",
+			target:  "/relative",
+			suffix:  "/x",
+			wantErr: true,
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got, err := ResolveSimple(tc.target, tc.suffix)
+			if (err != nil) != tc.wantErr {
+				t.Fatalf("ResolveSimple(%q, %q) error = %v, wantErr %v", tc.target, tc.suffix, err, tc.wantErr)
+			}
+			if !tc.wantErr && got != tc.want {
+				t.Errorf("ResolveSimple(%q, %q) = %q, want %q", tc.target, tc.suffix, got, tc.want)
+			}
+		})
+	}
+}
+
+// ----------------------------------------------------------------------------
+// ResolveAdvanced
+// ----------------------------------------------------------------------------
+
+func TestResolveAdvanced(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		templateStr string
+		vars        TemplateVars
+		want        string
+		wantErr     bool
+	}{
+		{
+			name:        "literal template",
+			templateStr: "https://example.com/docs",
+			vars:        TemplateVars{},
+			want:        "https://example.com/docs",
+		},
+		{
+			name:        "using path variable",
+			templateStr: "https://example.com{{.Path}}",
+			vars:        TemplateVars{Path: "/foo/bar"},
+			want:        "https://example.com/foo/bar",
+		},
+		{
+			name:        "using parts variable",
+			templateStr: `https://example.com/{{index .Parts 1}}`,
+			vars:        TemplateVars{Parts: []string{"", "section", "page"}},
+			want:        "https://example.com/section",
+		},
+		{
+			name:        "using match function – true branch",
+			templateStr: `{{if match "foo" .Path}}https://foo.example.com{{else}}https://other.example.com{{end}}`,
+			vars:        TemplateVars{Path: "/foo/bar"},
+			want:        "https://foo.example.com",
+		},
+		{
+			name:        "using match function – false branch",
+			templateStr: `{{if match "foo" .Path}}https://foo.example.com{{else}}https://other.example.com{{end}}`,
+			vars:        TemplateVars{Path: "/baz"},
+			want:        "https://other.example.com",
+		},
+		{
+			name:        "using extract function",
+			templateStr: `https://example.com/search?q={{extract "q=([^&]+)" .Path}}`,
+			vars:        TemplateVars{Path: "q=hello&page=1"},
+			want:        "https://example.com/search?q=hello",
+		},
+		{
+			name:        "using replace function",
+			templateStr: `https://example.com/{{replace "/" "-" .Path}}`,
+			vars:        TemplateVars{Path: "/foo/bar"},
+			want:        "https://example.com/-foo-bar",
+		},
+		{
+			name:        "whitespace trimmed from output",
+			templateStr: "  https://example.com  ",
+			vars:        TemplateVars{},
+			want:        "https://example.com",
+		},
+		{
+			name:        "invalid template syntax",
+			templateStr: "{{.Unclosed",
+			wantErr:     true,
+		},
+		{
+			name:        "template execution error",
+			templateStr: "{{.NonExistentField.Sub}}",
+			vars:        TemplateVars{},
+			wantErr:     true,
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got, err := ResolveAdvanced(tc.templateStr, tc.vars)
+			if (err != nil) != tc.wantErr {
+				t.Fatalf("ResolveAdvanced(%q) error = %v, wantErr %v", tc.templateStr, err, tc.wantErr)
+			}
+			if !tc.wantErr && got != tc.want {
+				t.Errorf("ResolveAdvanced(%q) = %q, want %q", tc.templateStr, got, tc.want)
+			}
+		})
+	}
+}
+
+// ----------------------------------------------------------------------------
+// ParseRequest
+// ----------------------------------------------------------------------------
+
+func TestParseRequest(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		path         string
+		wantLinkName string
+		wantSuffix   string
+	}{
+		{
+			name:         "name only",
+			path:         "/docs",
+			wantLinkName: "docs",
+			wantSuffix:   "",
+		},
+		{
+			name:         "name with one level suffix",
+			path:         "/docs/api",
+			wantLinkName: "docs",
+			wantSuffix:   "/api",
+		},
+		{
+			name:         "name with multi-level suffix",
+			path:         "/docs/api/reference",
+			wantLinkName: "docs",
+			wantSuffix:   "/api/reference",
+		},
+		{
+			name:         "uppercase name lowercased",
+			path:         "/DOCS/api",
+			wantLinkName: "docs",
+			wantSuffix:   "/api",
+		},
+		{
+			name:         "root slash only",
+			path:         "/",
+			wantLinkName: "",
+			wantSuffix:   "",
+		},
+		{
+			name:         "mixed case name only",
+			path:         "/MyLink",
+			wantLinkName: "mylink",
+			wantSuffix:   "",
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			gotName, gotSuffix := ParseRequest(tc.path)
+			if gotName != tc.wantLinkName {
+				t.Errorf("ParseRequest(%q) linkName = %q, want %q", tc.path, gotName, tc.wantLinkName)
+			}
+			if gotSuffix != tc.wantSuffix {
+				t.Errorf("ParseRequest(%q) suffix = %q, want %q", tc.path, gotSuffix, tc.wantSuffix)
+			}
+		})
+	}
+}
+
+// ----------------------------------------------------------------------------
+// ValidateTemplate
+// ----------------------------------------------------------------------------
+
+func TestValidateTemplate(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		templateStr string
+		wantErr     bool
+	}{
+		{
+			name:        "valid literal template",
+			templateStr: "https://example.com/docs",
+			wantErr:     false,
+		},
+		{
+			name:        "valid template with variables",
+			templateStr: "https://example.com{{.Path}}",
+			wantErr:     false,
+		},
+		{
+			name:        "valid template with custom functions",
+			templateStr: `{{if match "foo" .Path}}https://foo.com{{else}}https://bar.com{{end}}`,
+			wantErr:     false,
+		},
+		{
+			name:        "invalid syntax – unclosed action",
+			templateStr: "{{.Unclosed",
+			wantErr:     true,
+		},
+		{
+			name:        "unknown function",
+			templateStr: `{{unknownfunc .Path}}`,
+			wantErr:     true,
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			err := ValidateTemplate(tc.templateStr)
+			if (err != nil) != tc.wantErr {
+				t.Errorf("ValidateTemplate(%q) error = %v, wantErr %v", tc.templateStr, err, tc.wantErr)
+			}
+		})
+	}
+}
