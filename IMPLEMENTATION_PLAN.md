@@ -43,7 +43,7 @@ context and intent behind any requirement.
 - [x] Implement TOML loader with validation and helpful error messages.
 - [x] Write `config.template.toml` documenting every option with its default.
 - [x] Unit-test config loading (valid, missing required fields, bad types).
-- [ ] **Commit**: `phase 1: configuration`
+- [x] **Commit**: `phase 1: configuration`
 
 ---
 
