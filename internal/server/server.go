@@ -21,6 +21,7 @@ type Server struct {
 	cfg      *config.Config
 	links    db.LinkRepo
 	users    db.UserRepo
+	apiKeys  db.APIKeyRepo
 	logger   *slog.Logger
 	oidcH    *auth.OIDCHandler
 	renderer *templates.Renderer
@@ -40,6 +41,7 @@ func New(cfg *config.Config, sqlDB *sql.DB, logger *slog.Logger, oidcHandler *au
 		cfg:      cfg,
 		links:    db.NewLinkRepo(sqlDB),
 		users:    db.NewUserRepo(sqlDB),
+		apiKeys:  db.NewAPIKeyRepo(sqlDB),
 		logger:   logger,
 		oidcH:    oidcHandler,
 		renderer: renderer,
