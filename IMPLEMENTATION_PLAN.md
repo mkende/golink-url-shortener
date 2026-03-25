@@ -47,8 +47,8 @@ where applicable, passing tests. Complete phases in order; do not skip ahead.
 
 ## Phase 2 — Database layer
 
-> **Ask before starting**: confirm ORM/driver choice (e.g. `database/sql` +
-> `sqlc`, or `gorm`, or `sqlx`).
+> **Confirmed choices**: `database/sql` + `sqlc` for type-safe generated
+> queries; `chi` for the HTTP router.
 
 - [ ] Define schema for:
   - `links` (id, name, name_lower, target, owner_email, is_advanced,
@@ -83,7 +83,7 @@ where applicable, passing tests. Complete phases in order; do not skip ahead.
 
 ## Phase 4 — HTTP server skeleton + domain redirect middleware
 
-- [ ] Wire up router (confirm framework choice with owner first).
+- [ ] Wire up `chi` router.
 - [ ] Implement canonical-domain + HTTPS redirect middleware (skip for
   direct redirect requests).
 - [ ] Implement per-request structured logging middleware.
