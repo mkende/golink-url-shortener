@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	gooidc "github.com/coreos/go-oidc/v3/oidc"
@@ -151,9 +152,11 @@ func (h *OIDCHandler) HandleCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Redirect to original destination or home
+	// Redirect to original destination or home.
+	// Accept paths starting with "/" but reject protocol-relative URLs like
+	// "//evil.com" which browsers interpret as absolute URLs.
 	dest := "/"
-	if rd := r.URL.Query().Get("rd"); rd != "" && rd[0] == '/' {
+	if rd := r.URL.Query().Get("rd"); rd != "" && strings.HasPrefix(rd, "/") && !strings.HasPrefix(rd, "//") {
 		dest = rd
 	}
 	http.Redirect(w, r, dest, http.StatusFound)

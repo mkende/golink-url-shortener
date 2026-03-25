@@ -83,6 +83,7 @@ func (s *Server) buildRouter() chi.Router {
 	r.Use(middleware.RealIP)
 	r.Use(middleware.Recoverer)
 	r.Use(serverMiddleware.RequestLogger(s.logger))
+	r.Use(serverMiddleware.SecurityHeaders)
 
 	// Auth middleware: populate identity context from Tailscale headers or JWT cookie
 	r.Use(auth.TailscaleMiddleware(s.cfg, s.users))

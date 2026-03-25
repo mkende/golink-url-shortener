@@ -145,7 +145,7 @@ func (s *Server) handleNew(w http.ResponseWriter, r *http.Request) {
 	_, err = s.links.Create(r.Context(), form.Name, form.Target, id.Email, form.IsAdvanced, form.RequireAuth)
 	if err != nil {
 		s.logger.Error("new: create link", "name", form.Name, "error", err)
-		renderError("Could not create link: " + err.Error())
+		renderError("Could not create link. A link with that name may already exist.")
 		return
 	}
 
