@@ -1,0 +1,82 @@
+{{template "base.html" .}}
+{{define "title"}}Edit {{.Link.Name}} — {{.Title}}{{end}}
+{{define "content"}}
+<h1 class="title">Edit Link: {{.Link.Name}}</h1>
+{{if .Error}}<div class="notification is-danger">{{.Error}}</div>{{end}}
+{{if .Success}}<div class="notification is-success">{{.Success}}</div>{{end}}
+<div class="columns">
+<div class="column is-half">
+<div class="box">
+<form method="POST" action="/edit/{{.Link.Name}}">
+  <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+  <div class="field">
+    <label class="label" for="target">Target URL</label>
+    <div class="control">
+      <input id="target" class="input" type="url" name="target" value="{{.Link.Target}}" required>
+    </div>
+  </div>
+  <div class="field">
+    <label class="checkbox">
+      <input type="checkbox" name="is_advanced" {{if .Link.IsAdvanced}}checked{{end}}> Advanced (Go template)
+    </label>
+  </div>
+  <div class="field">
+    <label class="checkbox">
+      <input type="checkbox" name="require_auth" {{if .Link.RequireAuth}}checked{{end}}> Require authentication
+    </label>
+  </div>
+  <div class="field">
+    <div class="control">
+      <button class="button is-primary" type="submit">Save</button>
+      <a class="button" href="/">Cancel</a>
+    </div>
+  </div>
+</form>
+</div>
+<div class="box">
+  <h2 class="subtitle">Sharing</h2>
+  <form method="POST" action="/edit/{{.Link.Name}}/share">
+    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+    <label class="label" for="share-email">Share with</label>
+    <div class="field has-addons">
+      <div class="control is-expanded">
+        <input id="share-email" class="input" type="email" name="email" placeholder="user@example.com"
+          list="known-users" aria-label="Email address to share with">
+        <datalist id="known-users">
+          {{range .KnownUsers}}<option value="{{.Email}}">{{.DisplayName}}</option>{{end}}
+        </datalist>
+      </div>
+      <div class="control">
+        <button class="button is-link" type="submit">Share</button>
+      </div>
+    </div>
+  </form>
+  {{if .Shares}}
+  <table class="table is-fullwidth">
+    <tbody>
+    {{range .Shares}}
+    <tr>
+      <td>{{.}}</td>
+      <td>
+        <form method="POST" action="/edit/{{$.Link.Name}}/unshare" style="display:inline">
+          <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
+          <input type="hidden" name="email" value="{{.}}">
+          <button class="button is-small is-danger" type="submit">Remove</button>
+        </form>
+      </td>
+    </tr>
+    {{end}}
+    </tbody>
+  </table>
+  {{end}}
+</div>
+<div class="box">
+  <form method="POST" action="/edit/{{.Link.Name}}/delete">
+    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+    <button class="button is-danger" type="submit"
+      onclick="return confirm('Delete this link?')">Delete Link</button>
+  </form>
+</div>
+</div>
+</div>
+{{end}}

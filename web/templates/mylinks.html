@@ -1,0 +1,9 @@
+{{template "base.html" .}}
+{{define "title"}}My Links — {{.Title}}{{end}}
+{{define "content"}}
+<h1 class="title">My Links</h1>
+<div id="links-table">
+  {{template "link_table" .Links}}
+  {{template "pagination" .}}
+</div>
+{{end}}

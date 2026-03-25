@@ -1,0 +1,17 @@
+{{define "link_table"}}
+<table class="table is-fullwidth is-striped is-hoverable">
+  <thead>
+    <tr><th>Name</th><th>Target</th><th>Uses</th><th>Actions</th></tr>
+  </thead>
+  <tbody>
+  {{range .}}
+  <tr>
+    <td><a href="/{{.Name}}">{{.Name}}</a></td>
+    <td><a href="{{.Target}}" class="has-text-truncated">{{.Target}}</a></td>
+    <td>{{.UseCount}}</td>
+    <td><a href="/edit/{{.Name}}" class="button is-small is-info">Edit</a></td>
+  </tr>
+  {{end}}
+  </tbody>
+</table>
+{{end}}

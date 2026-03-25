@@ -1,0 +1,132 @@
+# golink-redirector configuration template
+#
+# Copy this file to simple.conf (or any path you prefer) and adjust the values
+# below. Lines beginning with '#' are comments. All keys are optional unless
+# marked REQUIRED.
+#
+# Pass the path to your config file via the -config flag when starting the
+# server, e.g.:
+#   golink -config /etc/golink/simple.conf
+
+# ─── Server ──────────────────────────────────────────────────────────────────
+
+# TCP address the HTTP server will bind to.
+# Default: "0.0.0.0:8080"
+listen_addr = "0.0.0.0:8080"
+
+# REQUIRED. Public hostname for this instance (without scheme), e.g.
+# "go.example.com". Used to build redirect URLs, enforce HTTPS redirects, and
+# construct OIDC callback URLs.
+canonical_domain = "go.example.com"
+
+# Human-readable product name shown in the browser title and navigation.
+# Default: "GoLink"
+title = "GoLink"
+
+# Filesystem path to a custom favicon file (ICO, PNG, or SVG).
+# Leave empty to use the built-in default favicon.
+# Default: "" (use embedded favicon)
+favicon_path = ""
+
+# ─── Authentication ───────────────────────────────────────────────────────────
+
+# When true, unauthenticated users cannot follow any redirect; they are
+# redirected to the login page instead.
+# Default: false
+require_auth_for_redirects = false
+
+# ── Tailscale header-based auth ───────────────────────────────────────────────
+# When your server sits behind a Tailscale node that injects Tailscale-User-*
+# headers, enable this to use those headers for authentication. No additional
+# credentials are needed.
+[tailscale]
+# Default: false
+enabled = false
+
+# ── OpenID Connect auth ───────────────────────────────────────────────────────
+[oidc]
+# Default: false
+enabled = false
+
+# OIDC provider issuer URL (must match the "iss" claim in tokens).
+# Example: "https://accounts.google.com"
+issuer = ""
+
+# OAuth2 client identifier issued by the provider.
+client_id = ""
+
+# OAuth2 client secret issued by the provider. Keep this confidential.
+client_secret = ""
+
+# Full URL the provider will redirect to after authentication.
+# Must be registered with the provider.
+# Example: "https://go.example.com/auth/callback"
+redirect_url = ""
+
+# OAuth2 scopes to request from the provider.
+# Default: ["openid", "email", "profile"]
+scopes = ["openid", "email", "profile"]
+
+# Name of the JWT/userinfo claim that contains the user's group memberships.
+# Used for group-based sharing and the admin_group setting below.
+# Default: "groups"
+groups_claim = "groups"
+
+# REQUIRED when oidc.enabled = true.
+# HMAC secret used to sign session JWT cookies. Use a long random string
+# (at least 32 bytes). Generate one with: openssl rand -base64 32
+jwt_secret = ""
+
+# ─── Database ─────────────────────────────────────────────────────────────────
+[db]
+# Database backend to use.
+# Valid values: "sqlite", "postgres"
+# Default: "sqlite"
+driver = "sqlite"
+
+# Data source name (DSN) / connection string.
+# For SQLite: a file path (relative or absolute). The file is created if it
+# does not exist.
+# For PostgreSQL: a standard libpq connection string, e.g.
+#   "host=localhost port=5432 dbname=golink user=golink password=secret sslmode=require"
+# Default: "golink.db"
+dsn = "golink.db"
+
+# ─── Links ────────────────────────────────────────────────────────────────────
+
+# Number of characters in a randomly-generated quick-link name.
+# Must be >= 4.
+# Default: 6
+quick_link_length = 6
+
+# Domain appended to bare email addresses (without an @) when resolving link
+# share targets. For example, if default_domain is "example.com" then sharing
+# with "alice" is treated as "alice@example.com".
+# Default: "" (disabled)
+default_domain = ""
+
+# If set, link sharing is restricted to addresses in this domain only.
+# An attempt to share with an address outside this domain is rejected.
+# Default: "" (no restriction)
+required_domain = ""
+
+# ─── Performance ─────────────────────────────────────────────────────────────
+
+# Maximum number of links kept in the in-process LRU redirect cache. Hot links
+# are served from memory without a database round-trip. Increase for workloads
+# with many distinct popular links.
+# Default: 1000
+cache_size = 1000
+
+# ─── Admin ────────────────────────────────────────────────────────────────────
+
+# Email addresses of users who have full admin privileges.
+# Admins can manage API keys and run import/export operations.
+# Example: ["alice@example.com", "bob@example.com"]
+# Default: [] (no admins)
+admin_emails = []
+
+# OIDC group name whose members are treated as admins. Requires OIDC to be
+# enabled and the groups_claim to be correctly configured.
+# Default: "" (disabled)
+admin_group = ""

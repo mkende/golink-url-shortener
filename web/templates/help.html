@@ -1,0 +1,29 @@
+{{template "base.html" .}}
+{{define "title"}}Help — {{.Title}}{{end}}
+{{define "content"}}
+<h1 class="title">Redirect Patterns</h1>
+<div class="content">
+<h2>Simple Links</h2>
+<p>When you visit <code>go/name</code>, you are redirected to the link's target URL.</p>
+<p>You can append a path suffix: <code>go/name/extra/path</code> redirects to <code>target/extra/path</code>.</p>
+
+<h2>Advanced Links</h2>
+<p>Advanced links use Go template syntax for the target URL. The following variables are available:</p>
+<table class="table">
+  <thead><tr><th>Variable</th><th>Description</th></tr></thead>
+  <tbody>
+    <tr><td><code>{{"{{"}} .path {{"}}"}}</code></td><td>Full path suffix after the link name</td></tr>
+    <tr><td><code>{{"{{"}} .parts {{"}}"}}</code></td><td>Path suffix split on "/"</td></tr>
+    <tr><td><code>{{"{{"}} .args {{"}}"}}</code></td><td>Query string split on "&amp;"</td></tr>
+    <tr><td><code>{{"{{"}} .ua {{"}}"}}</code></td><td>User-Agent header</td></tr>
+    <tr><td><code>{{"{{"}} .email {{"}}"}}</code></td><td>Authenticated user's email</td></tr>
+  </tbody>
+</table>
+<h3>Template functions</h3>
+<ul>
+  <li><code>match "pattern" .path</code> — partial regexp match</li>
+  <li><code>extract "pattern" .path</code> — first submatch group</li>
+  <li><code>replace "pattern" "replacement" .path</code> — regexp replace</li>
+</ul>
+</div>
+{{end}}
