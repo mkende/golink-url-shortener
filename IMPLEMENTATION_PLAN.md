@@ -2,6 +2,8 @@
 
 Each phase below is a self-contained unit of work that ends with a commit and,
 where applicable, passing tests. Complete phases in order; do not skip ahead.
+The original [design-doc.md](design-doc.md) can be consulted for additional
+context and intent behind any requirement.
 
 ---
 

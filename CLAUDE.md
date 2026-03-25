@@ -1,1 +1,1 @@
-See the standard [AGENTS.md](AGENTS.md) file.
+See the standard @AGENTS.md file.
