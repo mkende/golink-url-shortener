@@ -1,7 +1,9 @@
 # Agent Instructions — golink-redirector
 
 This document contains the standing instructions for any AI agent working on
-this project. Read it in full before making any changes.
+this project. Read it in full before making any changes. The original
+[design-doc.md](design-doc.md) can be consulted for additional context and
+intent behind any requirement.
 
 ---
 
