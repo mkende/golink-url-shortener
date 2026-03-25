@@ -1,0 +1,83 @@
+// Package templates provides HTML template rendering for the golink UI.
+package templates
+
+import (
+	"fmt"
+	"html/template"
+	"io"
+	"net/http"
+
+	webtemplates "github.com/mkende/golink-redirector/web/templates"
+)
+
+var funcMap = template.FuncMap{
+	"add": func(a, b int) int { return a + b },
+	"sub": func(a, b int) int { return a - b },
+}
+
+// Renderer holds parsed HTML templates ready for execution.
+type Renderer struct {
+	templates map[string]*template.Template
+}
+
+// New parses all page templates and returns a ready Renderer.
+// Returns an error if any template fails to parse.
+func New() (*Renderer, error) {
+	pages := []string{"index", "new", "edit", "links", "mylinks", "help"}
+	partials := []string{"link_table.html", "pagination.html"}
+
+	baseData, err := webtemplates.FS.ReadFile("base.html")
+	if err != nil {
+		return nil, fmt.Errorf("read base template: %w", err)
+	}
+
+	templates := make(map[string]*template.Template, len(pages))
+	for _, page := range pages {
+		t := template.New("base.html").Funcs(funcMap)
+		if _, err := t.Parse(string(baseData)); err != nil {
+			return nil, fmt.Errorf("parse base template: %w", err)
+		}
+		for _, partial := range partials {
+			data, err := webtemplates.FS.ReadFile(partial)
+			if err != nil {
+				return nil, fmt.Errorf("read partial %s: %w", partial, err)
+			}
+			if _, err := t.New(partial).Parse(string(data)); err != nil {
+				return nil, fmt.Errorf("parse partial %s: %w", partial, err)
+			}
+		}
+		pageData, err := webtemplates.FS.ReadFile(page + ".html")
+		if err != nil {
+			return nil, fmt.Errorf("read template %s: %w", page, err)
+		}
+		if _, err := t.New(page + ".html").Parse(string(pageData)); err != nil {
+			return nil, fmt.Errorf("parse template %s: %w", page, err)
+		}
+		templates[page] = t
+	}
+	return &Renderer{templates: templates}, nil
+}
+
+// Render writes the named page template to w with the given data.
+// On template-not-found it writes a 500 response.
+func (r *Renderer) Render(w http.ResponseWriter, name string, data interface{}) {
+	t, ok := r.templates[name]
+	if !ok {
+		http.Error(w, "template not found: "+name, http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if err := t.Execute(w, data); err != nil {
+		// Headers already sent; nothing useful we can do but log.
+		_ = err
+	}
+}
+
+// RenderTo renders the named template to w (for testing / non-HTTP use).
+func (r *Renderer) RenderTo(w io.Writer, name string, data interface{}) error {
+	t, ok := r.templates[name]
+	if !ok {
+		return fmt.Errorf("template not found: %s", name)
+	}
+	return t.Execute(w, data)
+}

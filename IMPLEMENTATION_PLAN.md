@@ -114,7 +114,7 @@ context and intent behind any requirement.
 
 ## Phase 6 — Link management UI
 
-- [ ] HTML templates (server-side `html/template` + HTMX + Bulma CSS):
+- [x] HTML templates (server-side `html/template` + HTMX + Bulma CSS):
   - Landing page: quick-create button, search box, recent links (owner),
     popular links.
   - `/new` — create link form (name, target, is_advanced, require_auth).
@@ -122,11 +122,11 @@ context and intent behind any requirement.
   - `/links` — paginated, sortable full list of all links.
   - `/mylinks` — paginated, sortable list of owner's links.
   - `/help` — redirect pattern documentation.
-- [ ] Implement quick-link random name generator.
-- [ ] Enforce forbidden names (reserved endpoints).
-- [ ] Enforce link name character and case rules.
-- [ ] CSRF protection on all mutating forms.
-- [ ] **Commit**: `phase 6: link management UI`
+- [x] Implement quick-link random name generator.
+- [x] Enforce forbidden names (reserved endpoints).
+- [x] Enforce link name character and case rules.
+- [x] CSRF protection on all mutating forms.
+- [x] **Commit**: `phase 6: link management UI`
 
 ---
 
