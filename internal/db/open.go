@@ -39,6 +39,17 @@ func Open(ctx context.Context, driver, dsn string) (*sql.DB, error) {
 		return nil, fmt.Errorf("ping %s database: %w", driver, err)
 	}
 
+	// Enable WAL journal mode for SQLite. WAL improves write throughput and
+	// crash durability without requiring any configuration from the user.
+	// It is a no-op for in-memory databases (:memory:) where the mode stays
+	// "memory".
+	if isSQLite {
+		if _, err := db.ExecContext(ctx, "PRAGMA journal_mode=WAL"); err != nil {
+			_ = db.Close()
+			return nil, fmt.Errorf("enable WAL mode: %w", err)
+		}
+	}
+
 	if err := runMigrations(ctx, db); err != nil {
 		_ = db.Close()
 		return nil, err

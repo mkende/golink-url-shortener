@@ -25,8 +25,6 @@ type OIDCConfig struct {
 	ClientID string `toml:"client_id"`
 	// ClientSecret is the OAuth2 client secret.
 	ClientSecret string `toml:"client_secret"`
-	// RedirectURL is the OAuth2 redirect (callback) URL.
-	RedirectURL string `toml:"redirect_url"`
 	// Scopes is the list of OAuth2 scopes to request.
 	// Defaults to ["openid", "email", "profile"].
 	Scopes []string `toml:"scopes"`
