@@ -40,16 +40,49 @@ Enable this when golink-redirector sits behind a Tailscale node that injects `Ta
 
 ### `[oidc]` — OpenID Connect auth
 
+The OAuth2 callback URL is always `https://<canonical_domain>/auth/callback` and
+is derived automatically — you do not set it in the config file. Register this
+URL with your OIDC provider.
+
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `oidc.enabled` | bool | `false` | Enable OIDC authentication. |
 | `oidc.issuer` | string | `""` | OIDC provider issuer URL, e.g. `"https://accounts.google.com"`. Must match the `iss` claim in tokens. |
 | `oidc.client_id` | string | `""` | OAuth2 client identifier issued by the provider. |
 | `oidc.client_secret` | string | `""` | OAuth2 client secret. Keep this confidential. |
-| `oidc.redirect_url` | string | `""` | Full callback URL the provider will redirect to after authentication, e.g. `"https://go.example.com/auth/callback"`. Must be registered with the provider. |
-| `oidc.scopes` | []string | `["openid","email","profile"]` | OAuth2 scopes to request from the provider. |
+| `oidc.scopes` | []string | `["openid","email","profile"]` | OAuth2 scopes to request from the provider. Add `"groups"` to receive group membership claims (needed for `admin_group` and group-based sharing). |
 | `oidc.groups_claim` | string | `"groups"` | Name of the JWT/userinfo claim that contains the user's group memberships. Used for group-based sharing and `admin_group`. |
 | `oidc.jwt_secret` | string | `""` | **Required when `oidc.enabled = true`.** HMAC secret used to sign session JWT cookies. Use a long random string (at least 32 bytes). Generate one with `openssl rand -base64 32`. |
+
+#### Authelia
+
+Register a client in your Authelia configuration (`authelia/configuration.yml`):
+
+```yaml
+identity_providers:
+  oidc:
+    clients:
+      - client_id: "golink"
+        client_secret: "<bcrypt-hashed-secret>"   # authelia crypto hash generate --scheme bcrypt
+        authorization_policy: one_factor           # or two_factor
+        redirect_uris:
+          - "https://go.example.com/auth/callback"
+        scopes: ["openid", "email", "profile", "groups"]
+        token_endpoint_auth_method: client_secret_basic
+        userinfo_signed_response_alg: none
+```
+
+Then in `simple.conf`:
+
+```toml
+[oidc]
+enabled      = true
+issuer       = "https://authelia.example.com"
+client_id    = "golink"
+client_secret = "plaintext-secret"
+scopes       = ["openid", "email", "profile", "groups"]
+jwt_secret   = "replace-with-a-32-byte-random-string"
+```
 
 ---
 
@@ -61,6 +94,8 @@ Enable this when golink-redirector sits behind a Tailscale node that injects `Ta
 |-----|------|---------|-------------|
 | `db.driver` | string | `"sqlite"` | Database backend. Valid values: `"sqlite"`, `"postgres"`. |
 | `db.dsn` | string | `"golink.db"` | Data source name / connection string. For SQLite: a file path (relative or absolute); the file is created if it does not exist. For PostgreSQL: a standard libpq connection string, e.g. `"host=localhost port=5432 dbname=golink user=golink password=secret sslmode=require"`. |
+
+> **SQLite WAL mode** — The server automatically enables WAL (Write-Ahead Log) journal mode on every SQLite database at startup. This improves write throughput and crash durability. The WAL files (`golink.db-wal`, `golink.db-shm`) are normal SQLite artefacts; do not delete them while the server is running. No configuration is required.
 
 ---
 
@@ -101,7 +136,6 @@ enabled      = true
 issuer       = "https://auth.example.com"
 client_id    = "golink"
 client_secret = "secret"
-redirect_url = "https://go.example.com/auth/callback"
 jwt_secret   = "replace-with-a-32-byte-random-string"
 
 admin_emails = ["alice@example.com"]

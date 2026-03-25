@@ -242,7 +242,6 @@ data:
     issuer = "https://auth.example.com"
     client_id = "golink"
     client_secret = "changeme"
-    redirect_url = "https://go.example.com/auth/callback"
     jwt_secret = "replace-with-a-32-byte-random-string"
 
     admin_emails = ["admin@example.com"]

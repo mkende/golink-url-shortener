@@ -58,19 +58,39 @@ client_id = ""
 # OAuth2 client secret issued by the provider. Keep this confidential.
 client_secret = ""
 
-# Full URL the provider will redirect to after authentication.
-# Must be registered with the provider.
-# Example: "https://go.example.com/auth/callback"
-redirect_url = ""
-
 # OAuth2 scopes to request from the provider.
+# Add "groups" to receive group membership claims (required for admin_group and
+# group-based sharing). Authelia and Keycloak both support this scope.
 # Default: ["openid", "email", "profile"]
 scopes = ["openid", "email", "profile"]
 
 # Name of the JWT/userinfo claim that contains the user's group memberships.
 # Used for group-based sharing and the admin_group setting below.
-# Default: "groups"
+# Default: "groups" (correct for Authelia, Keycloak, Dex, and most providers)
 groups_claim = "groups"
+
+# ── Authelia provider notes ───────────────────────────────────────────────────
+# When using Authelia as your OIDC provider, register a client with these
+# settings in your Authelia configuration (authelia/configuration.yml):
+#
+#   identity_providers:
+#     oidc:
+#       clients:
+#         - client_id: "golink"
+#           client_secret: "<bcrypt-hashed-secret>"
+#           authorization_policy: one_factor   # or two_factor
+#           redirect_uris:
+#             - "https://go.example.com/auth/callback"
+#           scopes: ["openid", "email", "profile", "groups"]
+#           token_endpoint_auth_method: client_secret_basic
+#           userinfo_signed_response_alg: none
+#
+# In this file, set:
+#   issuer = "https://authelia.example.com"   # Authelia root URL
+#   scopes = ["openid", "email", "profile", "groups"]
+#
+# The redirect URL (https://<canonical_domain>/auth/callback) is constructed
+# automatically from canonical_domain — no redirect_url setting is needed.
 
 # REQUIRED when oidc.enabled = true.
 # HMAC secret used to sign session JWT cookies. Use a long random string
