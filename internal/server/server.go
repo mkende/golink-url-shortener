@@ -140,6 +140,10 @@ func (s *Server) buildRouter() chi.Router {
 				r.Post("/", s.handleAPICreateAPIKey)
 				r.Delete("/{id}", s.handleAPIDeleteAPIKey)
 			})
+
+			// Import / export — admin only
+			r.With(auth.RequireAdmin()).Get("/export", s.handleExport)
+			r.With(auth.RequireAdmin()).Post("/import", s.handleImport)
 		})
 	})
 

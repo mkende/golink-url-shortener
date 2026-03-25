@@ -293,6 +293,101 @@ Returns `404` if the key ID does not exist.
 
 ---
 
+## Import / Export (admin only)
+
+Both import and export endpoints require admin access.
+
+### Export All Links
+
+```
+GET /api/export
+```
+
+Streams a full JSON dump of all links and their shares. The response is
+streamed in pages of 500 links to avoid loading the entire database into
+memory. Suitable for large installations.
+
+**Response** `200 OK` `application/json`
+
+```json
+{
+  "version": 1,
+  "exported_at": "2024-01-15T10:30:00Z",
+  "links": [
+    {
+      "name": "docs",
+      "target": "https://docs.example.com",
+      "owner_email": "alice@example.com",
+      "is_advanced": false,
+      "require_auth": false,
+      "created_at": "2024-01-15T10:30:00Z",
+      "use_count": 42,
+      "shares": ["bob@example.com"]
+    }
+  ]
+}
+```
+
+The `shares` field is omitted when a link has no shares. The response also
+sets `Content-Disposition: attachment; filename="golink-export.json"` to
+encourage browsers to download rather than display the file.
+
+Returns `401` if not authenticated, `403` if not admin.
+
+---
+
+### Import Links
+
+```
+POST /api/import
+Content-Type: application/json
+```
+
+Upserts all links from an export document. For each link:
+
+- If a link with the same name already exists, its mutable fields (target,
+  is_advanced, require_auth) are updated.
+- If no link with that name exists, a new link is created. Missing
+  `owner_email` falls back to the importing admin's email.
+- Shares are restored for newly created links.
+- Links with invalid names or targets are skipped and reported in the
+  response errors list.
+
+**Request body** — the same format produced by `GET /api/export`:
+
+```json
+{
+  "version": 1,
+  "exported_at": "2024-01-15T10:30:00Z",
+  "links": [...]
+}
+```
+
+**Response** `200 OK`
+
+```json
+{
+  "created": 5,
+  "updated": 2,
+  "skipped": 1,
+  "errors": [
+    "bad name!: link name contains invalid characters"
+  ]
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `created` | Number of new links created |
+| `updated` | Number of existing links updated |
+| `skipped` | Number of links skipped due to validation or DB errors |
+| `errors` | Human-readable error messages for each skipped link (omitted when empty) |
+
+Returns `400` for malformed JSON body, `401` if not authenticated, `403` if
+not admin.
+
+---
+
 ## Admin UI
 
 The admin web interface for managing API keys is available at:

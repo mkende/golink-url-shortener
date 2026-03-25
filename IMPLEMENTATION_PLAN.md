@@ -151,11 +151,11 @@ context and intent behind any requirement.
 
 ## Phase 8 — Import / export
 
-- [ ] JSON export: stream full DB dump (links + shares); admin only.
-- [ ] JSON import: validate + upsert; admin only; return a summary report.
-- [ ] Ensure both work via UI and API.
-- [ ] Test round-trip: export → import → export produces identical output.
-- [ ] **Commit**: `phase 8: import/export`
+- [x] JSON export: stream full DB dump (links + shares); admin only.
+- [x] JSON import: validate + upsert; admin only; return a summary report.
+- [x] Ensure both work via UI and API.
+- [x] Test round-trip: export → import → export produces identical output.
+- [x] **Commit**: `phase 8: import/export`
 
 ---
 
