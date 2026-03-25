@@ -132,20 +132,20 @@ context and intent behind any requirement.
 
 ## Phase 7 — REST API
 
-- [ ] Content-negotiate JSON vs HTML on existing routes.
-- [ ] API key authentication middleware (Bearer / `X-API-Key`).
-- [ ] Implement endpoints:
+- [x] Content-negotiate JSON vs HTML on existing routes.
+- [x] API key authentication middleware (Bearer / `X-API-Key`).
+- [x] Implement endpoints:
   - `POST /api/links` — create
   - `GET /api/links/:name` — resolve / get
   - `PATCH /api/links/:name` — update (field mask via JSON body)
   - `DELETE /api/links/:name` — delete
   - `GET /api/links` — list (paginated)
-  - `POST /api/import` — bulk import
-  - `GET /api/export` — full export
-- [ ] Admin-only: `/apikeys` page + API (`GET/POST/DELETE /api/apikeys`).
-- [ ] Write `docs/api.md` documenting every endpoint.
-- [ ] Unit/integration tests for each endpoint.
-- [ ] **Commit**: `phase 7: REST API`
+  - `POST /api/import` — bulk import (deferred to phase 8)
+  - `GET /api/export` — full export (deferred to phase 8)
+- [x] Admin-only: `/apikeys` page + API (`GET/POST/DELETE /api/apikeys`).
+- [x] Write `docs/api.md` documenting every endpoint.
+- [x] Unit/integration tests for each endpoint.
+- [x] **Commit**: `phase 7: REST API`
 
 ---
 

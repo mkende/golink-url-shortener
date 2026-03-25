@@ -103,8 +103,44 @@ func (s *Server) buildRouter() chi.Router {
 		// Help page
 		r.Get("/help", s.handleHelp)
 
-		// HTMX quick-name API
-		r.Get("/api/quickname", s.handleQuickName)
+		// Admin: API key management UI
+		r.Route("/apikeys", func(r chi.Router) {
+			r.Use(auth.RequireAuth(s.cfg))
+			r.Use(auth.RequireAdmin())
+			r.Get("/", s.handleAPIKeysPage)
+			r.Post("/", s.handleCreateAPIKey)
+			r.Post("/{id}/delete", s.handleDeleteAPIKey)
+		})
+	})
+
+	// API key middleware applied before the API sub-router so that API key
+	// bearers get an Identity before RequireAuth runs.
+	r.Group(func(r chi.Router) {
+		r.Use(serverMiddleware.DomainRedirect(s.cfg))
+		r.Use(s.APIKeyMiddleware)
+
+		// REST API — all routes require authentication (session or API key).
+		r.Route("/api", func(r chi.Router) {
+			r.Use(auth.RequireAuth(s.cfg))
+
+			// Link CRUD
+			r.Get("/links", s.handleAPIListLinks)
+			r.Post("/links", s.handleAPICreateLink)
+			r.Get("/links/{name}", s.handleAPIGetLink)
+			r.Patch("/links/{name}", s.handleAPIUpdateLink)
+			r.Delete("/links/{name}", s.handleAPIDeleteLink)
+
+			// Quick-name generator (also reachable by HTMX from the group above)
+			r.Get("/quickname", s.handleQuickName)
+
+			// API key management — admin only
+			r.Route("/apikeys", func(r chi.Router) {
+				r.Use(auth.RequireAdmin())
+				r.Get("/", s.handleAPIListAPIKeys)
+				r.Post("/", s.handleAPICreateAPIKey)
+				r.Delete("/{id}", s.handleAPIDeleteAPIKey)
+			})
+		})
 	})
 
 	return r

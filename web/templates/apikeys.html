@@ -1,0 +1,57 @@
+{{define "title"}}API Keys — {{.Title}}{{end}}
+{{define "content"}}
+<h1 class="title">API Keys</h1>
+{{if .NewKey}}
+<div class="notification is-success">
+  <p><strong>New API key created.</strong> Copy it now — it will not be shown again.</p>
+  <code>{{.NewKey}}</code>
+</div>
+{{end}}
+{{if .Error}}<div class="notification is-danger">{{.Error}}</div>{{end}}
+<div class="box">
+  <h2 class="subtitle">Create New Key</h2>
+  <form method="POST" action="/apikeys">
+    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+    <div class="field has-addons">
+      <div class="control is-expanded">
+        <input class="input" type="text" name="name" placeholder="Key description" required>
+      </div>
+      <div class="control">
+        <button class="button is-primary" type="submit">Create</button>
+      </div>
+    </div>
+  </form>
+</div>
+{{if .Keys}}
+<div class="box">
+  <table class="table is-fullwidth">
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Created By</th>
+        <th>Created At</th>
+        <th>Last Used</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+    {{range .Keys}}
+    <tr>
+      <td>{{.Name}}</td>
+      <td>{{.CreatedBy}}</td>
+      <td>{{.CreatedAt.Format "2006-01-02"}}</td>
+      <td>{{if .LastUsedAt.Valid}}{{.LastUsedAt.Time.Format "2006-01-02"}}{{else}}Never{{end}}</td>
+      <td>
+        <form method="POST" action="/apikeys/{{.ID}}/delete" style="display:inline">
+          <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
+          <button class="button is-small is-danger" type="submit"
+            onclick="return confirm('Revoke this key?')">Revoke</button>
+        </form>
+      </td>
+    </tr>
+    {{end}}
+    </tbody>
+  </table>
+</div>
+{{end}}
+{{end}}

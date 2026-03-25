@@ -23,7 +23,7 @@ type Renderer struct {
 // New parses all page templates and returns a ready Renderer.
 // Returns an error if any template fails to parse.
 func New() (*Renderer, error) {
-	pages := []string{"index", "new", "edit", "links", "mylinks", "help"}
+	pages := []string{"index", "new", "edit", "links", "mylinks", "help", "apikeys"}
 	partials := []string{"link_table.html", "pagination.html"}
 
 	baseData, err := webtemplates.FS.ReadFile("base.html")
