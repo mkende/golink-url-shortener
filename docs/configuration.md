@@ -1,0 +1,108 @@
+# Configuration Reference
+
+This document is derived from `config.template.toml`. See that file for a
+copy-pasteable template with inline comments.
+
+Pass the config file path to the server with the `-config` flag:
+
+```bash
+golink -config /etc/golink/simple.conf
+```
+
+All keys are optional unless marked **required**.
+
+---
+
+## Server
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `listen_addr` | string | `"0.0.0.0:8080"` | TCP address the HTTP server binds to (host:port). |
+| `canonical_domain` | string | — | **Required.** Public hostname for this instance (no scheme), e.g. `"go.example.com"`. Used to build redirect URLs, enforce HTTPS redirects, and construct OIDC callback URLs. |
+| `title` | string | `"GoLink"` | Human-readable product name shown in the browser title and navigation bar. |
+| `favicon_path` | string | `""` | Filesystem path to a custom favicon file (ICO, PNG, or SVG). Empty string uses the built-in default. |
+
+---
+
+## Authentication
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `require_auth_for_redirects` | bool | `false` | When `true`, unauthenticated users cannot follow any redirect and are sent to the login page instead. |
+
+### `[tailscale]` — Tailscale header-based auth
+
+Enable this when golink-redirector sits behind a Tailscale node that injects `Tailscale-User-*` headers. No additional credentials are needed.
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `tailscale.enabled` | bool | `false` | Enable Tailscale header-based authentication. |
+
+### `[oidc]` — OpenID Connect auth
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `oidc.enabled` | bool | `false` | Enable OIDC authentication. |
+| `oidc.issuer` | string | `""` | OIDC provider issuer URL, e.g. `"https://accounts.google.com"`. Must match the `iss` claim in tokens. |
+| `oidc.client_id` | string | `""` | OAuth2 client identifier issued by the provider. |
+| `oidc.client_secret` | string | `""` | OAuth2 client secret. Keep this confidential. |
+| `oidc.redirect_url` | string | `""` | Full callback URL the provider will redirect to after authentication, e.g. `"https://go.example.com/auth/callback"`. Must be registered with the provider. |
+| `oidc.scopes` | []string | `["openid","email","profile"]` | OAuth2 scopes to request from the provider. |
+| `oidc.groups_claim` | string | `"groups"` | Name of the JWT/userinfo claim that contains the user's group memberships. Used for group-based sharing and `admin_group`. |
+| `oidc.jwt_secret` | string | `""` | **Required when `oidc.enabled = true`.** HMAC secret used to sign session JWT cookies. Use a long random string (at least 32 bytes). Generate one with `openssl rand -base64 32`. |
+
+---
+
+## Database
+
+### `[db]`
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `db.driver` | string | `"sqlite"` | Database backend. Valid values: `"sqlite"`, `"postgres"`. |
+| `db.dsn` | string | `"golink.db"` | Data source name / connection string. For SQLite: a file path (relative or absolute); the file is created if it does not exist. For PostgreSQL: a standard libpq connection string, e.g. `"host=localhost port=5432 dbname=golink user=golink password=secret sslmode=require"`. |
+
+---
+
+## Links
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `quick_link_length` | int | `6` | Number of characters in a randomly-generated quick-link name. Must be `>= 4`. |
+| `default_domain` | string | `""` | Domain appended to bare email addresses (without `@`) when resolving link share targets. For example, with `default_domain = "example.com"` sharing with `"alice"` is treated as `"alice@example.com"`. Disabled when empty. |
+| `required_domain` | string | `""` | If set, link sharing is restricted to addresses in this domain only. Attempts to share outside this domain are rejected. Disabled when empty. |
+
+---
+
+## Performance
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `cache_size` | int | `1000` | Maximum number of links kept in the in-process LRU redirect cache. Hot links are served from memory without a database round-trip. Increase for workloads with many distinct popular links. |
+
+---
+
+## Admin
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `admin_emails` | []string | `[]` | Email addresses of users who have full admin privileges. Admins can manage API keys and run import/export operations. Example: `["alice@example.com", "bob@example.com"]`. |
+| `admin_group` | string | `""` | OIDC group name whose members are treated as admins. Requires `oidc.enabled = true` and a correctly configured `oidc.groups_claim`. |
+
+---
+
+## Minimal example
+
+```toml
+canonical_domain = "go.example.com"
+
+[oidc]
+enabled      = true
+issuer       = "https://auth.example.com"
+client_id    = "golink"
+client_secret = "secret"
+redirect_url = "https://go.example.com/auth/callback"
+jwt_secret   = "replace-with-a-32-byte-random-string"
+
+admin_emails = ["alice@example.com"]
+```

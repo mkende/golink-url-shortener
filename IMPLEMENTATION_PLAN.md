@@ -173,13 +173,13 @@ context and intent behind any requirement.
 
 ## Phase 10 — Documentation
 
-- [ ] Complete `README.md` (overview, features, quick-start).
-- [ ] Write `docs/deployment.md` (bare metal, Docker, Compose, Kubernetes).
-- [ ] Write (or auto-generate) `docs/configuration.md` from
+- [x] Complete `README.md` (overview, features, quick-start).
+- [x] Write `docs/deployment.md` (bare metal, Docker, Compose, Kubernetes).
+- [x] Write (or auto-generate) `docs/configuration.md` from
   `config.template.toml`.
-- [ ] Write `docs/links.md` (redirect pattern help); reuse as `/help` page.
-- [ ] Verify all doc links and code examples are correct.
-- [ ] **Commit**: `phase 10: documentation`
+- [x] Write `docs/links.md` (redirect pattern help); reuse as `/help` page.
+- [x] Verify all doc links and code examples are correct.
+- [x] **Commit**: `phase 10: documentation`
 
 ---
 
