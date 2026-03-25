@@ -2,11 +2,13 @@
 {{define "title"}}All Links — {{.Title}}{{end}}
 {{define "content"}}
 <h1 class="title">All Links</h1>
-<div class="field has-addons">
-  <div class="control is-expanded">
-    <input class="input" type="search" placeholder="Search links..."
+<div class="field">
+  <label class="label" for="search-links">Search</label>
+  <div class="control">
+    <input id="search-links" class="input" type="search" placeholder="Search links..."
       hx-get="/links" hx-target="#links-table" hx-swap="innerHTML"
-      hx-trigger="input changed delay:300ms" name="q" value="{{.Query}}">
+      hx-trigger="input changed delay:300ms" name="q" value="{{.Query}}"
+      aria-label="Search links">
   </div>
 </div>
 <div id="links-table">

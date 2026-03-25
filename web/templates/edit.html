@@ -10,9 +10,9 @@
 <form method="POST" action="/edit/{{.Link.Name}}">
   <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
   <div class="field">
-    <label class="label">Target URL</label>
+    <label class="label" for="target">Target URL</label>
     <div class="control">
-      <input class="input" type="url" name="target" value="{{.Link.Target}}" required>
+      <input id="target" class="input" type="url" name="target" value="{{.Link.Target}}" required>
     </div>
   </div>
   <div class="field">
@@ -37,10 +37,11 @@
   <h2 class="subtitle">Sharing</h2>
   <form method="POST" action="/edit/{{.Link.Name}}/share">
     <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+    <label class="label" for="share-email">Share with</label>
     <div class="field has-addons">
       <div class="control is-expanded">
-        <input class="input" type="email" name="email" placeholder="user@example.com"
-          list="known-users">
+        <input id="share-email" class="input" type="email" name="email" placeholder="user@example.com"
+          list="known-users" aria-label="Email address to share with">
         <datalist id="known-users">
           {{range .KnownUsers}}<option value="{{.Email}}">{{.DisplayName}}</option>{{end}}
         </datalist>

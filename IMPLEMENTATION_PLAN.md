@@ -211,9 +211,9 @@ context and intent behind any requirement.
 
 ## Phase 13 — Polish & release prep
 
-- [ ] Final pass on all HTML templates: accessibility, mobile layout.
-- [ ] Default favicon embedded in binary.
-- [ ] Verify `config.template.toml` is complete and matches the live Config
+- [x] Final pass on all HTML templates: accessibility, mobile layout.
+- [x] Default favicon embedded in binary.
+- [x] Verify `config.template.toml` is complete and matches the live Config
   struct.
 - [ ] Tag `v0.1.0` once all phases are complete and CI is green.
 

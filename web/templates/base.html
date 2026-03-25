@@ -6,14 +6,19 @@
     <title>{{block "title" .}}{{.Title}}{{end}}</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.4/css/bulma.min.css">
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
-    {{if .FaviconPath}}<link rel="icon" href="/static/favicon.ico">{{end}}
+    <link rel="icon" type="image/svg+xml" href="/favicon.ico">
 </head>
 <body>
-<nav class="navbar is-link" role="navigation">
+<nav class="navbar is-link" role="navigation" aria-label="main navigation">
   <div class="navbar-brand">
     <a class="navbar-item has-text-weight-bold" href="/">{{.Title}}</a>
+    <a role="button" class="navbar-burger" aria-label="menu" aria-expanded="false" data-target="navbarMenu">
+      <span aria-hidden="true"></span>
+      <span aria-hidden="true"></span>
+      <span aria-hidden="true"></span>
+    </a>
   </div>
-  <div class="navbar-menu">
+  <div id="navbarMenu" class="navbar-menu">
     <div class="navbar-end">
       <a class="navbar-item" href="/links">All Links</a>
       {{if .Identity}}
@@ -26,6 +31,19 @@
     </div>
   </div>
 </nav>
+<script>
+  document.addEventListener('DOMContentLoaded', function () {
+    var burgers = document.querySelectorAll('.navbar-burger');
+    burgers.forEach(function (burger) {
+      burger.addEventListener('click', function () {
+        var target = document.getElementById(burger.dataset.target);
+        burger.classList.toggle('is-active');
+        burger.setAttribute('aria-expanded', burger.classList.contains('is-active'));
+        if (target) { target.classList.toggle('is-active'); }
+      });
+    });
+  });
+</script>
 <section class="section">
   <div class="container">
     {{block "content" .}}{{end}}

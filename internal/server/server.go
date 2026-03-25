@@ -6,6 +6,8 @@ import (
 	"database/sql"
 	"log/slog"
 	"net/http"
+	"os"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -15,6 +17,7 @@ import (
 	"github.com/mkende/golink-redirector/internal/db"
 	serverMiddleware "github.com/mkende/golink-redirector/internal/server/middleware"
 	"github.com/mkende/golink-redirector/internal/templates"
+	"github.com/mkende/golink-redirector/web/static"
 )
 
 // Server is the root HTTP handler. It implements http.Handler via ServeHTTP.
@@ -88,6 +91,9 @@ func (s *Server) buildRouter() chi.Router {
 	// Auth middleware: populate identity context from Tailscale headers or JWT cookie
 	r.Use(auth.TailscaleMiddleware(s.cfg, s.users))
 	r.Use(auth.OIDCMiddleware(s.cfg))
+
+	// Favicon — served before domain redirect so browsers always get it.
+	r.Get("/favicon.ico", s.handleFavicon)
 
 	// Health check (no domain redirect)
 	r.Get("/healthz", s.handleHealthz)
@@ -181,4 +187,44 @@ func (s *Server) handleHealthz(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/plain")
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte("ok")) //nolint:errcheck
+}
+
+// handleFavicon serves the favicon. When the operator has configured a custom
+// favicon_path the file at that path is read from disk; otherwise the embedded
+// default SVG favicon is served.
+func (s *Server) handleFavicon(w http.ResponseWriter, r *http.Request) {
+	var data []byte
+	var contentType string
+
+	if s.cfg.FaviconPath != "" {
+		fileData, err := os.ReadFile(s.cfg.FaviconPath)
+		if err != nil {
+			s.logger.Error("favicon: read custom file", "path", s.cfg.FaviconPath, "error", err)
+			http.NotFound(w, r)
+			return
+		}
+		data = fileData
+		// Determine content type from extension.
+		switch {
+		case strings.HasSuffix(s.cfg.FaviconPath, ".svg"):
+			contentType = "image/svg+xml"
+		case strings.HasSuffix(s.cfg.FaviconPath, ".png"):
+			contentType = "image/png"
+		default:
+			contentType = "image/x-icon"
+		}
+	} else {
+		fileData, err := static.FS.ReadFile("favicon.svg")
+		if err != nil {
+			s.logger.Error("favicon: read embedded file", "error", err)
+			http.NotFound(w, r)
+			return
+		}
+		data = fileData
+		contentType = "image/svg+xml"
+	}
+
+	w.Header().Set("Content-Type", contentType)
+	w.Header().Set("Cache-Control", "public, max-age=86400")
+	w.Write(data) //nolint:errcheck
 }
