@@ -72,6 +72,11 @@ scopes = ["openid", "email", "profile"]
 # Default: "groups"
 groups_claim = "groups"
 
+# REQUIRED when oidc.enabled = true.
+# HMAC secret used to sign session JWT cookies. Use a long random string
+# (at least 32 bytes). Generate one with: openssl rand -base64 32
+jwt_secret = ""
+
 # ─── Database ─────────────────────────────────────────────────────────────────
 [db]
 # Database backend to use.

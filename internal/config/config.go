@@ -33,6 +33,9 @@ type OIDCConfig struct {
 	// GroupsClaim is the JWT claim name that contains group memberships.
 	// Defaults to "groups".
 	GroupsClaim string `toml:"groups_claim"`
+	// JWTSecret is the HMAC secret used to sign and verify session JWT cookies.
+	// Required when OIDC is enabled. Use a long random string (>= 32 bytes).
+	JWTSecret string `toml:"jwt_secret"`
 }
 
 // DBConfig holds database connection settings.
@@ -136,6 +139,9 @@ func validate(c *Config) error {
 		// valid
 	default:
 		return fmt.Errorf("db.driver must be \"sqlite\" or \"postgres\", got %q", c.DB.Driver)
+	}
+	if c.OIDC.Enabled && c.OIDC.JWTSecret == "" {
+		return errors.New("oidc.jwt_secret is required when OIDC is enabled")
 	}
 	return nil
 }

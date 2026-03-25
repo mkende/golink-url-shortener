@@ -4,9 +4,11 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/mkende/golink-redirector/internal/auth"
 	"github.com/mkende/golink-redirector/internal/db"
 	"github.com/mkende/golink-redirector/internal/redirect"
 )
@@ -29,6 +31,32 @@ func (s *Server) handleRedirect(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Per-link auth enforcement
+	id := auth.FromContext(r.Context())
+	if link.RequireAuth && id == nil {
+		loginURL := "/auth/login?rd=" + url.QueryEscape(r.URL.RequestURI())
+		if s.cfg.OIDC.Enabled && s.cfg.CanonicalDomain != "" {
+			loginURL = "https://" + s.cfg.CanonicalDomain + loginURL
+		}
+		http.Redirect(w, r, loginURL, http.StatusFound)
+		return
+	}
+
+	// Global require_auth_for_redirects enforcement
+	if s.cfg.RequireAuthForRedirects && id == nil {
+		loginURL := "/auth/login?rd=" + url.QueryEscape(r.URL.RequestURI())
+		if s.cfg.OIDC.Enabled && s.cfg.CanonicalDomain != "" {
+			loginURL = "https://" + s.cfg.CanonicalDomain + loginURL
+		}
+		http.Redirect(w, r, loginURL, http.StatusFound)
+		return
+	}
+
+	email := ""
+	if id != nil {
+		email = id.Email
+	}
+
 	var targetURL string
 	if link.IsAdvanced {
 		vars := redirect.TemplateVars{
@@ -36,7 +64,7 @@ func (s *Server) handleRedirect(w http.ResponseWriter, r *http.Request) {
 			Parts: splitPath(suffix),
 			Args:  splitArgs(r.URL.RawQuery),
 			UA:    r.UserAgent(),
-			Email: "", // auth not implemented yet
+			Email: email,
 		}
 		targetURL, err = redirect.ResolveAdvanced(link.Target, vars)
 	} else {

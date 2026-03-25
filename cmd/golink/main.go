@@ -11,6 +11,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/mkende/golink-redirector/internal/auth"
 	"github.com/mkende/golink-redirector/internal/config"
 	"github.com/mkende/golink-redirector/internal/db"
 	"github.com/mkende/golink-redirector/internal/server"
@@ -37,7 +38,18 @@ func main() {
 	}
 	defer sqlDB.Close()
 
-	srv := server.New(cfg, sqlDB, logger)
+	// Initialise OIDC handler only when OIDC is enabled.
+	var oidcHandler *auth.OIDCHandler
+	if cfg.OIDC.Enabled {
+		userRepo := db.NewUserRepo(sqlDB)
+		oidcHandler, err = auth.NewOIDCHandler(ctx, cfg, userRepo)
+		if err != nil {
+			logger.Error("failed to initialise OIDC provider", "error", err)
+			os.Exit(1)
+		}
+	}
+
+	srv := server.New(cfg, sqlDB, logger, oidcHandler)
 
 	httpSrv := &http.Server{
 		Addr:         cfg.ListenAddr,

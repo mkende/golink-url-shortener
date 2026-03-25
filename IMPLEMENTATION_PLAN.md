@@ -95,20 +95,20 @@ context and intent behind any requirement.
 
 ## Phase 5 — Authentication
 
-- [ ] Tailscale auth: read `Tailscale-User-*` headers; populate request
+- [x] Tailscale auth: read `Tailscale-User-*` headers; populate request
   context with user identity.
-- [ ] OIDC auth (`coreos/go-oidc` v3 + `golang.org/x/oauth2`): implement
+- [x] OIDC auth (`coreos/go-oidc` v3 + `golang.org/x/oauth2`): implement
   login/callback/logout routes; issue a signed JWT (`golang-jwt/jwt` v5)
   stored in a `Secure`/`HttpOnly`/`SameSite=Lax` cookie; fetch `email`,
   `name`, `picture`, `groups` claims.
-- [ ] Auth middleware: attach identity to context; enforce
+- [x] Auth middleware: attach identity to context; enforce
   `require_auth_for_redirects` when configured.
-- [ ] `require_auth` per-link enforcement (redirect to auth first using
+- [x] `require_auth` per-link enforcement (redirect to auth first using
   canonical domain if OIDC).
-- [ ] Upsert user record on successful auth.
-- [ ] Unit-test Tailscale header parsing; integration-test OIDC flow with a
+- [x] Upsert user record on successful auth.
+- [x] Unit-test Tailscale header parsing; integration-test OIDC flow with a
   mock provider.
-- [ ] **Commit**: `phase 5: authentication`
+- [x] **Commit**: `phase 5: authentication`
 
 ---
 
