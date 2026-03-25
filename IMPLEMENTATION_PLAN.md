@@ -47,9 +47,6 @@ where applicable, passing tests. Complete phases in order; do not skip ahead.
 
 ## Phase 2 — Database layer
 
-> **Confirmed choices**: `database/sql` + `sqlc` for type-safe generated
-> queries; `chi` for the HTTP router.
-
 - [ ] Define schema for:
   - `links` (id, name, name_lower, target, owner_email, is_advanced,
     require_auth, created_at, last_used_at, use_count)
@@ -57,8 +54,8 @@ where applicable, passing tests. Complete phases in order; do not skip ahead.
   - `users` (email, display_name, avatar_url, last_seen_at)
   - `groups` (email/name, source) + `group_members`
   - `api_keys` (id, name, key_hash, created_by, created_at, last_used_at)
-- [ ] Implement schema migrations (simple versioned SQL files or embedded
-  migrate library).
+- [ ] Implement schema migrations via `golang-migrate/migrate` with embedded
+  versioned `.sql` files (`internal/db/migrations/`).
 - [ ] Repository interfaces + implementations:
   - `LinkRepo`: Create, Get, Update, Delete, List (paginated + sorted),
     Search, IncrementUseCount (async/buffered — see scalability note).
@@ -98,8 +95,10 @@ where applicable, passing tests. Complete phases in order; do not skip ahead.
 
 - [ ] Tailscale auth: read `Tailscale-User-*` headers; populate request
   context with user identity.
-- [ ] OIDC auth: implement login/callback/logout routes; store session in
-  signed cookie; fetch `email`, `name`, `picture`, `groups` claims.
+- [ ] OIDC auth (`coreos/go-oidc` v3 + `golang.org/x/oauth2`): implement
+  login/callback/logout routes; issue a signed JWT (`golang-jwt/jwt` v5)
+  stored in a `Secure`/`HttpOnly`/`SameSite=Lax` cookie; fetch `email`,
+  `name`, `picture`, `groups` claims.
 - [ ] Auth middleware: attach identity to context; enforce
   `require_auth_for_redirects` when configured.
 - [ ] `require_auth` per-link enforcement (redirect to auth first using
@@ -113,7 +112,7 @@ where applicable, passing tests. Complete phases in order; do not skip ahead.
 
 ## Phase 6 — Link management UI
 
-- [ ] HTML templates (server-side rendered):
+- [ ] HTML templates (server-side `html/template` + HTMX + Bulma CSS):
   - Landing page: quick-create button, search box, recent links (owner),
     popular links.
   - `/new` — create link form (name, target, is_advanced, require_auth).

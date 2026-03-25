@@ -17,11 +17,15 @@ redirects, a REST API, import/export, and full deployment documentation.
 ## Architecture constraints
 
 - **Language**: Go. No polyglot backend.
-- **Database library**: `database/sql` + `sqlc` (type-safe generated code).
+- **Database**: SQLite by default; optional PostgreSQL. Never load the entire
+  links or users table into memory.
+- **Database library**: `database/sql` + `sqlc` (type-safe generated queries).
+- **Migrations**: `golang-migrate/migrate` with embedded versioned `.sql` files.
 - **HTTP router**: `chi` (lightweight, idiomatic, `net/http`-compatible).
-- **Database**: SQLite by default; optional PostgreSQL (and any DB supported by
-  the chosen ORM/driver with minimal effort). Never load the entire links or
-  users table into memory.
+- **Frontend**: server-side `html/template` + HTMX + Bulma CSS (no build step).
+- **Sessions**: stateless JWT via `golang-jwt/jwt` v5; stored in a `Secure`,
+  `HttpOnly`, `SameSite=Lax` cookie.
+- **OIDC**: `coreos/go-oidc` v3 + `golang.org/x/oauth2`.
 - **Configuration**: single `simple.conf` file in TOML format. A fully
   documented template file must exist at `config.template.toml`.
 - **Auth**: two independent optional modes — Tailscale header-based and OIDC.
@@ -100,11 +104,8 @@ Random name of configurable length (default 6), lowercase letters + digits.
 ## When to ask before acting
 
 **Always ask** the owner before making a choice in any of these areas:
-- Frontend approach (plain HTML + templates vs. a JS build step)
-- Session/cookie library
-- OIDC library
-- Any schema migration strategy
 - Any change that affects the public API shape or config file format
+- Any new external dependency not already listed in Architecture constraints
 
 For everything else you may proceed, but document your choice briefly in the
 commit message.
