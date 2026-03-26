@@ -38,8 +38,8 @@ func (r *CachingLinkRepo) GetByName(ctx context.Context, nameLower string) (*Lin
 }
 
 // Create delegates to the inner repo and adds the resulting link to the cache.
-func (r *CachingLinkRepo) Create(ctx context.Context, name, target, ownerEmail string, isAdvanced, requireAuth bool) (*Link, error) {
-	link, err := r.inner.Create(ctx, name, target, ownerEmail, isAdvanced, requireAuth)
+func (r *CachingLinkRepo) Create(ctx context.Context, name, target, ownerEmail string, linkType LinkType, aliasTarget string, requireAuth bool) (*Link, error) {
+	link, err := r.inner.Create(ctx, name, target, ownerEmail, linkType, aliasTarget, requireAuth)
 	if err == nil {
 		r.cache.Add(link.NameLower, link)
 	}
@@ -48,10 +48,20 @@ func (r *CachingLinkRepo) Create(ctx context.Context, name, target, ownerEmail s
 
 // Update delegates to the inner repo and removes the stale cache entry so the
 // next GetByName call reads fresh data from the database.
-func (r *CachingLinkRepo) Update(ctx context.Context, id int64, name, target string, isAdvanced, requireAuth bool) (*Link, error) {
-	link, err := r.inner.Update(ctx, id, name, target, isAdvanced, requireAuth)
+func (r *CachingLinkRepo) Update(ctx context.Context, id int64, name, target string, linkType LinkType, requireAuth bool) (*Link, error) {
+	link, err := r.inner.Update(ctx, id, name, target, linkType, requireAuth)
 	if err == nil {
 		r.cache.Remove(link.NameLower)
+	}
+	return link, err
+}
+
+// SetAlias delegates to the inner repo and purges the entire cache because
+// multiple alias and canonical link entries may become stale simultaneously.
+func (r *CachingLinkRepo) SetAlias(ctx context.Context, id int64, name, aliasTargetLower string, requireAuth bool, maxAliases int) (*Link, error) {
+	link, err := r.inner.SetAlias(ctx, id, name, aliasTargetLower, requireAuth, maxAliases)
+	if err == nil {
+		r.cache.Purge()
 	}
 	return link, err
 }
@@ -103,4 +113,14 @@ func (r *CachingLinkRepo) RemoveShare(ctx context.Context, linkID int64, email s
 // LinkRepo interface.
 func (r *CachingLinkRepo) IncrementUseCount(ctx context.Context, id int64) error {
 	return r.inner.IncrementUseCount(ctx, id)
+}
+
+// GetAliases delegates to the inner repo without caching.
+func (r *CachingLinkRepo) GetAliases(ctx context.Context, nameLower string) ([]*Link, error) {
+	return r.inner.GetAliases(ctx, nameLower)
+}
+
+// CountAliases delegates to the inner repo without caching.
+func (r *CachingLinkRepo) CountAliases(ctx context.Context, nameLower string) (int, error) {
+	return r.inner.CountAliases(ctx, nameLower)
 }

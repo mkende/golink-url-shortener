@@ -1,0 +1,300 @@
+{{template "base.html" .}}
+{{define "title"}}{{.Link.Name}} — {{.Title}}{{end}}
+{{define "content"}}
+<h1 class="title">
+  Link: {{.Link.Name}}
+  {{if .Link.IsAlias}}<span class="tag is-info is-medium">alias</span>{{end}}
+  {{if .Link.IsAdvanced}}<span class="tag is-warning is-medium">advanced</span>{{end}}
+</h1>
+{{if .Error}}<div class="notification is-danger">{{.Error}}</div>{{end}}
+{{if .Success}}<div class="notification is-success">{{.Success}}</div>{{end}}
+
+<div class="columns">
+<div class="column is-half">
+
+{{if .Link.IsAlias}}
+{{/* ── Alias link info ── */}}
+<div class="box">
+  <h2 class="subtitle">Alias Details</h2>
+  <div class="field">
+    <label class="label">Canonical Link</label>
+    <div class="control">
+      <span class="is-size-5">
+        {{if .CanonicalLink}}
+          <a href="/details/{{.CanonicalLink.Name}}">{{.CanonicalLink.Name}}</a>
+          &nbsp;—&nbsp;
+          <a href="{{.CanonicalLink.Target}}" class="has-text-grey">{{.CanonicalLink.Target}}</a>
+        {{else}}
+          <span class="has-text-danger">{{.Link.AliasTarget}} (target not found)</span>
+        {{end}}
+      </span>
+    </div>
+  </div>
+  <div class="field">
+    <label class="label">Stats</label>
+    <div class="content">
+      <ul>
+        <li>Use count: <strong>{{.Link.UseCount}}</strong></li>
+        {{if .Link.LastUsedAt.Valid}}<li>Last used: <strong>{{.Link.LastUsedAt.Time.Format "2006-01-02 15:04 UTC"}}</strong></li>{{end}}
+        <li>Created: <strong>{{.Link.CreatedAt.Format "2006-01-02"}}</strong></li>
+        <li>Owner: <strong>{{.Link.OwnerEmail}}</strong></li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+{{if .CanEdit}}
+<div class="box">
+  <h2 class="subtitle">Edit Alias</h2>
+  <form method="POST" action="/details/{{.Link.Name}}">
+    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+    <input type="hidden" name="link_type" value="alias">
+    <div class="field">
+      <label class="label" for="alias_target">Canonical Link Name</label>
+      <div class="control">
+        <input id="alias_target" class="input" type="text" name="alias_target"
+          value="{{.Link.AliasTarget}}" required
+          placeholder="canonical-link-name">
+      </div>
+      <p class="help">Enter the name of the link this alias should point to.</p>
+    </div>
+    <div class="field">
+      <label class="checkbox">
+        <input type="checkbox" name="require_auth" {{if .Link.RequireAuth}}checked{{end}}> Require authentication
+      </label>
+    </div>
+    <div class="field">
+      <div class="control">
+        <button class="button is-primary" type="submit">Save</button>
+        <a class="button" href="/">Cancel</a>
+      </div>
+    </div>
+  </form>
+</div>
+
+<div class="box">
+  <h2 class="subtitle">Sharing</h2>
+  <form method="POST" action="/details/{{.Link.Name}}/share">
+    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+    <label class="label" for="share-email">Share with</label>
+    <div class="field has-addons">
+      <div class="control is-expanded">
+        <input id="share-email" class="input" type="email" name="email" placeholder="user@example.com"
+          list="known-users" aria-label="Email address to share with">
+        <datalist id="known-users">
+          {{range .KnownUsers}}<option value="{{.Email}}">{{.DisplayName}}</option>{{end}}
+        </datalist>
+      </div>
+      <div class="control">
+        <button class="button is-link" type="submit">Share</button>
+      </div>
+    </div>
+  </form>
+  {{if .Shares}}
+  <table class="table is-fullwidth">
+    <tbody>
+    {{range .Shares}}
+    <tr>
+      <td>{{.}}</td>
+      <td>
+        <form method="POST" action="/details/{{$.Link.Name}}/unshare" style="display:inline">
+          <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
+          <input type="hidden" name="email" value="{{.}}">
+          <button class="button is-small is-danger" type="submit">Remove</button>
+        </form>
+      </td>
+    </tr>
+    {{end}}
+    </tbody>
+  </table>
+  {{end}}
+</div>
+
+<div class="box">
+  <form method="POST" action="/details/{{.Link.Name}}/delete">
+    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+    <button class="button is-danger" type="submit"
+      onclick="return confirm('Delete this alias?')">Delete Alias</button>
+  </form>
+</div>
+{{end}}{{/* end CanEdit for alias */}}
+
+{{else}}
+{{/* ── Non-alias link ── */}}
+<div class="box">
+  <h2 class="subtitle">Link Info</h2>
+  <div class="field">
+    <label class="label">Target URL</label>
+    <div class="control">
+      <a href="{{.Link.Target}}">{{.Link.Target}}</a>
+    </div>
+  </div>
+  <div class="field">
+    <label class="label">Stats</label>
+    <div class="content">
+      <ul>
+        <li>Use count: <strong>{{.Link.UseCount}}</strong></li>
+        {{if .Link.LastUsedAt.Valid}}<li>Last used: <strong>{{.Link.LastUsedAt.Time.Format "2006-01-02 15:04 UTC"}}</strong></li>{{end}}
+        <li>Created: <strong>{{.Link.CreatedAt.Format "2006-01-02"}}</strong></li>
+        <li>Owner: <strong>{{.Link.OwnerEmail}}</strong></li>
+        <li>Type: <strong>{{if .Link.IsAdvanced}}Advanced (Go template){{else}}Simple{{end}}</strong></li>
+        {{if .Link.RequireAuth}}<li><span class="tag is-warning">Requires authentication</span></li>{{end}}
+      </ul>
+    </div>
+  </div>
+</div>
+
+{{if .CanEdit}}
+<div class="box">
+  <h2 class="subtitle">Edit Link</h2>
+  <form method="POST" action="/details/{{.Link.Name}}" id="details-form">
+    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+    <div class="field">
+      <label class="label">Link Type</label>
+      <div class="control">
+        <div class="select">
+          <select name="link_type" id="link-type-select" onchange="updateLinkTypeFields()">
+            <option value="simple"  {{if .Link.IsSimple}}selected{{end}}>Simple URL</option>
+            <option value="advanced"{{if .Link.IsAdvanced}}selected{{end}}>Advanced (Go template)</option>
+            <option value="alias">Alias of another link</option>
+          </select>
+        </div>
+      </div>
+    </div>
+    <div id="target-field" class="field">
+      <label class="label" for="target">Target URL</label>
+      <div class="control">
+        <input id="target" class="input" type="url" name="target" value="{{.Link.Target}}">
+      </div>
+    </div>
+    <div id="alias-target-field" class="field" style="display:none">
+      <label class="label" for="alias_target">Canonical Link Name</label>
+      <div class="control">
+        <input id="alias_target" class="input" type="text" name="alias_target"
+          placeholder="canonical-link-name">
+      </div>
+      <p class="help">Enter the name of the link this alias should redirect through.
+        <strong>Warning:</strong> converting this link to an alias will reparent
+        all of its current aliases to the new target.
+      </p>
+    </div>
+    <div class="field">
+      <label class="checkbox">
+        <input type="checkbox" name="require_auth" {{if .Link.RequireAuth}}checked{{end}}> Require authentication
+      </label>
+    </div>
+    <div class="field">
+      <div class="control">
+        <button class="button is-primary" type="submit">Save</button>
+        <a class="button" href="/">Cancel</a>
+      </div>
+    </div>
+  </form>
+  <script>
+    function updateLinkTypeFields() {
+      var t = document.getElementById('link-type-select').value;
+      document.getElementById('target-field').style.display = (t !== 'alias') ? '' : 'none';
+      document.getElementById('alias-target-field').style.display = (t === 'alias') ? '' : 'none';
+    }
+  </script>
+</div>
+
+<div class="box">
+  <h2 class="subtitle">Sharing</h2>
+  <form method="POST" action="/details/{{.Link.Name}}/share">
+    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+    <label class="label" for="share-email">Share with</label>
+    <div class="field has-addons">
+      <div class="control is-expanded">
+        <input id="share-email" class="input" type="email" name="email" placeholder="user@example.com"
+          list="known-users" aria-label="Email address to share with">
+        <datalist id="known-users">
+          {{range .KnownUsers}}<option value="{{.Email}}">{{.DisplayName}}</option>{{end}}
+        </datalist>
+      </div>
+      <div class="control">
+        <button class="button is-link" type="submit">Share</button>
+      </div>
+    </div>
+  </form>
+  {{if .Shares}}
+  <table class="table is-fullwidth">
+    <tbody>
+    {{range .Shares}}
+    <tr>
+      <td>{{.}}</td>
+      <td>
+        <form method="POST" action="/details/{{$.Link.Name}}/unshare" style="display:inline">
+          <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
+          <input type="hidden" name="email" value="{{.}}">
+          <button class="button is-small is-danger" type="submit">Remove</button>
+        </form>
+      </td>
+    </tr>
+    {{end}}
+    </tbody>
+  </table>
+  {{end}}
+</div>
+
+<div class="box">
+  <form method="POST" action="/details/{{.Link.Name}}/delete">
+    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+    <button class="button is-danger" type="submit"
+      onclick="return confirm('Delete this link?')">Delete Link</button>
+  </form>
+</div>
+{{end}}{{/* end CanEdit for non-alias */}}
+
+</div>{{/* end left column */}}
+
+<div class="column">
+  {{/* Aliases section — only shown for non-alias links */}}
+  <div class="box">
+    <h2 class="subtitle">Aliases</h2>
+    {{if .Aliases}}
+    <table class="table is-fullwidth is-striped is-hoverable">
+      <thead>
+        <tr><th>Alias Name</th><th>Uses</th><th>Last Used</th><th>Owner</th><th></th></tr>
+      </thead>
+      <tbody>
+      {{range .Aliases}}
+      <tr>
+        <td><a href="/{{.Name}}">{{.Name}}</a></td>
+        <td>{{.UseCount}}</td>
+        <td>{{if .LastUsedAt.Valid}}{{.LastUsedAt.Time.Format "2006-01-02"}}{{else}}—{{end}}</td>
+        <td>{{.OwnerEmail}}</td>
+        <td><a href="/details/{{.Name}}" class="button is-small is-info">Details</a></td>
+      </tr>
+      {{end}}
+      </tbody>
+    </table>
+    {{else}}
+    <p class="has-text-grey">No aliases yet.</p>
+    {{end}}
+
+    {{/* Any logged-in user can create an alias */}}
+    {{if .Identity}}
+    <hr>
+    <p class="is-size-6 has-text-weight-semibold">Create a new alias</p>
+    <form method="POST" action="/details/{{.Link.Name}}/alias">
+      <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+      <div class="field has-addons">
+        <div class="control is-expanded">
+          <input class="input" type="text" name="alias_name" placeholder="alias-name" required
+            aria-label="Alias link name">
+        </div>
+        <div class="control">
+          <button class="button is-info" type="submit">Create Alias</button>
+        </div>
+      </div>
+      <p class="help">The alias will redirect through this link using the same target and template logic.</p>
+    </form>
+    {{end}}
+  </div>
+</div>{{/* end right column */}}
+
+{{end}}{{/* end non-alias block */}}
+
+</div>{{/* end columns */}}
+{{end}}

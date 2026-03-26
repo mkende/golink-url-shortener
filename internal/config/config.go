@@ -100,6 +100,10 @@ type Config struct {
 	// redirect cache. Increasing this reduces database reads on the hot path.
 	// Defaults to 1000.
 	CacheSize int `toml:"cache_size"`
+
+	// MaxAliasesPerLink is the maximum number of alias links that may target
+	// any single canonical link.  Defaults to 100.
+	MaxAliasesPerLink int `toml:"max_aliases_per_link"`
 }
 
 // applyDefaults fills in zero-value fields with their documented defaults.
@@ -127,6 +131,9 @@ func applyDefaults(c *Config) {
 	}
 	if c.CacheSize == 0 {
 		c.CacheSize = 1000
+	}
+	if c.MaxAliasesPerLink == 0 {
+		c.MaxAliasesPerLink = 100
 	}
 }
 

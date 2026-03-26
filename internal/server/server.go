@@ -122,12 +122,16 @@ func (s *Server) buildRouter() chi.Router {
 		r.Get("/new", s.handleNew)
 		r.Post("/new", s.handleNew)
 
-		// Link editing
-		r.Get("/edit/{name}", s.handleEdit)
-		r.Post("/edit/{name}", s.handleEdit)
-		r.Post("/edit/{name}/share", s.handleEditShare)
-		r.Post("/edit/{name}/unshare", s.handleEditUnshare)
-		r.Post("/edit/{name}/delete", s.handleEditDelete)
+		// Link details (view + edit); /edit/{name} redirects for backward compat
+		r.Get("/details/{name}", s.handleDetails)
+		r.Post("/details/{name}", s.handleDetails)
+		r.Post("/details/{name}/share", s.handleDetailsShare)
+		r.Post("/details/{name}/unshare", s.handleDetailsUnshare)
+		r.Post("/details/{name}/delete", s.handleDetailsDelete)
+		r.Post("/details/{name}/alias", s.handleCreateAlias)
+		r.Get("/edit/{name}", func(w http.ResponseWriter, r *http.Request) {
+			http.Redirect(w, r, "/details/"+chi.URLParam(r, "name"), http.StatusMovedPermanently)
+		})
 
 		// Link browsing
 		r.Get("/links", s.handleLinks)

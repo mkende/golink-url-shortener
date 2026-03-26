@@ -2,9 +2,13 @@ CREATE TABLE IF NOT EXISTS links (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
     name_lower TEXT NOT NULL,
-    target TEXT NOT NULL,
+    target TEXT NOT NULL DEFAULT '',
     owner_email TEXT NOT NULL,
-    is_advanced BOOLEAN NOT NULL DEFAULT FALSE,
+    -- link_type: 0 = simple URL, 1 = advanced (Go template), 2 = alias
+    link_type INTEGER NOT NULL DEFAULT 0,
+    -- alias_target holds the lower-cased canonical link name for alias links;
+    -- empty for simple and advanced links.
+    alias_target TEXT NOT NULL DEFAULT '',
     require_auth BOOLEAN NOT NULL DEFAULT FALSE,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     last_used_at DATETIME,
@@ -16,6 +20,8 @@ CREATE INDEX IF NOT EXISTS idx_links_owner_email ON links(owner_email);
 CREATE INDEX IF NOT EXISTS idx_links_use_count ON links(use_count DESC);
 CREATE INDEX IF NOT EXISTS idx_links_created_at ON links(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_links_last_used_at ON links(last_used_at DESC);
+-- Index for efficient alias lookups (finding all aliases of a canonical link).
+CREATE INDEX IF NOT EXISTS idx_links_alias_target ON links(alias_target) WHERE alias_target != '';
 
 CREATE TABLE IF NOT EXISTS link_shares (
     link_id INTEGER NOT NULL REFERENCES links(id) ON DELETE CASCADE,

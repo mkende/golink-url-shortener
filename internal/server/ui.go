@@ -144,34 +144,49 @@ func (s *Server) handleNew(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, err = s.links.Create(r.Context(), form.Name, form.Target, id.Email, form.IsAdvanced, form.RequireAuth)
+	linkType := db.LinkTypeSimple
+	if form.IsAdvanced {
+		linkType = db.LinkTypeAdvanced
+	}
+
+	_, err = s.links.Create(r.Context(), form.Name, form.Target, id.Email, linkType, "", form.RequireAuth)
 	if err != nil {
 		s.logger.Error("new: create link", "name", form.Name, "error", err)
 		renderError("Could not create link. A link with that name may already exist.")
 		return
 	}
 
-	http.Redirect(w, r, "/edit/"+form.Name, http.StatusFound)
+	http.Redirect(w, r, "/details/"+form.Name, http.StatusFound)
 }
 
-// editPageData is the template data for /edit/{name}.
-type editPageData struct {
+// detailsPageData is the template data for /details/{name}.
+type detailsPageData struct {
 	baseData
-	Link       *db.Link
-	Shares     []string
-	KnownUsers []*db.User
-	Error      string
-	Success    string
+	Link          *db.Link
+	CanEdit       bool
+	Aliases       []*db.Link
+	CanonicalLink *db.Link // non-nil only for alias links
+	Shares        []string
+	KnownUsers    []*db.User
+	Error         string
+	Success       string
 }
 
-// handleEdit serves GET /edit/{name} and POST /edit/{name}.
-func (s *Server) handleEdit(w http.ResponseWriter, r *http.Request) {
+// handleDetails serves GET /details/{name} and POST /details/{name}.
+// Any authenticated user may view; only owners, shared users, and admins may edit.
+func (s *Server) handleDetails(w http.ResponseWriter, r *http.Request) {
 	name := strings.ToLower(chi.URLParam(r, "name"))
 
 	base, err := s.newBaseData(w, r)
 	if err != nil {
-		s.logger.Error("edit: baseData", "error", err)
+		s.logger.Error("details: baseData", "error", err)
 		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	// Authentication required to view the details page.
+	if base.Identity == nil {
+		http.Redirect(w, r, "/auth/login?rd=/details/"+name, http.StatusFound)
 		return
 	}
 
@@ -181,101 +196,160 @@ func (s *Server) handleEdit(w http.ResponseWriter, r *http.Request) {
 			http.NotFound(w, r)
 			return
 		}
-		s.logger.Error("edit: get link", "name", name, "error", err)
+		s.logger.Error("details: get link", "name", name, "error", err)
 		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
 
-	id := auth.FromContext(r.Context())
-	if !canEditBasic(id, link) {
-		// Check whether the user is in the share list before denying access.
-		ok, checkErr := s.isSharedWith(r.Context(), link.ID, id)
+	// Determine whether the current user may edit this link.
+	canEdit := canEditBasic(base.Identity, link)
+	if !canEdit {
+		sharedWith, checkErr := s.isSharedWith(r.Context(), link.ID, base.Identity)
 		if checkErr != nil {
-			s.logger.Error("edit: check shares", "name", name, "error", checkErr)
+			s.logger.Error("details: check shares", "name", name, "error", checkErr)
 			http.Error(w, "internal server error", http.StatusInternalServerError)
 			return
 		}
-		if !ok {
-			http.Error(w, "forbidden", http.StatusForbidden)
-			return
-		}
+		canEdit = sharedWith
 	}
 
 	if r.Method == http.MethodGet {
-		data, err := s.buildEditPageData(r, base, link)
+		data, err := s.buildDetailsPageData(r, base, link, canEdit)
 		if err != nil {
-			s.logger.Error("edit: build page data", "error", err)
+			s.logger.Error("details: build page data", "error", err)
 			http.Error(w, "internal server error", http.StatusInternalServerError)
 			return
 		}
-		s.renderer.Render(w, "edit", data)
+		s.renderer.Render(w, "details", data)
 		return
 	}
 
-	// POST — save changes.
+	// POST — save changes; requires edit access.
+	if !canEdit {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return
+	}
 	if !validateCSRF(r) {
 		http.Error(w, "invalid CSRF token", http.StatusForbidden)
 		return
 	}
 
-	target := strings.TrimSpace(r.FormValue("target"))
-	isAdvanced := r.FormValue("is_advanced") == "on"
-	requireAuth := r.FormValue("require_auth") == "on"
-
 	renderError := func(msg string) {
-		data, buildErr := s.buildEditPageData(r, base, link)
+		data, buildErr := s.buildDetailsPageData(r, base, link, canEdit)
 		if buildErr != nil {
 			http.Error(w, "internal server error", http.StatusInternalServerError)
 			return
 		}
 		data.Error = msg
-		s.renderer.Render(w, "edit", data)
+		s.renderer.Render(w, "details", data)
 	}
 
-	if err := links.ValidateTarget(target); err != nil {
-		renderError(err.Error())
-		return
-	}
+	linkTypeStr := r.FormValue("link_type")
+	requireAuth := r.FormValue("require_auth") == "on"
 
-	updated, err := s.links.Update(r.Context(), link.ID, link.Name, target, isAdvanced, requireAuth)
-	if err != nil {
-		s.logger.Error("edit: update link", "id", link.ID, "error", err)
-		renderError("Could not save changes. Please try again.")
-		return
-	}
+	switch linkTypeStr {
+	case "alias":
+		aliasTargetRaw := strings.TrimSpace(r.FormValue("alias_target"))
+		if aliasTargetRaw == "" {
+			renderError("Alias target cannot be empty.")
+			return
+		}
+		aliasTargetLower, resolveErr := s.resolveAliasTarget(r, strings.ToLower(aliasTargetRaw), link.NameLower)
+		if resolveErr != nil {
+			renderError(resolveErr.Error())
+			return
+		}
+		updated, setErr := s.links.SetAlias(r.Context(), link.ID, link.Name, aliasTargetLower, requireAuth, s.cfg.MaxAliasesPerLink)
+		if setErr != nil {
+			if errors.Is(setErr, db.ErrAliasLimitExceeded) {
+				renderError(fmt.Sprintf("Alias limit reached: a link may have at most %d aliases.", s.cfg.MaxAliasesPerLink))
+				return
+			}
+			s.logger.Error("details: set alias", "id", link.ID, "error", setErr)
+			renderError("Could not save changes. Please try again.")
+			return
+		}
+		data, buildErr := s.buildDetailsPageData(r, base, updated, canEdit)
+		if buildErr != nil {
+			s.logger.Error("details: build page data after set alias", "error", buildErr)
+			http.Error(w, "internal server error", http.StatusInternalServerError)
+			return
+		}
+		data.Success = "Link saved."
+		s.renderer.Render(w, "details", data)
 
-	data, err := s.buildEditPageData(r, base, updated)
-	if err != nil {
-		s.logger.Error("edit: build page data after update", "error", err)
-		http.Error(w, "internal server error", http.StatusInternalServerError)
-		return
+	default:
+		// Simple or advanced.
+		lt := db.LinkTypeSimple
+		if linkTypeStr == "advanced" {
+			lt = db.LinkTypeAdvanced
+		}
+		target := strings.TrimSpace(r.FormValue("target"))
+		if err := links.ValidateTarget(target); err != nil {
+			renderError(err.Error())
+			return
+		}
+		updated, updateErr := s.links.Update(r.Context(), link.ID, link.Name, target, lt, requireAuth)
+		if updateErr != nil {
+			s.logger.Error("details: update link", "id", link.ID, "error", updateErr)
+			renderError("Could not save changes. Please try again.")
+			return
+		}
+		data, buildErr := s.buildDetailsPageData(r, base, updated, canEdit)
+		if buildErr != nil {
+			s.logger.Error("details: build page data after update", "error", buildErr)
+			http.Error(w, "internal server error", http.StatusInternalServerError)
+			return
+		}
+		data.Success = "Link saved."
+		s.renderer.Render(w, "details", data)
 	}
-	data.Success = "Link saved."
-	s.renderer.Render(w, "edit", data)
 }
 
-// buildEditPageData assembles editPageData for the edit page.
-func (s *Server) buildEditPageData(r *http.Request, base baseData, link *db.Link) (editPageData, error) {
-	shares, err := s.links.GetShares(r.Context(), link.ID)
-	if err != nil {
-		return editPageData{}, fmt.Errorf("get shares: %w", err)
+// buildDetailsPageData assembles detailsPageData for the details page.
+func (s *Server) buildDetailsPageData(r *http.Request, base baseData, link *db.Link, canEdit bool) (detailsPageData, error) {
+	data := detailsPageData{
+		baseData: base,
+		Link:     link,
+		CanEdit:  canEdit,
 	}
-	knownUsers, err := s.users.List(r.Context(), 200, 0)
-	if err != nil {
-		// Non-fatal: autocomplete just won't be populated.
-		s.logger.Error("edit: list users for autocomplete", "error", err)
-		knownUsers = nil
+
+	if link.IsAlias() {
+		// Load the canonical link so the template can display its target.
+		canonical, err := s.links.GetByName(r.Context(), link.AliasTarget)
+		if err != nil && !errors.Is(err, db.ErrNotFound) {
+			return detailsPageData{}, fmt.Errorf("get canonical link: %w", err)
+		}
+		data.CanonicalLink = canonical // may be nil if canonical was deleted
+	} else {
+		// Load aliases of this link.
+		aliases, err := s.links.GetAliases(r.Context(), link.NameLower)
+		if err != nil {
+			return detailsPageData{}, fmt.Errorf("get aliases: %w", err)
+		}
+		data.Aliases = aliases
 	}
-	return editPageData{
-		baseData:   base,
-		Link:       link,
-		Shares:     shares,
-		KnownUsers: knownUsers,
-	}, nil
+
+	if canEdit {
+		shares, err := s.links.GetShares(r.Context(), link.ID)
+		if err != nil {
+			return detailsPageData{}, fmt.Errorf("get shares: %w", err)
+		}
+		data.Shares = shares
+
+		knownUsers, err := s.users.List(r.Context(), 200, 0)
+		if err != nil {
+			// Non-fatal: autocomplete just won't be populated.
+			s.logger.Error("details: list users for autocomplete", "error", err)
+		}
+		data.KnownUsers = knownUsers
+	}
+
+	return data, nil
 }
 
-// handleEditShare serves POST /edit/{name}/share.
-func (s *Server) handleEditShare(w http.ResponseWriter, r *http.Request) {
+// handleDetailsShare serves POST /details/{name}/share.
+func (s *Server) handleDetailsShare(w http.ResponseWriter, r *http.Request) {
 	name := strings.ToLower(chi.URLParam(r, "name"))
 
 	if !validateCSRF(r) {
@@ -291,7 +365,7 @@ func (s *Server) handleEditShare(w http.ResponseWriter, r *http.Request) {
 
 	email := strings.TrimSpace(r.FormValue("email"))
 	if email == "" {
-		http.Redirect(w, r, "/edit/"+name, http.StatusFound)
+		http.Redirect(w, r, "/details/"+name, http.StatusFound)
 		return
 	}
 
@@ -312,11 +386,11 @@ func (s *Server) handleEditShare(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	http.Redirect(w, r, "/edit/"+name, http.StatusFound)
+	http.Redirect(w, r, "/details/"+name, http.StatusFound)
 }
 
-// handleEditUnshare serves POST /edit/{name}/unshare.
-func (s *Server) handleEditUnshare(w http.ResponseWriter, r *http.Request) {
+// handleDetailsUnshare serves POST /details/{name}/unshare.
+func (s *Server) handleDetailsUnshare(w http.ResponseWriter, r *http.Request) {
 	name := strings.ToLower(chi.URLParam(r, "name"))
 
 	if !validateCSRF(r) {
@@ -337,11 +411,11 @@ func (s *Server) handleEditUnshare(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	http.Redirect(w, r, "/edit/"+name, http.StatusFound)
+	http.Redirect(w, r, "/details/"+name, http.StatusFound)
 }
 
-// handleEditDelete serves POST /edit/{name}/delete.
-func (s *Server) handleEditDelete(w http.ResponseWriter, r *http.Request) {
+// handleDetailsDelete serves POST /details/{name}/delete.
+func (s *Server) handleDetailsDelete(w http.ResponseWriter, r *http.Request) {
 	name := strings.ToLower(chi.URLParam(r, "name"))
 
 	if !validateCSRF(r) {
@@ -362,6 +436,70 @@ func (s *Server) handleEditDelete(w http.ResponseWriter, r *http.Request) {
 	}
 
 	http.Redirect(w, r, "/links", http.StatusFound)
+}
+
+// handleCreateAlias serves POST /details/{name}/alias.
+// Any authenticated user may create an alias for any link.
+func (s *Server) handleCreateAlias(w http.ResponseWriter, r *http.Request) {
+	canonicalName := strings.ToLower(chi.URLParam(r, "name"))
+
+	if !validateCSRF(r) {
+		http.Error(w, "invalid CSRF token", http.StatusForbidden)
+		return
+	}
+
+	id := auth.FromContext(r.Context())
+	if id == nil {
+		http.Redirect(w, r, "/auth/login?rd=/details/"+canonicalName, http.StatusFound)
+		return
+	}
+
+	// Verify the canonical link exists and is not itself an alias.
+	canonical, err := s.links.GetByName(r.Context(), canonicalName)
+	if err != nil {
+		if errors.Is(err, db.ErrNotFound) {
+			http.NotFound(w, r)
+			return
+		}
+		s.logger.Error("create alias: get canonical", "name", canonicalName, "error", err)
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+	if canonical.IsAlias() {
+		http.Error(w, "cannot create an alias of an alias", http.StatusBadRequest)
+		return
+	}
+
+	aliasName := strings.TrimSpace(r.FormValue("alias_name"))
+	if err := links.ValidateName(aliasName); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Check alias limit before inserting (slight race, but acceptable).
+	count, err := s.links.CountAliases(r.Context(), canonicalName)
+	if err != nil {
+		s.logger.Error("create alias: count aliases", "name", canonicalName, "error", err)
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+	if count >= s.cfg.MaxAliasesPerLink {
+		http.Error(w, fmt.Sprintf("Alias limit reached: a link may have at most %d aliases.", s.cfg.MaxAliasesPerLink), http.StatusUnprocessableEntity)
+		return
+	}
+
+	_, err = s.links.Create(r.Context(), aliasName, "", id.Email, db.LinkTypeAlias, canonicalName, false)
+	if err != nil {
+		if strings.Contains(err.Error(), "UNIQUE") || strings.Contains(err.Error(), "unique") {
+			http.Error(w, "A link with that name already exists.", http.StatusConflict)
+			return
+		}
+		s.logger.Error("create alias: create", "alias", aliasName, "canonical", canonicalName, "error", err)
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	http.Redirect(w, r, "/details/"+aliasName, http.StatusFound)
 }
 
 // linksPageData is the template data for /links and /mylinks.

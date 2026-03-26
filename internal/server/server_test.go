@@ -46,7 +46,7 @@ func TestRedirectFound(t *testing.T) {
 	handler, links := newTestServer(t)
 
 	// Create a test link
-	_, err := links.Create(context.Background(), "docs", "https://example.com/docs", "test@example.com", false, false)
+	_, err := links.Create(context.Background(), "docs", "https://example.com/docs", "test@example.com", db.LinkTypeSimple, "", false)
 	if err != nil {
 		t.Fatalf("create link: %v", err)
 	}
@@ -66,7 +66,7 @@ func TestRedirectFound(t *testing.T) {
 func TestRedirectWithSuffix(t *testing.T) {
 	handler, links := newTestServer(t)
 
-	_, err := links.Create(context.Background(), "gh", "https://github.com", "test@example.com", false, false)
+	_, err := links.Create(context.Background(), "gh", "https://github.com", "test@example.com", db.LinkTypeSimple, "", false)
 	if err != nil {
 		t.Fatalf("create link: %v", err)
 	}
@@ -97,7 +97,7 @@ func TestRedirectRequireAuth_Unauthenticated(t *testing.T) {
 	handler, links := newTestServer(t)
 
 	// Create a link that requires auth (requireAuth = true)
-	_, err := links.Create(context.Background(), "secret", "https://secret.example.com", "owner@example.com", false, true)
+	_, err := links.Create(context.Background(), "secret", "https://secret.example.com", "owner@example.com", db.LinkTypeSimple, "", true)
 	if err != nil {
 		t.Fatalf("create link: %v", err)
 	}
@@ -135,7 +135,7 @@ func TestRedirectRequireAuthForRedirects_Unauthenticated(t *testing.T) {
 	handler := server.New(cfg, sqlDB, logger, nil)
 	links := db.NewLinkRepo(sqlDB)
 
-	_, err = links.Create(context.Background(), "pub", "https://public.example.com", "owner@example.com", false, false)
+	_, err = links.Create(context.Background(), "pub", "https://public.example.com", "owner@example.com", db.LinkTypeSimple, "", false)
 	if err != nil {
 		t.Fatalf("create link: %v", err)
 	}

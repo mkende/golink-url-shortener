@@ -28,6 +28,11 @@ type TemplateVars struct {
 	UA string
 	// Email is the authenticated user's email address; empty if not authenticated.
 	Email string
+	// Alias is the short link name actually used for this request.  When the
+	// request arrives via an alias link this is the alias name; when accessed
+	// directly it is the canonical name.  Always available, even for
+	// non-alias links.
+	Alias string
 }
 
 // templateFuncs returns the custom template function map used for advanced links.

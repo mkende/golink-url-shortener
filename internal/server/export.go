@@ -14,7 +14,10 @@ type ExportLink struct {
 	Name        string    `json:"name"`
 	Target      string    `json:"target"`
 	OwnerEmail  string    `json:"owner_email"`
-	IsAdvanced  bool      `json:"is_advanced"`
+	// LinkType is one of "simple", "advanced", or "alias".
+	LinkType    string    `json:"link_type"`
+	// AliasTarget is the canonical link name; only present for alias links.
+	AliasTarget string    `json:"alias_target,omitempty"`
 	RequireAuth bool      `json:"require_auth"`
 	CreatedAt   time.Time `json:"created_at"`
 	UseCount    int64     `json:"use_count"`
@@ -71,7 +74,8 @@ func (s *Server) handleExport(w http.ResponseWriter, r *http.Request) {
 				Name:        link.Name,
 				Target:      link.Target,
 				OwnerEmail:  link.OwnerEmail,
-				IsAdvanced:  link.IsAdvanced,
+				LinkType:    linkTypeToString(link.LinkType),
+				AliasTarget: link.AliasTarget,
 				RequireAuth: link.RequireAuth,
 				CreatedAt:   link.CreatedAt,
 				UseCount:    link.UseCount,

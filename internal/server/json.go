@@ -14,7 +14,11 @@ type LinkResponse struct {
 	Name        string    `json:"name"`
 	Target      string    `json:"target"`
 	OwnerEmail  string    `json:"owner_email"`
-	IsAdvanced  bool      `json:"is_advanced"`
+	// LinkType is one of "simple", "advanced", or "alias".
+	LinkType    string    `json:"link_type"`
+	// AliasTarget is the lower-cased canonical link name; only present for
+	// alias links.
+	AliasTarget string    `json:"alias_target,omitempty"`
 	RequireAuth bool      `json:"require_auth"`
 	CreatedAt   time.Time `json:"created_at"`
 	UseCount    int64     `json:"use_count"`
@@ -51,13 +55,47 @@ func writeJSONError(w http.ResponseWriter, status int, message string) {
 	writeJSON(w, status, map[string]string{"error": message})
 }
 
+// linkTypeToString converts a db.LinkType to its API string representation.
+func linkTypeToString(lt db.LinkType) string {
+	switch lt {
+	case db.LinkTypeAdvanced:
+		return "advanced"
+	case db.LinkTypeAlias:
+		return "alias"
+	default:
+		return "simple"
+	}
+}
+
+// linkTypeFromString parses an API link_type string. Returns LinkTypeSimple
+// for unknown values and a non-nil error.
+func linkTypeFromString(s string) (db.LinkType, error) {
+	switch strings.ToLower(s) {
+	case "advanced":
+		return db.LinkTypeAdvanced, nil
+	case "alias":
+		return db.LinkTypeAlias, nil
+	case "simple", "":
+		return db.LinkTypeSimple, nil
+	default:
+		return db.LinkTypeSimple, &invalidLinkTypeError{s}
+	}
+}
+
+type invalidLinkTypeError struct{ val string }
+
+func (e *invalidLinkTypeError) Error() string {
+	return "invalid link_type: " + e.val + "; must be \"simple\", \"advanced\", or \"alias\""
+}
+
 // linkToResponse converts a db.Link to a LinkResponse suitable for JSON output.
 func linkToResponse(l *db.Link) LinkResponse {
 	return LinkResponse{
 		Name:        l.Name,
 		Target:      l.Target,
 		OwnerEmail:  l.OwnerEmail,
-		IsAdvanced:  l.IsAdvanced,
+		LinkType:    linkTypeToString(l.LinkType),
+		AliasTarget: l.AliasTarget,
 		RequireAuth: l.RequireAuth,
 		CreatedAt:   l.CreatedAt,
 		UseCount:    l.UseCount,
