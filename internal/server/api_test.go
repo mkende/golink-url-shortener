@@ -112,7 +112,7 @@ func TestAPICreateLink_DuplicateName(t *testing.T) {
 	key := createTestAPIKey(t, env, "mykey")
 
 	// Create first link.
-	_, err := env.links.Create(context.Background(), "dupe", "https://example.com", "owner@example.com", false, false)
+	_, err := env.links.Create(context.Background(), "dupe", "https://example.com", "owner@example.com", db.LinkTypeSimple, "", false)
 	if err != nil {
 		t.Fatalf("create link: %v", err)
 	}
@@ -179,7 +179,7 @@ func TestAPIGetLink_Found(t *testing.T) {
 	env := newAPITestEnv(t)
 	key := createTestAPIKey(t, env, "mykey")
 
-	_, err := env.links.Create(context.Background(), "getme", "https://example.com", "owner@example.com", false, false)
+	_, err := env.links.Create(context.Background(), "getme", "https://example.com", "owner@example.com", db.LinkTypeSimple, "", false)
 	if err != nil {
 		t.Fatalf("create link: %v", err)
 	}
@@ -215,7 +215,7 @@ func TestAPIUpdateLink_Success(t *testing.T) {
 	env := newAPITestEnv(t)
 	key := createTestAPIKey(t, env, "adminkey")
 
-	_, err := env.links.Create(context.Background(), "updme", "https://old.com", "apikey:adminkey", false, false)
+	_, err := env.links.Create(context.Background(), "updme", "https://old.com", "apikey:adminkey", db.LinkTypeSimple, "", false)
 	if err != nil {
 		t.Fatalf("create link: %v", err)
 	}
@@ -261,7 +261,7 @@ func TestAPIUpdateLink_InvalidTarget(t *testing.T) {
 	env := newAPITestEnv(t)
 	key := createTestAPIKey(t, env, "adminkey")
 
-	_, err := env.links.Create(context.Background(), "badupd", "https://old.com", "apikey:adminkey", false, false)
+	_, err := env.links.Create(context.Background(), "badupd", "https://old.com", "apikey:adminkey", db.LinkTypeSimple, "", false)
 	if err != nil {
 		t.Fatalf("create link: %v", err)
 	}
@@ -282,7 +282,7 @@ func TestAPIDeleteLink_Success(t *testing.T) {
 	env := newAPITestEnv(t)
 	key := createTestAPIKey(t, env, "adminkey")
 
-	_, err := env.links.Create(context.Background(), "delme", "https://example.com", "apikey:adminkey", false, false)
+	_, err := env.links.Create(context.Background(), "delme", "https://example.com", "apikey:adminkey", db.LinkTypeSimple, "", false)
 	if err != nil {
 		t.Fatalf("create link: %v", err)
 	}
@@ -320,7 +320,7 @@ func TestAPIListLinks_Basic(t *testing.T) {
 	// Create a few links.
 	for i := 0; i < 3; i++ {
 		name := fmt.Sprintf("link%d", i)
-		_, err := env.links.Create(context.Background(), name, "https://example.com", "owner@example.com", false, false)
+		_, err := env.links.Create(context.Background(), name, "https://example.com", "owner@example.com", db.LinkTypeSimple, "", false)
 		if err != nil {
 			t.Fatalf("create link %s: %v", name, err)
 		}
@@ -351,7 +351,7 @@ func TestAPIListLinks_Pagination(t *testing.T) {
 	// Create 5 links.
 	for i := 0; i < 5; i++ {
 		name := fmt.Sprintf("pg%02d", i)
-		_, err := env.links.Create(context.Background(), name, "https://example.com", "owner@example.com", false, false)
+		_, err := env.links.Create(context.Background(), name, "https://example.com", "owner@example.com", db.LinkTypeSimple, "", false)
 		if err != nil {
 			t.Fatalf("create link: %v", err)
 		}
@@ -376,8 +376,8 @@ func TestAPIListLinks_Search(t *testing.T) {
 	env := newAPITestEnv(t)
 	key := createTestAPIKey(t, env, "mykey")
 
-	_, _ = env.links.Create(context.Background(), "searchme", "https://example.com", "owner@example.com", false, false)
-	_, _ = env.links.Create(context.Background(), "other", "https://other.com", "owner@example.com", false, false)
+	_, _ = env.links.Create(context.Background(), "searchme", "https://example.com", "owner@example.com", db.LinkTypeSimple, "", false)
+	_, _ = env.links.Create(context.Background(), "other", "https://other.com", "owner@example.com", db.LinkTypeSimple, "", false)
 
 	w := doJSON(env.handler, http.MethodGet, "/api/links?q=search", nil, key)
 

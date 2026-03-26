@@ -25,7 +25,7 @@ func TestLinkRepo_CreateAndGet(t *testing.T) {
 	repo := NewLinkRepo(openTestDB(t))
 	ctx := context.Background()
 
-	link, err := repo.Create(ctx, "Docs", "https://example.com/docs", "alice@example.com", false, false)
+	link, err := repo.Create(ctx, "Docs", "https://example.com/docs", "alice@example.com", LinkTypeSimple, "", false)
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}
@@ -63,12 +63,12 @@ func TestLinkRepo_Update(t *testing.T) {
 	repo := NewLinkRepo(openTestDB(t))
 	ctx := context.Background()
 
-	orig, err := repo.Create(ctx, "old", "https://old.example.com", "bob@example.com", false, false)
+	orig, err := repo.Create(ctx, "old", "https://old.example.com", "bob@example.com", LinkTypeSimple, "", false)
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}
 
-	updated, err := repo.Update(ctx, orig.ID, "New", "https://new.example.com", true, true)
+	updated, err := repo.Update(ctx, orig.ID, "New", "https://new.example.com", LinkTypeAdvanced, true)
 	if err != nil {
 		t.Fatalf("Update: %v", err)
 	}
@@ -78,7 +78,7 @@ func TestLinkRepo_Update(t *testing.T) {
 	if updated.NameLower != "new" {
 		t.Errorf("NameLower = %q, want %q", updated.NameLower, "new")
 	}
-	if !updated.IsAdvanced {
+	if !updated.IsAdvanced() {
 		t.Error("expected IsAdvanced = true")
 	}
 	if !updated.RequireAuth {
@@ -88,7 +88,7 @@ func TestLinkRepo_Update(t *testing.T) {
 
 func TestLinkRepo_Update_NotFound(t *testing.T) {
 	repo := NewLinkRepo(openTestDB(t))
-	_, err := repo.Update(context.Background(), 99999, "x", "https://x.com", false, false)
+	_, err := repo.Update(context.Background(), 99999, "x", "https://x.com", LinkTypeSimple, false)
 	if !errors.Is(err, ErrNotFound) {
 		t.Errorf("expected ErrNotFound, got %v", err)
 	}
@@ -98,7 +98,7 @@ func TestLinkRepo_Delete(t *testing.T) {
 	repo := NewLinkRepo(openTestDB(t))
 	ctx := context.Background()
 
-	link, err := repo.Create(ctx, "todelete", "https://example.com", "c@example.com", false, false)
+	link, err := repo.Create(ctx, "todelete", "https://example.com", "c@example.com", LinkTypeSimple, "", false)
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}
@@ -125,7 +125,7 @@ func TestLinkRepo_List_Pagination(t *testing.T) {
 
 	names := []string{"alpha", "beta", "gamma", "delta", "epsilon"}
 	for _, n := range names {
-		if _, err := repo.Create(ctx, n, "https://"+n+".example.com", "owner@example.com", false, false); err != nil {
+		if _, err := repo.Create(ctx, n, "https://"+n+".example.com", "owner@example.com", LinkTypeSimple, "", false); err != nil {
 			t.Fatalf("Create %s: %v", n, err)
 		}
 	}
@@ -154,7 +154,7 @@ func TestLinkRepo_List_SortFields(t *testing.T) {
 	repo := NewLinkRepo(openTestDB(t))
 	ctx := context.Background()
 
-	if _, err := repo.Create(ctx, "aaa", "https://a.example.com", "owner@example.com", false, false); err != nil {
+	if _, err := repo.Create(ctx, "aaa", "https://a.example.com", "owner@example.com", LinkTypeSimple, "", false); err != nil {
 		t.Fatalf("Create: %v", err)
 	}
 
@@ -192,7 +192,7 @@ func TestLinkRepo_Search(t *testing.T) {
 	ctx := context.Background()
 
 	for _, n := range []string{"go-docs", "go-api", "go-home", "other"} {
-		if _, err := repo.Create(ctx, n, "https://"+n+".example.com", "o@example.com", false, false); err != nil {
+		if _, err := repo.Create(ctx, n, "https://"+n+".example.com", "o@example.com", LinkTypeSimple, "", false); err != nil {
 			t.Fatalf("Create %s: %v", n, err)
 		}
 	}
@@ -218,7 +218,7 @@ func TestLinkRepo_Shares(t *testing.T) {
 	repo := NewLinkRepo(openTestDB(t))
 	ctx := context.Background()
 
-	link, err := repo.Create(ctx, "shared", "https://example.com", "owner@example.com", false, false)
+	link, err := repo.Create(ctx, "shared", "https://example.com", "owner@example.com", LinkTypeSimple, "", false)
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}
@@ -268,7 +268,7 @@ func TestLinkRepo_IncrementUseCount(t *testing.T) {
 	repo := NewLinkRepo(openTestDB(t))
 	ctx := context.Background()
 
-	link, err := repo.Create(ctx, "popular", "https://example.com", "o@example.com", false, false)
+	link, err := repo.Create(ctx, "popular", "https://example.com", "o@example.com", LinkTypeSimple, "", false)
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}
@@ -299,11 +299,11 @@ func TestLinkRepo_ListByOwner(t *testing.T) {
 	ctx := context.Background()
 
 	for _, n := range []string{"link1", "link2", "link3"} {
-		if _, err := repo.Create(ctx, n, "https://example.com", "alice@example.com", false, false); err != nil {
+		if _, err := repo.Create(ctx, n, "https://example.com", "alice@example.com", LinkTypeSimple, "", false); err != nil {
 			t.Fatalf("Create %s: %v", n, err)
 		}
 	}
-	if _, err := repo.Create(ctx, "other", "https://example.com", "bob@example.com", false, false); err != nil {
+	if _, err := repo.Create(ctx, "other", "https://example.com", "bob@example.com", LinkTypeSimple, "", false); err != nil {
 		t.Fatalf("Create other: %v", err)
 	}
 
@@ -321,6 +321,110 @@ func TestLinkRepo_ListByOwner(t *testing.T) {
 		if l.OwnerEmail != "alice@example.com" {
 			t.Errorf("unexpected owner: %s", l.OwnerEmail)
 		}
+	}
+}
+
+func TestLinkRepo_Alias(t *testing.T) {
+	repo := NewLinkRepo(openTestDB(t))
+	ctx := context.Background()
+
+	// Create a canonical link.
+	canonical, err := repo.Create(ctx, "docs", "https://docs.example.com", "alice@example.com", LinkTypeSimple, "", false)
+	if err != nil {
+		t.Fatalf("Create canonical: %v", err)
+	}
+
+	// Create an alias link pointing at the canonical.
+	alias, err := repo.Create(ctx, "d", "", "bob@example.com", LinkTypeAlias, "docs", false)
+	if err != nil {
+		t.Fatalf("Create alias: %v", err)
+	}
+	if !alias.IsAlias() {
+		t.Error("expected IsAlias = true")
+	}
+	if alias.AliasTarget != "docs" {
+		t.Errorf("AliasTarget = %q, want %q", alias.AliasTarget, "docs")
+	}
+
+	// GetAliases should return the alias.
+	aliases, err := repo.GetAliases(ctx, "docs")
+	if err != nil {
+		t.Fatalf("GetAliases: %v", err)
+	}
+	if len(aliases) != 1 || aliases[0].Name != "d" {
+		t.Errorf("unexpected aliases: %v", aliases)
+	}
+
+	// CountAliases should return 1.
+	count, err := repo.CountAliases(ctx, "docs")
+	if err != nil {
+		t.Fatalf("CountAliases: %v", err)
+	}
+	if count != 1 {
+		t.Errorf("CountAliases = %d, want 1", count)
+	}
+
+	// SetAlias: convert the canonical to an alias of a new link.
+	newLink, err := repo.Create(ctx, "newdocs", "https://newdocs.example.com", "alice@example.com", LinkTypeSimple, "", false)
+	if err != nil {
+		t.Fatalf("Create newdocs: %v", err)
+	}
+
+	converted, err := repo.SetAlias(ctx, canonical.ID, "docs", "newdocs", false, 100)
+	if err != nil {
+		t.Fatalf("SetAlias: %v", err)
+	}
+	if !converted.IsAlias() {
+		t.Error("expected converted link to be alias")
+	}
+	if converted.AliasTarget != "newdocs" {
+		t.Errorf("AliasTarget = %q, want %q", converted.AliasTarget, "newdocs")
+	}
+
+	// The existing alias "d" should now point at "newdocs" (reparented).
+	reparented, err := repo.GetByName(ctx, "d")
+	if err != nil {
+		t.Fatalf("GetByName d: %v", err)
+	}
+	if reparented.AliasTarget != "newdocs" {
+		t.Errorf("reparented alias_target = %q, want %q", reparented.AliasTarget, "newdocs")
+	}
+
+	// newLink should now have 2 aliases: "docs" and "d".
+	aliases, err = repo.GetAliases(ctx, "newdocs")
+	if err != nil {
+		t.Fatalf("GetAliases newdocs: %v", err)
+	}
+	if len(aliases) != 2 {
+		t.Errorf("aliases of newdocs = %d, want 2", len(aliases))
+	}
+	_ = newLink
+}
+
+func TestLinkRepo_SetAlias_LimitExceeded(t *testing.T) {
+	repo := NewLinkRepo(openTestDB(t))
+	ctx := context.Background()
+
+	_, err := repo.Create(ctx, "canon", "https://canon.example.com", "alice@example.com", LinkTypeSimple, "", false)
+	if err != nil {
+		t.Fatalf("Create canonical: %v", err)
+	}
+	// Fill the canonical's aliases up to the limit.
+	for i := 0; i < 3; i++ {
+		name := "a" + string(rune('0'+i))
+		if _, err := repo.Create(ctx, name, "", "bob@example.com", LinkTypeAlias, "canon", false); err != nil {
+			t.Fatalf("Create alias %s: %v", name, err)
+		}
+	}
+
+	// Try to convert another link to alias with maxAliases=3; should fail.
+	other, err := repo.Create(ctx, "other", "https://other.example.com", "alice@example.com", LinkTypeSimple, "", false)
+	if err != nil {
+		t.Fatalf("Create other: %v", err)
+	}
+	_, err = repo.SetAlias(ctx, other.ID, "other", "canon", false, 3)
+	if !errors.Is(err, ErrAliasLimitExceeded) {
+		t.Errorf("expected ErrAliasLimitExceeded, got %v", err)
 	}
 }
 

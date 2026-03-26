@@ -11,6 +11,7 @@ import (
 var reservedNames = map[string]bool{
 	"new":      true,
 	"edit":     true,
+	"details":  true,
 	"delete":   true,
 	"links":    true,
 	"mylinks":  true,

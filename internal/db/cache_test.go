@@ -8,8 +8,8 @@ import (
 
 // countingLinkRepo wraps a LinkRepo and counts GetByName calls.
 type countingLinkRepo struct {
-	inner       LinkRepo
-	getByNameN  atomic.Int64
+	inner      LinkRepo
+	getByNameN atomic.Int64
 }
 
 func (r *countingLinkRepo) GetByName(ctx context.Context, nameLower string) (*Link, error) {
@@ -17,12 +17,16 @@ func (r *countingLinkRepo) GetByName(ctx context.Context, nameLower string) (*Li
 	return r.inner.GetByName(ctx, nameLower)
 }
 
-func (r *countingLinkRepo) Create(ctx context.Context, name, target, ownerEmail string, isAdvanced, requireAuth bool) (*Link, error) {
-	return r.inner.Create(ctx, name, target, ownerEmail, isAdvanced, requireAuth)
+func (r *countingLinkRepo) Create(ctx context.Context, name, target, ownerEmail string, linkType LinkType, aliasTarget string, requireAuth bool) (*Link, error) {
+	return r.inner.Create(ctx, name, target, ownerEmail, linkType, aliasTarget, requireAuth)
 }
 
-func (r *countingLinkRepo) Update(ctx context.Context, id int64, name, target string, isAdvanced, requireAuth bool) (*Link, error) {
-	return r.inner.Update(ctx, id, name, target, isAdvanced, requireAuth)
+func (r *countingLinkRepo) Update(ctx context.Context, id int64, name, target string, linkType LinkType, requireAuth bool) (*Link, error) {
+	return r.inner.Update(ctx, id, name, target, linkType, requireAuth)
+}
+
+func (r *countingLinkRepo) SetAlias(ctx context.Context, id int64, name, aliasTargetLower string, requireAuth bool, maxAliases int) (*Link, error) {
+	return r.inner.SetAlias(ctx, id, name, aliasTargetLower, requireAuth, maxAliases)
 }
 
 func (r *countingLinkRepo) Delete(ctx context.Context, id int64) error {
@@ -57,13 +61,21 @@ func (r *countingLinkRepo) IncrementUseCount(ctx context.Context, id int64) erro
 	return r.inner.IncrementUseCount(ctx, id)
 }
 
+func (r *countingLinkRepo) GetAliases(ctx context.Context, nameLower string) ([]*Link, error) {
+	return r.inner.GetAliases(ctx, nameLower)
+}
+
+func (r *countingLinkRepo) CountAliases(ctx context.Context, nameLower string) (int, error) {
+	return r.inner.CountAliases(ctx, nameLower)
+}
+
 // TestCachingLinkRepo_HitAndMiss verifies that a second GetByName call for the
 // same name does not reach the underlying repository.
 func TestCachingLinkRepo_HitAndMiss(t *testing.T) {
 	base := NewLinkRepo(openTestDB(t))
 	ctx := context.Background()
 
-	_, err := base.Create(ctx, "cached", "https://example.com", "o@example.com", false, false)
+	_, err := base.Create(ctx, "cached", "https://example.com", "o@example.com", LinkTypeSimple, "", false)
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}
@@ -102,7 +114,7 @@ func TestCachingLinkRepo_InvalidateOnUpdate(t *testing.T) {
 	base := NewLinkRepo(openTestDB(t))
 	ctx := context.Background()
 
-	orig, err := base.Create(ctx, "updateme", "https://old.example.com", "o@example.com", false, false)
+	orig, err := base.Create(ctx, "updateme", "https://old.example.com", "o@example.com", LinkTypeSimple, "", false)
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}
@@ -120,7 +132,7 @@ func TestCachingLinkRepo_InvalidateOnUpdate(t *testing.T) {
 	callsAfterFirst := counter.getByNameN.Load()
 
 	// Update the link — this must invalidate the cache entry.
-	if _, err := cache.Update(ctx, orig.ID, "updateme", "https://new.example.com", false, false); err != nil {
+	if _, err := cache.Update(ctx, orig.ID, "updateme", "https://new.example.com", LinkTypeSimple, false); err != nil {
 		t.Fatalf("Update: %v", err)
 	}
 
@@ -143,7 +155,7 @@ func TestCachingLinkRepo_InvalidateOnDelete(t *testing.T) {
 	base := NewLinkRepo(openTestDB(t))
 	ctx := context.Background()
 
-	link, err := base.Create(ctx, "deleteme", "https://example.com", "o@example.com", false, false)
+	link, err := base.Create(ctx, "deleteme", "https://example.com", "o@example.com", LinkTypeSimple, "", false)
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}
@@ -183,7 +195,7 @@ func TestCachingLinkRepo_CreatePopulatesCache(t *testing.T) {
 		t.Fatalf("NewCachingLinkRepo: %v", err)
 	}
 
-	if _, err := cache.Create(ctx, "brand-new", "https://example.com", "o@example.com", false, false); err != nil {
+	if _, err := cache.Create(ctx, "brand-new", "https://example.com", "o@example.com", LinkTypeSimple, "", false); err != nil {
 		t.Fatalf("Create: %v", err)
 	}
 	callsAfterCreate := counter.getByNameN.Load()

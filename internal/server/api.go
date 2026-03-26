@@ -26,10 +26,13 @@ func generateAPIKey() (string, error) {
 }
 
 // createLinkRequest is the JSON body expected by POST /api/links.
+// link_type must be "simple" (default), "advanced", or "alias".
+// For alias links provide alias_target (the canonical link name) instead of target.
 type createLinkRequest struct {
 	Name        string `json:"name"`
 	Target      string `json:"target"`
-	IsAdvanced  bool   `json:"is_advanced"`
+	LinkType    string `json:"link_type"`
+	AliasTarget string `json:"alias_target"`
 	RequireAuth bool   `json:"require_auth"`
 }
 
@@ -38,7 +41,8 @@ type createLinkRequest struct {
 // are approximated via pointers).
 type updateLinkRequest struct {
 	Target      *string `json:"target"`
-	IsAdvanced  *bool   `json:"is_advanced"`
+	LinkType    *string `json:"link_type"`
+	AliasTarget *string `json:"alias_target"`
 	RequireAuth *bool   `json:"require_auth"`
 }
 
@@ -129,17 +133,49 @@ func (s *Server) handleAPICreateLink(w http.ResponseWriter, r *http.Request) {
 	}
 	req.Name = strings.TrimSpace(req.Name)
 	req.Target = strings.TrimSpace(req.Target)
+	req.AliasTarget = strings.ToLower(strings.TrimSpace(req.AliasTarget))
 
 	if err := links.ValidateName(req.Name); err != nil {
 		writeJSONError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	if err := links.ValidateTarget(req.Target); err != nil {
+
+	linkType, err := linkTypeFromString(req.LinkType)
+	if err != nil {
 		writeJSONError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	link, err := s.links.Create(r.Context(), req.Name, req.Target, id.Email, req.IsAdvanced, req.RequireAuth)
+	if linkType == db.LinkTypeAlias {
+		if req.AliasTarget == "" {
+			writeJSONError(w, http.StatusBadRequest, "alias_target is required for alias links")
+			return
+		}
+		// Resolve alias target to its canonical (non-alias) form.
+		req.AliasTarget, err = s.resolveAliasTarget(r, req.AliasTarget, "")
+		if err != nil {
+			writeJSONError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		// Check alias limit.
+		count, countErr := s.links.CountAliases(r.Context(), req.AliasTarget)
+		if countErr != nil {
+			s.logger.Error("api: count aliases", "target", req.AliasTarget, "error", countErr)
+			writeJSONError(w, http.StatusInternalServerError, "internal server error")
+			return
+		}
+		if count >= s.cfg.MaxAliasesPerLink {
+			writeJSONError(w, http.StatusUnprocessableEntity, "alias limit reached for this link")
+			return
+		}
+	} else {
+		if err := links.ValidateTarget(req.Target); err != nil {
+			writeJSONError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+	}
+
+	link, err := s.links.Create(r.Context(), req.Name, req.Target, id.Email, linkType, req.AliasTarget, req.RequireAuth)
 	if err != nil {
 		// Treat unique-constraint violations as conflict.
 		if strings.Contains(err.Error(), "UNIQUE") || strings.Contains(err.Error(), "unique") {
@@ -213,6 +249,51 @@ func (s *Server) handleAPIUpdateLink(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Apply field mask: only overwrite fields explicitly present in the request.
+	newLinkType := link.LinkType
+	if req.LinkType != nil {
+		lt, err := linkTypeFromString(*req.LinkType)
+		if err != nil {
+			writeJSONError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		newLinkType = lt
+	}
+
+	newRequireAuth := link.RequireAuth
+	if req.RequireAuth != nil {
+		newRequireAuth = *req.RequireAuth
+	}
+
+	if newLinkType == db.LinkTypeAlias {
+		newAliasTarget := link.AliasTarget
+		if req.AliasTarget != nil {
+			newAliasTarget = strings.ToLower(strings.TrimSpace(*req.AliasTarget))
+		}
+		if newAliasTarget == "" {
+			writeJSONError(w, http.StatusBadRequest, "alias_target is required for alias links")
+			return
+		}
+		// Resolve to canonical, preventing loops.
+		newAliasTarget, err = s.resolveAliasTarget(r, newAliasTarget, link.NameLower)
+		if err != nil {
+			writeJSONError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		updated, err := s.links.SetAlias(r.Context(), link.ID, link.Name, newAliasTarget, newRequireAuth, s.cfg.MaxAliasesPerLink)
+		if err != nil {
+			if errors.Is(err, db.ErrAliasLimitExceeded) {
+				writeJSONError(w, http.StatusUnprocessableEntity, "alias limit reached for this link")
+				return
+			}
+			s.logger.Error("api: set alias", "id", link.ID, "error", err)
+			writeJSONError(w, http.StatusInternalServerError, "internal server error")
+			return
+		}
+		writeJSON(w, http.StatusOK, linkToResponse(updated))
+		return
+	}
+
+	// Simple or advanced link.
 	newTarget := link.Target
 	if req.Target != nil {
 		newTarget = strings.TrimSpace(*req.Target)
@@ -221,16 +302,8 @@ func (s *Server) handleAPIUpdateLink(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	newIsAdvanced := link.IsAdvanced
-	if req.IsAdvanced != nil {
-		newIsAdvanced = *req.IsAdvanced
-	}
-	newRequireAuth := link.RequireAuth
-	if req.RequireAuth != nil {
-		newRequireAuth = *req.RequireAuth
-	}
 
-	updated, err := s.links.Update(r.Context(), link.ID, link.Name, newTarget, newIsAdvanced, newRequireAuth)
+	updated, err := s.links.Update(r.Context(), link.ID, link.Name, newTarget, newLinkType, newRequireAuth)
 	if err != nil {
 		s.logger.Error("api: update link", "id", link.ID, "error", err)
 		writeJSONError(w, http.StatusInternalServerError, "internal server error")
@@ -272,6 +345,41 @@ func (s *Server) handleAPIDeleteLink(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// resolveAliasTarget follows at most one level of alias indirection to find
+// the canonical (non-alias) link name.  Returns an error if the target does
+// not exist, is itself an alias that resolves to selfNameLower (a loop), or
+// resolves to a link that is also an alias (should not happen after a single
+// resolution step but is checked for safety).
+// selfNameLower is the name_lower of the link being edited; pass "" when
+// creating a new alias.
+func (s *Server) resolveAliasTarget(r *http.Request, aliasTargetLower, selfNameLower string) (string, error) {
+	if aliasTargetLower == selfNameLower && selfNameLower != "" {
+		return "", errors.New("a link cannot be an alias of itself")
+	}
+	targetLink, err := s.links.GetByName(r.Context(), aliasTargetLower)
+	if err != nil {
+		if errors.Is(err, db.ErrNotFound) {
+			return "", errors.New("alias target link does not exist: " + aliasTargetLower)
+		}
+		return "", errors.New("error looking up alias target")
+	}
+	if targetLink.IsAlias() {
+		// Resolve one level: use its canonical target.
+		aliasTargetLower = targetLink.AliasTarget
+		if aliasTargetLower == selfNameLower && selfNameLower != "" {
+			return "", errors.New("alias target would create a circular reference")
+		}
+		// Verify the resolved canonical exists.
+		if _, err := s.links.GetByName(r.Context(), aliasTargetLower); err != nil {
+			if errors.Is(err, db.ErrNotFound) {
+				return "", errors.New("alias target's canonical link does not exist: " + aliasTargetLower)
+			}
+			return "", errors.New("error looking up canonical link")
+		}
+	}
+	return aliasTargetLower, nil
 }
 
 // --- API key management handlers ---

@@ -11,12 +11,22 @@ import (
 // LinkRepo defines the storage operations for short links.
 type LinkRepo interface {
 	// Create inserts a new link and returns the persisted record.
-	Create(ctx context.Context, name, target, ownerEmail string, isAdvanced, requireAuth bool) (*Link, error)
+	// For alias links set linkType to LinkTypeAlias, aliasTarget to the
+	// lower-cased canonical link name, and target to "".
+	// For simple/advanced links set aliasTarget to "".
+	Create(ctx context.Context, name, target, ownerEmail string, linkType LinkType, aliasTarget string, requireAuth bool) (*Link, error)
 	// GetByName retrieves a link by its lower-cased name. Returns
 	// ErrNotFound when no matching link exists.
 	GetByName(ctx context.Context, nameLower string) (*Link, error)
-	// Update replaces the mutable fields of an existing link.
-	Update(ctx context.Context, id int64, name, target string, isAdvanced, requireAuth bool) (*Link, error)
+	// Update replaces the mutable fields of a simple or advanced link.
+	// To convert a link to alias type use SetAlias instead.
+	Update(ctx context.Context, id int64, name, target string, linkType LinkType, requireAuth bool) (*Link, error)
+	// SetAlias atomically converts the link to LinkTypeAlias pointing at
+	// aliasTargetLower, and reparents any existing aliases of this link to
+	// aliasTargetLower.  Returns ErrAliasLimitExceeded when the total number
+	// of aliases that aliasTargetLower would have after the operation exceeds
+	// maxAliases.
+	SetAlias(ctx context.Context, id int64, name, aliasTargetLower string, requireAuth bool, maxAliases int) (*Link, error)
 	// Delete removes a link by ID.
 	Delete(ctx context.Context, id int64) error
 	// List returns a paginated, sorted slice of all links plus the total count.
@@ -33,12 +43,19 @@ type LinkRepo interface {
 	// RemoveShare revokes access to email for the given link.
 	RemoveShare(ctx context.Context, linkID int64, email string) error
 	// IncrementUseCount bumps the link's use counter and last-used timestamp.
-	// This is the synchronous version; async batching is added in phase 9.
 	IncrementUseCount(ctx context.Context, id int64) error
+	// GetAliases returns all links that alias the given canonical link name.
+	GetAliases(ctx context.Context, nameLower string) ([]*Link, error)
+	// CountAliases returns the number of alias links targeting nameLower.
+	CountAliases(ctx context.Context, nameLower string) (int, error)
 }
 
 // ErrNotFound is returned when a requested record does not exist.
 var ErrNotFound = errors.New("not found")
+
+// ErrAliasLimitExceeded is returned when adding an alias would exceed the
+// configured per-link alias limit.
+var ErrAliasLimitExceeded = errors.New("alias limit exceeded")
 
 // SQLLinkRepo is a database/sql-backed implementation of LinkRepo.
 type SQLLinkRepo struct {
@@ -50,15 +67,18 @@ func NewLinkRepo(db *sql.DB) *SQLLinkRepo {
 	return &SQLLinkRepo{db: db}
 }
 
+// selectCols is the shared column list used in all link SELECT statements.
+const selectCols = `id, name, name_lower, target, owner_email, link_type, alias_target, require_auth,
+	               created_at, last_used_at, use_count`
+
 // Create inserts a new link record and returns it.
-func (r *SQLLinkRepo) Create(ctx context.Context, name, target, ownerEmail string, isAdvanced, requireAuth bool) (*Link, error) {
+func (r *SQLLinkRepo) Create(ctx context.Context, name, target, ownerEmail string, linkType LinkType, aliasTarget string, requireAuth bool) (*Link, error) {
 	nameLower := strings.ToLower(name)
 	row := r.db.QueryRowContext(ctx, `
-		INSERT INTO links (name, name_lower, target, owner_email, is_advanced, require_auth)
-		VALUES (?, ?, ?, ?, ?, ?)
-		RETURNING id, name, name_lower, target, owner_email, is_advanced, require_auth,
-		          created_at, last_used_at, use_count`,
-		name, nameLower, target, ownerEmail, isAdvanced, requireAuth,
+		INSERT INTO links (name, name_lower, target, owner_email, link_type, alias_target, require_auth)
+		VALUES (?, ?, ?, ?, ?, ?, ?)
+		RETURNING `+selectCols,
+		name, nameLower, target, ownerEmail, linkType, aliasTarget, requireAuth,
 	)
 	return scanLink(row)
 }
@@ -66,8 +86,7 @@ func (r *SQLLinkRepo) Create(ctx context.Context, name, target, ownerEmail strin
 // GetByName retrieves a link by lower-cased name.
 func (r *SQLLinkRepo) GetByName(ctx context.Context, nameLower string) (*Link, error) {
 	row := r.db.QueryRowContext(ctx, `
-		SELECT id, name, name_lower, target, owner_email, is_advanced, require_auth,
-		       created_at, last_used_at, use_count
+		SELECT `+selectCols+`
 		FROM links WHERE name_lower = ? LIMIT 1`,
 		nameLower,
 	)
@@ -78,23 +97,92 @@ func (r *SQLLinkRepo) GetByName(ctx context.Context, nameLower string) (*Link, e
 	return link, err
 }
 
-// Update modifies the mutable fields of an existing link and returns the
-// updated record.
-func (r *SQLLinkRepo) Update(ctx context.Context, id int64, name, target string, isAdvanced, requireAuth bool) (*Link, error) {
+// Update modifies the mutable fields of a simple or advanced link and returns
+// the updated record.  To convert a link to alias type use SetAlias.
+func (r *SQLLinkRepo) Update(ctx context.Context, id int64, name, target string, linkType LinkType, requireAuth bool) (*Link, error) {
 	nameLower := strings.ToLower(name)
 	row := r.db.QueryRowContext(ctx, `
 		UPDATE links
-		SET name = ?, name_lower = ?, target = ?, is_advanced = ?, require_auth = ?
+		SET name = ?, name_lower = ?, target = ?, link_type = ?, alias_target = '', require_auth = ?
 		WHERE id = ?
-		RETURNING id, name, name_lower, target, owner_email, is_advanced, require_auth,
-		          created_at, last_used_at, use_count`,
-		name, nameLower, target, isAdvanced, requireAuth, id,
+		RETURNING `+selectCols,
+		name, nameLower, target, linkType, requireAuth, id,
 	)
 	link, err := scanLink(row)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}
 	return link, err
+}
+
+// SetAlias atomically converts the link to an alias of aliasTargetLower,
+// reparenting any existing aliases of this link to aliasTargetLower.
+func (r *SQLLinkRepo) SetAlias(ctx context.Context, id int64, name, aliasTargetLower string, requireAuth bool, maxAliases int) (*Link, error) {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, fmt.Errorf("begin tx: %w", err)
+	}
+	defer tx.Rollback() //nolint:errcheck
+
+	// Find the current name_lower of this link so we can locate its aliases.
+	var currentNameLower string
+	if err := tx.QueryRowContext(ctx, "SELECT name_lower FROM links WHERE id = ?", id).Scan(&currentNameLower); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+		return nil, fmt.Errorf("get link name: %w", err)
+	}
+
+	// Count aliases that the target already has.
+	var targetAliasCount int
+	if err := tx.QueryRowContext(ctx,
+		"SELECT COUNT(*) FROM links WHERE alias_target = ?", aliasTargetLower,
+	).Scan(&targetAliasCount); err != nil {
+		return nil, fmt.Errorf("count target aliases: %w", err)
+	}
+
+	// Count aliases that this link currently has (they will be reparented).
+	var ownAliasCount int
+	if err := tx.QueryRowContext(ctx,
+		"SELECT COUNT(*) FROM links WHERE alias_target = ?", currentNameLower,
+	).Scan(&ownAliasCount); err != nil {
+		return nil, fmt.Errorf("count own aliases: %w", err)
+	}
+
+	// After the operation the target will gain: this link (1) + its reparented
+	// aliases (ownAliasCount).
+	if targetAliasCount+ownAliasCount+1 > maxAliases {
+		return nil, ErrAliasLimitExceeded
+	}
+
+	// Reparent existing aliases of this link to the new target.
+	if ownAliasCount > 0 {
+		if _, err := tx.ExecContext(ctx,
+			"UPDATE links SET alias_target = ? WHERE alias_target = ?",
+			aliasTargetLower, currentNameLower,
+		); err != nil {
+			return nil, fmt.Errorf("reparent aliases: %w", err)
+		}
+	}
+
+	// Convert this link to an alias.
+	nameLower := strings.ToLower(name)
+	row := tx.QueryRowContext(ctx, `
+		UPDATE links
+		SET name = ?, name_lower = ?, target = '', link_type = ?, alias_target = ?, require_auth = ?
+		WHERE id = ?
+		RETURNING `+selectCols,
+		name, nameLower, LinkTypeAlias, aliasTargetLower, requireAuth, id,
+	)
+	link, err := scanLink(row)
+	if err != nil {
+		return nil, fmt.Errorf("convert link to alias: %w", err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return nil, fmt.Errorf("commit: %w", err)
+	}
+	return link, nil
 }
 
 // Delete removes the link with the given ID.
@@ -130,8 +218,7 @@ func (r *SQLLinkRepo) List(ctx context.Context, limit, offset int, sortField Sor
 
 	// Safe to interpolate: values were validated against an allow-list above.
 	query := fmt.Sprintf(`
-		SELECT id, name, name_lower, target, owner_email, is_advanced, require_auth,
-		       created_at, last_used_at, use_count
+		SELECT `+selectCols+`
 		FROM links ORDER BY %s %s LIMIT ? OFFSET ?`, sortField, sortDir)
 
 	rows, err := r.db.QueryContext(ctx, query, limit, offset)
@@ -157,8 +244,7 @@ func (r *SQLLinkRepo) ListByOwner(ctx context.Context, ownerEmail string, limit,
 	}
 
 	rows, err := r.db.QueryContext(ctx, `
-		SELECT id, name, name_lower, target, owner_email, is_advanced, require_auth,
-		       created_at, last_used_at, use_count
+		SELECT `+selectCols+`
 		FROM links WHERE owner_email = ?
 		ORDER BY name_lower ASC LIMIT ? OFFSET ?`,
 		ownerEmail, limit, offset,
@@ -187,8 +273,7 @@ func (r *SQLLinkRepo) Search(ctx context.Context, query string, limit, offset in
 	}
 
 	rows, err := r.db.QueryContext(ctx, `
-		SELECT id, name, name_lower, target, owner_email, is_advanced, require_auth,
-		       created_at, last_used_at, use_count
+		SELECT `+selectCols+`
 		FROM links WHERE name_lower LIKE ?
 		ORDER BY name_lower ASC LIMIT ? OFFSET ?`,
 		pattern, limit, offset,
@@ -262,12 +347,41 @@ func (r *SQLLinkRepo) IncrementUseCount(ctx context.Context, id int64) error {
 	return nil
 }
 
+// GetAliases returns all links that alias the given canonical link name,
+// ordered by name.
+func (r *SQLLinkRepo) GetAliases(ctx context.Context, nameLower string) ([]*Link, error) {
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT `+selectCols+`
+		FROM links WHERE alias_target = ?
+		ORDER BY name_lower ASC`,
+		nameLower,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("get aliases for %q: %w", nameLower, err)
+	}
+	defer rows.Close()
+	return scanLinks(rows)
+}
+
+// CountAliases returns the number of alias links targeting nameLower.
+func (r *SQLLinkRepo) CountAliases(ctx context.Context, nameLower string) (int, error) {
+	var count int
+	err := r.db.QueryRowContext(ctx,
+		"SELECT COUNT(*) FROM links WHERE alias_target = ?", nameLower,
+	).Scan(&count)
+	if err != nil {
+		return 0, fmt.Errorf("count aliases for %q: %w", nameLower, err)
+	}
+	return count, nil
+}
+
 // scanLink reads a single Link from a *sql.Row.
 func scanLink(row *sql.Row) (*Link, error) {
 	var l Link
 	err := row.Scan(
 		&l.ID, &l.Name, &l.NameLower, &l.Target, &l.OwnerEmail,
-		&l.IsAdvanced, &l.RequireAuth, &l.CreatedAt, &l.LastUsedAt, &l.UseCount,
+		&l.LinkType, &l.AliasTarget, &l.RequireAuth,
+		&l.CreatedAt, &l.LastUsedAt, &l.UseCount,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("scan link: %w", err)
@@ -282,7 +396,8 @@ func scanLinks(rows *sql.Rows) ([]*Link, error) {
 		var l Link
 		if err := rows.Scan(
 			&l.ID, &l.Name, &l.NameLower, &l.Target, &l.OwnerEmail,
-			&l.IsAdvanced, &l.RequireAuth, &l.CreatedAt, &l.LastUsedAt, &l.UseCount,
+			&l.LinkType, &l.AliasTarget, &l.RequireAuth,
+			&l.CreatedAt, &l.LastUsedAt, &l.UseCount,
 		); err != nil {
 			return nil, fmt.Errorf("scan link row: %w", err)
 		}

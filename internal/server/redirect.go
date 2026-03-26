@@ -56,14 +56,37 @@ func (s *Server) handleRedirect(w http.ResponseWriter, r *http.Request) {
 		email = id.Email
 	}
 
+	// For alias links, resolve to the canonical link and apply its redirect
+	// logic.  The alias name is passed as the Alias template variable.
+	aliasName := ""
+	if link.IsAlias() {
+		aliasName = name
+		canonical, err := s.links.GetByName(r.Context(), link.AliasTarget)
+		if err != nil {
+			if errors.Is(err, db.ErrNotFound) {
+				s.logger.Error("alias target not found", "alias", name, "target", link.AliasTarget)
+				http.Error(w, "alias target not found", http.StatusNotFound)
+				return
+			}
+			s.logger.Error("db error resolving alias target", "alias", name, "target", link.AliasTarget, "error", err)
+			http.Error(w, "internal server error", http.StatusInternalServerError)
+			return
+		}
+		// Increment stats for the alias link, not the canonical.
+		s.useCounter.Increment(link.ID)
+		// Use the canonical link for redirect resolution.
+		link = canonical
+	}
+
 	var targetURL string
-	if link.IsAdvanced {
+	if link.IsAdvanced() {
 		vars := redirect.TemplateVars{
 			Path:  suffix,
 			Parts: splitPath(suffix),
 			Args:  splitArgs(r.URL.RawQuery),
 			UA:    r.UserAgent(),
 			Email: email,
+			Alias: aliasName,
 		}
 		targetURL, err = redirect.ResolveAdvanced(link.Target, vars)
 	} else {
@@ -76,9 +99,11 @@ func (s *Server) handleRedirect(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Non-blocking buffered increment: the UseCounter batches these and flushes
-	// them to the database on a background ticker, avoiding write contention.
-	s.useCounter.Increment(link.ID)
+	// For non-alias links, record the use count here.  Alias links already
+	// incremented above.
+	if aliasName == "" {
+		s.useCounter.Increment(link.ID)
+	}
 
 	http.Redirect(w, r, targetURL, http.StatusFound)
 }

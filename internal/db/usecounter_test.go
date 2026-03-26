@@ -11,7 +11,7 @@ func TestUseCounter_Increment(t *testing.T) {
 	repo := NewLinkRepo(sqlDB)
 	ctx := context.Background()
 
-	link, err := repo.Create(ctx, "counter-test", "https://example.com", "o@example.com", false, false)
+	link, err := repo.Create(ctx, "counter-test", "https://example.com", "o@example.com", LinkTypeSimple, "", false)
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}
@@ -47,7 +47,7 @@ func TestUseCounter_Shutdown_Flushes(t *testing.T) {
 	repo := NewLinkRepo(sqlDB)
 	ctx := context.Background()
 
-	link, err := repo.Create(ctx, "flush-test", "https://example.com", "o@example.com", false, false)
+	link, err := repo.Create(ctx, "flush-test", "https://example.com", "o@example.com", LinkTypeSimple, "", false)
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}
@@ -88,7 +88,7 @@ func TestUseCounter_Ticker_Flush(t *testing.T) {
 	repo := NewLinkRepo(sqlDB)
 	ctx := context.Background()
 
-	link, err := repo.Create(ctx, "ticker-test", "https://example.com", "o@example.com", false, false)
+	link, err := repo.Create(ctx, "ticker-test", "https://example.com", "o@example.com", LinkTypeSimple, "", false)
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}

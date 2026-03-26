@@ -37,6 +37,7 @@ func (s *Server) handleImport(w http.ResponseWriter, r *http.Request) {
 	for _, el := range data.Links {
 		el.Name = strings.TrimSpace(el.Name)
 		el.Target = strings.TrimSpace(el.Target)
+		el.AliasTarget = strings.ToLower(strings.TrimSpace(el.AliasTarget))
 
 		// Validate name.
 		if err := links.ValidateName(el.Name); err != nil {
@@ -45,11 +46,27 @@ func (s *Server) handleImport(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
-		// Validate target.
-		if err := links.ValidateTarget(el.Target); err != nil {
+		// Parse the link type.
+		linkType, err := linkTypeFromString(el.LinkType)
+		if err != nil {
 			result.Skipped++
 			result.Errors = append(result.Errors, fmt.Sprintf("%s: %v", el.Name, err))
 			continue
+		}
+
+		// Validate target or alias_target depending on type.
+		if linkType == db.LinkTypeAlias {
+			if el.AliasTarget == "" {
+				result.Skipped++
+				result.Errors = append(result.Errors, fmt.Sprintf("%s: alias_target is required for alias links", el.Name))
+				continue
+			}
+		} else {
+			if err := links.ValidateTarget(el.Target); err != nil {
+				result.Skipped++
+				result.Errors = append(result.Errors, fmt.Sprintf("%s: %v", el.Name, err))
+				continue
+			}
 		}
 
 		// Check whether the link already exists.
@@ -62,10 +79,18 @@ func (s *Server) handleImport(w http.ResponseWriter, r *http.Request) {
 
 		if existing != nil {
 			// Update the existing link's mutable fields.
-			if _, err := s.links.Update(ctx, existing.ID, el.Name, el.Target, el.IsAdvanced, el.RequireAuth); err != nil {
-				result.Skipped++
-				result.Errors = append(result.Errors, fmt.Sprintf("%s: update failed: %v", el.Name, err))
-				continue
+			if linkType == db.LinkTypeAlias {
+				if _, err := s.links.SetAlias(ctx, existing.ID, el.Name, el.AliasTarget, el.RequireAuth, s.cfg.MaxAliasesPerLink); err != nil {
+					result.Skipped++
+					result.Errors = append(result.Errors, fmt.Sprintf("%s: update failed: %v", el.Name, err))
+					continue
+				}
+			} else {
+				if _, err := s.links.Update(ctx, existing.ID, el.Name, el.Target, linkType, el.RequireAuth); err != nil {
+					result.Skipped++
+					result.Errors = append(result.Errors, fmt.Sprintf("%s: update failed: %v", el.Name, err))
+					continue
+				}
 			}
 			result.Updated++
 		} else {
@@ -77,7 +102,7 @@ func (s *Server) handleImport(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 
-			newLink, err := s.links.Create(ctx, el.Name, el.Target, ownerEmail, el.IsAdvanced, el.RequireAuth)
+			newLink, err := s.links.Create(ctx, el.Name, el.Target, ownerEmail, linkType, el.AliasTarget, el.RequireAuth)
 			if err != nil {
 				result.Skipped++
 				result.Errors = append(result.Errors, fmt.Sprintf("%s: create failed: %v", el.Name, err))

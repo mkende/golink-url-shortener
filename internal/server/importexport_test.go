@@ -11,6 +11,7 @@ import (
 	"sort"
 	"testing"
 
+	"github.com/mkende/golink-redirector/internal/db"
 	"github.com/mkende/golink-redirector/internal/server"
 )
 
@@ -92,7 +93,7 @@ func TestExportImportRoundTrip(t *testing.T) {
 	ctx := context.Background()
 
 	// Create several links, some with shares.
-	link1, err := env.links.Create(ctx, "alpha", "https://alpha.example.com", "alice@example.com", false, false)
+	link1, err := env.links.Create(ctx, "alpha", "https://alpha.example.com", "alice@example.com", db.LinkTypeSimple, "", false)
 	if err != nil {
 		t.Fatalf("create alpha: %v", err)
 	}
@@ -100,12 +101,12 @@ func TestExportImportRoundTrip(t *testing.T) {
 		t.Fatalf("add share: %v", err)
 	}
 
-	_, err = env.links.Create(ctx, "beta", "https://beta.example.com", "bob@example.com", true, true)
+	_, err = env.links.Create(ctx, "beta", "https://beta.example.com", "bob@example.com", db.LinkTypeAdvanced, "", true)
 	if err != nil {
 		t.Fatalf("create beta: %v", err)
 	}
 
-	link3, err := env.links.Create(ctx, "gamma", "https://gamma.example.com", "carol@example.com", false, false)
+	link3, err := env.links.Create(ctx, "gamma", "https://gamma.example.com", "carol@example.com", db.LinkTypeSimple, "", false)
 	if err != nil {
 		t.Fatalf("create gamma: %v", err)
 	}
@@ -168,8 +169,8 @@ func TestExportImportRoundTrip(t *testing.T) {
 		if a.OwnerEmail != b.OwnerEmail {
 			t.Errorf("link %s: owner_email mismatch: %q vs %q", a.Name, a.OwnerEmail, b.OwnerEmail)
 		}
-		if a.IsAdvanced != b.IsAdvanced {
-			t.Errorf("link %s: is_advanced mismatch: %v vs %v", a.Name, a.IsAdvanced, b.IsAdvanced)
+		if a.LinkType != b.LinkType {
+			t.Errorf("link %s: link_type mismatch: %v vs %v", a.Name, a.LinkType, b.LinkType)
 		}
 		if a.RequireAuth != b.RequireAuth {
 			t.Errorf("link %s: require_auth mismatch: %v vs %v", a.Name, a.RequireAuth, b.RequireAuth)
@@ -187,7 +188,7 @@ func TestImport_UpdateExistingLink(t *testing.T) {
 	key := makeAdminAPIKey(t, env, "adminkey")
 	ctx := context.Background()
 
-	_, err := env.links.Create(ctx, "existing", "https://old.example.com", "owner@example.com", false, false)
+	_, err := env.links.Create(ctx, "existing", "https://old.example.com", "owner@example.com", db.LinkTypeSimple, "", false)
 	if err != nil {
 		t.Fatalf("create link: %v", err)
 	}

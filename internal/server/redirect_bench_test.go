@@ -34,7 +34,7 @@ func BenchmarkRedirect(b *testing.B) {
 	handler := server.New(cfg, sqlDB, logger, nil)
 
 	linkRepo := db.NewLinkRepo(sqlDB)
-	if _, err := linkRepo.Create(context.Background(), "bench", "https://example.com/bench", "test@example.com", false, false); err != nil {
+	if _, err := linkRepo.Create(context.Background(), "bench", "https://example.com/bench", "test@example.com", db.LinkTypeSimple, "", false); err != nil {
 		b.Fatalf("create link: %v", err)
 	}
 

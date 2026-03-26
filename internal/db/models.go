@@ -6,19 +6,48 @@ import (
 	"time"
 )
 
+// LinkType identifies the kind of redirect behaviour for a short link.
+type LinkType int
+
+const (
+	// LinkTypeSimple is a plain URL redirect; the target is appended with any
+	// extra path suffix from the request.
+	LinkTypeSimple LinkType = 0
+	// LinkTypeAdvanced uses a Go template as the target, giving access to path,
+	// query, user-agent, and authenticated email variables.
+	LinkTypeAdvanced LinkType = 1
+	// LinkTypeAlias redirects via a canonical link identified by name.  The
+	// canonical link's own redirect logic (simple or advanced) is applied.
+	LinkTypeAlias LinkType = 2
+)
+
 // Link represents a short link stored in the database.
 type Link struct {
 	ID          int64
 	Name        string
 	NameLower   string
+	// Target is the redirect destination for simple and advanced links.
+	// It is empty for alias links.
 	Target      string
 	OwnerEmail  string
-	IsAdvanced  bool
+	LinkType    LinkType
+	// AliasTarget is the lower-cased name of the canonical link for alias links.
+	// It is empty for simple and advanced links.
+	AliasTarget string
 	RequireAuth bool
 	CreatedAt   time.Time
 	LastUsedAt  sql.NullTime
 	UseCount    int64
 }
+
+// IsSimple reports whether the link is a plain URL redirect.
+func (l *Link) IsSimple() bool { return l.LinkType == LinkTypeSimple }
+
+// IsAdvanced reports whether the link uses a Go template redirect.
+func (l *Link) IsAdvanced() bool { return l.LinkType == LinkTypeAdvanced }
+
+// IsAlias reports whether the link is an alias for another link.
+func (l *Link) IsAlias() bool { return l.LinkType == LinkTypeAlias }
 
 // LinkShare represents a link shared with a specific user or group.
 type LinkShare struct {
