@@ -3,7 +3,6 @@ package db
 
 import (
 	"context"
-	"database/sql"
 	"sync"
 	"time"
 )
@@ -12,7 +11,7 @@ import (
 // database periodically via a background goroutine. This avoids write
 // contention on the hot redirect path.
 type UseCounter struct {
-	db      *sql.DB
+	db      *DB
 	mu      sync.Mutex
 	counts  map[int64]int64 // link ID → pending increment
 	flushCh chan struct{}
@@ -21,7 +20,7 @@ type UseCounter struct {
 
 // NewUseCounter creates a UseCounter and starts its background flush goroutine.
 // Call Shutdown to drain and stop it.
-func NewUseCounter(db *sql.DB, flushInterval time.Duration) *UseCounter {
+func NewUseCounter(db *DB, flushInterval time.Duration) *UseCounter {
 	uc := &UseCounter{
 		db:      db,
 		counts:  make(map[int64]int64),
@@ -91,7 +90,7 @@ func (uc *UseCounter) flush() {
 	ctx := context.Background()
 	for id, delta := range pending {
 		_, err := uc.db.ExecContext(ctx,
-			"UPDATE links SET use_count = use_count + ?, last_used_at = CURRENT_TIMESTAMP WHERE id = ?",
+			uc.db.q("UPDATE links SET use_count = use_count + ?, last_used_at = CURRENT_TIMESTAMP WHERE id = ?"),
 			delta, id)
 		if err != nil {
 			// Best-effort; don't crash or retry for stats.

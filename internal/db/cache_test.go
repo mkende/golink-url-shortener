@@ -72,139 +72,155 @@ func (r *countingLinkRepo) CountAliases(ctx context.Context, nameLower string) (
 // TestCachingLinkRepo_HitAndMiss verifies that a second GetByName call for the
 // same name does not reach the underlying repository.
 func TestCachingLinkRepo_HitAndMiss(t *testing.T) {
-	base := NewLinkRepo(openTestDB(t))
-	ctx := context.Background()
+	for _, b := range allBackends(t) {
+		t.Run(b.name, func(t *testing.T) {
+			base := NewLinkRepo(b.db)
+			ctx := context.Background()
 
-	_, err := base.Create(ctx, "cached", "https://example.com", "o@example.com", LinkTypeSimple, "", false)
-	if err != nil {
-		t.Fatalf("Create: %v", err)
-	}
+			_, err := base.Create(ctx, "cached", "https://example.com", "o@example.com", LinkTypeSimple, "", false)
+			if err != nil {
+				t.Fatalf("Create: %v", err)
+			}
 
-	counter := &countingLinkRepo{inner: base}
-	cache, err := NewCachingLinkRepo(counter, 100)
-	if err != nil {
-		t.Fatalf("NewCachingLinkRepo: %v", err)
-	}
+			counter := &countingLinkRepo{inner: base}
+			cache, err := NewCachingLinkRepo(counter, 100)
+			if err != nil {
+				t.Fatalf("NewCachingLinkRepo: %v", err)
+			}
 
-	// First call — cache miss, should hit inner repo.
-	l1, err := cache.GetByName(ctx, "cached")
-	if err != nil {
-		t.Fatalf("GetByName (miss): %v", err)
-	}
-	if counter.getByNameN.Load() != 1 {
-		t.Errorf("inner GetByName calls after miss = %d, want 1", counter.getByNameN.Load())
-	}
+			// First call — cache miss, should hit inner repo.
+			l1, err := cache.GetByName(ctx, "cached")
+			if err != nil {
+				t.Fatalf("GetByName (miss): %v", err)
+			}
+			if counter.getByNameN.Load() != 1 {
+				t.Errorf("inner GetByName calls after miss = %d, want 1", counter.getByNameN.Load())
+			}
 
-	// Second call — cache hit, inner repo must NOT be called again.
-	l2, err := cache.GetByName(ctx, "cached")
-	if err != nil {
-		t.Fatalf("GetByName (hit): %v", err)
-	}
-	if counter.getByNameN.Load() != 1 {
-		t.Errorf("inner GetByName calls after hit = %d, want 1 (no extra call)", counter.getByNameN.Load())
-	}
-	if l1.ID != l2.ID {
-		t.Errorf("cached link ID mismatch: %d vs %d", l1.ID, l2.ID)
+			// Second call — cache hit, inner repo must NOT be called again.
+			l2, err := cache.GetByName(ctx, "cached")
+			if err != nil {
+				t.Fatalf("GetByName (hit): %v", err)
+			}
+			if counter.getByNameN.Load() != 1 {
+				t.Errorf("inner GetByName calls after hit = %d, want 1 (no extra call)", counter.getByNameN.Load())
+			}
+			if l1.ID != l2.ID {
+				t.Errorf("cached link ID mismatch: %d vs %d", l1.ID, l2.ID)
+			}
+		})
 	}
 }
 
 // TestCachingLinkRepo_InvalidateOnUpdate verifies that after Update the next
 // GetByName call reads fresh data from the inner repository.
 func TestCachingLinkRepo_InvalidateOnUpdate(t *testing.T) {
-	base := NewLinkRepo(openTestDB(t))
-	ctx := context.Background()
+	for _, b := range allBackends(t) {
+		t.Run(b.name, func(t *testing.T) {
+			base := NewLinkRepo(b.db)
+			ctx := context.Background()
 
-	orig, err := base.Create(ctx, "updateme", "https://old.example.com", "o@example.com", LinkTypeSimple, "", false)
-	if err != nil {
-		t.Fatalf("Create: %v", err)
-	}
+			orig, err := base.Create(ctx, "updateme", "https://old.example.com", "o@example.com", LinkTypeSimple, "", false)
+			if err != nil {
+				t.Fatalf("Create: %v", err)
+			}
 
-	counter := &countingLinkRepo{inner: base}
-	cache, err := NewCachingLinkRepo(counter, 100)
-	if err != nil {
-		t.Fatalf("NewCachingLinkRepo: %v", err)
-	}
+			counter := &countingLinkRepo{inner: base}
+			cache, err := NewCachingLinkRepo(counter, 100)
+			if err != nil {
+				t.Fatalf("NewCachingLinkRepo: %v", err)
+			}
 
-	// Populate cache.
-	if _, err := cache.GetByName(ctx, "updateme"); err != nil {
-		t.Fatalf("GetByName before update: %v", err)
-	}
-	callsAfterFirst := counter.getByNameN.Load()
+			// Populate cache.
+			if _, err := cache.GetByName(ctx, "updateme"); err != nil {
+				t.Fatalf("GetByName before update: %v", err)
+			}
+			callsAfterFirst := counter.getByNameN.Load()
 
-	// Update the link — this must invalidate the cache entry.
-	if _, err := cache.Update(ctx, orig.ID, "updateme", "https://new.example.com", LinkTypeSimple, false); err != nil {
-		t.Fatalf("Update: %v", err)
-	}
+			// Update the link — this must invalidate the cache entry.
+			if _, err := cache.Update(ctx, orig.ID, "updateme", "https://new.example.com", LinkTypeSimple, false); err != nil {
+				t.Fatalf("Update: %v", err)
+			}
 
-	// Next GetByName must go to the inner repo.
-	updated, err := cache.GetByName(ctx, "updateme")
-	if err != nil {
-		t.Fatalf("GetByName after update: %v", err)
-	}
-	if counter.getByNameN.Load() != callsAfterFirst+1 {
-		t.Errorf("inner GetByName calls after invalidation = %d, want %d", counter.getByNameN.Load(), callsAfterFirst+1)
-	}
-	if updated.Target != "https://new.example.com" {
-		t.Errorf("Target = %q, want https://new.example.com", updated.Target)
+			// Next GetByName must go to the inner repo.
+			updated, err := cache.GetByName(ctx, "updateme")
+			if err != nil {
+				t.Fatalf("GetByName after update: %v", err)
+			}
+			if counter.getByNameN.Load() != callsAfterFirst+1 {
+				t.Errorf("inner GetByName calls after invalidation = %d, want %d", counter.getByNameN.Load(), callsAfterFirst+1)
+			}
+			if updated.Target != "https://new.example.com" {
+				t.Errorf("Target = %q, want https://new.example.com", updated.Target)
+			}
+		})
 	}
 }
 
 // TestCachingLinkRepo_InvalidateOnDelete verifies that after Delete the cache
 // no longer returns the stale entry.
 func TestCachingLinkRepo_InvalidateOnDelete(t *testing.T) {
-	base := NewLinkRepo(openTestDB(t))
-	ctx := context.Background()
+	for _, b := range allBackends(t) {
+		t.Run(b.name, func(t *testing.T) {
+			base := NewLinkRepo(b.db)
+			ctx := context.Background()
 
-	link, err := base.Create(ctx, "deleteme", "https://example.com", "o@example.com", LinkTypeSimple, "", false)
-	if err != nil {
-		t.Fatalf("Create: %v", err)
-	}
+			link, err := base.Create(ctx, "deleteme", "https://example.com", "o@example.com", LinkTypeSimple, "", false)
+			if err != nil {
+				t.Fatalf("Create: %v", err)
+			}
 
-	counter := &countingLinkRepo{inner: base}
-	cache, err := NewCachingLinkRepo(counter, 100)
-	if err != nil {
-		t.Fatalf("NewCachingLinkRepo: %v", err)
-	}
+			counter := &countingLinkRepo{inner: base}
+			cache, err := NewCachingLinkRepo(counter, 100)
+			if err != nil {
+				t.Fatalf("NewCachingLinkRepo: %v", err)
+			}
 
-	// Warm the cache.
-	if _, err := cache.GetByName(ctx, "deleteme"); err != nil {
-		t.Fatalf("GetByName before delete: %v", err)
-	}
+			// Warm the cache.
+			if _, err := cache.GetByName(ctx, "deleteme"); err != nil {
+				t.Fatalf("GetByName before delete: %v", err)
+			}
 
-	// Delete purges the cache.
-	if err := cache.Delete(ctx, link.ID); err != nil {
-		t.Fatalf("Delete: %v", err)
-	}
+			// Delete purges the cache.
+			if err := cache.Delete(ctx, link.ID); err != nil {
+				t.Fatalf("Delete: %v", err)
+			}
 
-	// After delete the link should not be found.
-	_, err = cache.GetByName(ctx, "deleteme")
-	if err == nil {
-		t.Error("expected ErrNotFound after delete, got nil")
+			// After delete the link should not be found.
+			_, err = cache.GetByName(ctx, "deleteme")
+			if err == nil {
+				t.Error("expected ErrNotFound after delete, got nil")
+			}
+		})
 	}
 }
 
 // TestCachingLinkRepo_CreatePopulatesCache verifies that Create adds the new
 // link to the cache so a subsequent GetByName does not hit the inner repo.
 func TestCachingLinkRepo_CreatePopulatesCache(t *testing.T) {
-	base := NewLinkRepo(openTestDB(t))
-	ctx := context.Background()
+	for _, b := range allBackends(t) {
+		t.Run(b.name, func(t *testing.T) {
+			base := NewLinkRepo(b.db)
+			ctx := context.Background()
 
-	counter := &countingLinkRepo{inner: base}
-	cache, err := NewCachingLinkRepo(counter, 100)
-	if err != nil {
-		t.Fatalf("NewCachingLinkRepo: %v", err)
-	}
+			counter := &countingLinkRepo{inner: base}
+			cache, err := NewCachingLinkRepo(counter, 100)
+			if err != nil {
+				t.Fatalf("NewCachingLinkRepo: %v", err)
+			}
 
-	if _, err := cache.Create(ctx, "brand-new", "https://example.com", "o@example.com", LinkTypeSimple, "", false); err != nil {
-		t.Fatalf("Create: %v", err)
-	}
-	callsAfterCreate := counter.getByNameN.Load()
+			if _, err := cache.Create(ctx, "brand-new", "https://example.com", "o@example.com", LinkTypeSimple, "", false); err != nil {
+				t.Fatalf("Create: %v", err)
+			}
+			callsAfterCreate := counter.getByNameN.Load()
 
-	// GetByName should be served from cache — inner repo must not be called.
-	if _, err := cache.GetByName(ctx, "brand-new"); err != nil {
-		t.Fatalf("GetByName after create: %v", err)
-	}
-	if counter.getByNameN.Load() != callsAfterCreate {
-		t.Errorf("inner GetByName calls after cached create = %d, want %d (no extra call)", counter.getByNameN.Load(), callsAfterCreate)
+			// GetByName should be served from cache — inner repo must not be called.
+			if _, err := cache.GetByName(ctx, "brand-new"); err != nil {
+				t.Fatalf("GetByName after create: %v", err)
+			}
+			if counter.getByNameN.Load() != callsAfterCreate {
+				t.Errorf("inner GetByName calls after cached create = %d, want %d (no extra call)", counter.getByNameN.Load(), callsAfterCreate)
+			}
+		})
 	}
 }

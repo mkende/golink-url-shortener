@@ -1,81 +1,57 @@
 package db
 
 import (
-	"context"
-	"database/sql"
 	"embed"
 	"fmt"
-	"io/fs"
-	"sort"
-	"strings"
+
+	"github.com/golang-migrate/migrate/v4"
+	"github.com/golang-migrate/migrate/v4/database/postgres"
+	"github.com/golang-migrate/migrate/v4/database/sqlite3"
+	"github.com/golang-migrate/migrate/v4/source/iofs"
 )
 
-//go:embed migrations/*.sql
+//go:embed migrations/sqlite/*.sql migrations/postgres/*.sql
 var migrationsFS embed.FS
 
-// runMigrations applies any pending up-migrations in lexicographic order.
-// Completed versions are tracked in a schema_migrations table.
-func runMigrations(ctx context.Context, db *sql.DB) error {
-	_, err := db.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS schema_migrations (
-		version    TEXT    PRIMARY KEY,
-		applied_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-	)`)
+// migrate applies all pending up-migrations for the configured backend.
+func (d *DB) migrate() error {
+	subDir := map[string]string{
+		"sqlite3":  "migrations/sqlite",
+		"postgres": "migrations/postgres",
+	}[d.backend]
+	if subDir == "" {
+		return fmt.Errorf("unsupported backend %q", d.backend)
+	}
+
+	src, err := iofs.New(migrationsFS, subDir)
 	if err != nil {
-		return fmt.Errorf("create schema_migrations: %w", err)
+		return fmt.Errorf("migrations source: %w", err)
 	}
 
-	entries, err := fs.ReadDir(migrationsFS, "migrations")
-	if err != nil {
-		return fmt.Errorf("read migrations directory: %w", err)
-	}
-
-	var upFiles []string
-	for _, e := range entries {
-		if !e.IsDir() && strings.HasSuffix(e.Name(), ".up.sql") {
-			upFiles = append(upFiles, e.Name())
-		}
-	}
-	sort.Strings(upFiles)
-
-	for _, fname := range upFiles {
-		version := strings.TrimSuffix(fname, ".up.sql")
-
-		var count int
-		if err := db.QueryRowContext(ctx,
-			"SELECT COUNT(*) FROM schema_migrations WHERE version = ?", version,
-		).Scan(&count); err != nil {
-			return fmt.Errorf("check migration %s: %w", version, err)
-		}
-		if count > 0 {
-			continue
-		}
-
-		data, err := migrationsFS.ReadFile("migrations/" + fname)
+	var m *migrate.Migrate
+	switch d.backend {
+	case "sqlite3":
+		drv, err := sqlite3.WithInstance(d.DB, &sqlite3.Config{})
 		if err != nil {
-			return fmt.Errorf("read migration file %s: %w", fname, err)
+			return fmt.Errorf("migrate sqlite3 driver: %w", err)
 		}
-
-		tx, err := db.BeginTx(ctx, nil)
+		m, err = migrate.NewWithInstance("iofs", src, "sqlite3", drv)
 		if err != nil {
-			return fmt.Errorf("begin transaction for migration %s: %w", version, err)
+			return fmt.Errorf("migrate: %w", err)
 		}
-
-		if _, err := tx.ExecContext(ctx, string(data)); err != nil {
-			_ = tx.Rollback()
-			return fmt.Errorf("apply migration %s: %w", version, err)
+	case "postgres":
+		drv, err := postgres.WithInstance(d.DB, &postgres.Config{})
+		if err != nil {
+			return fmt.Errorf("migrate postgres driver: %w", err)
 		}
-
-		if _, err := tx.ExecContext(ctx,
-			"INSERT INTO schema_migrations (version) VALUES (?)", version,
-		); err != nil {
-			_ = tx.Rollback()
-			return fmt.Errorf("record migration %s: %w", version, err)
-		}
-
-		if err := tx.Commit(); err != nil {
-			return fmt.Errorf("commit migration %s: %w", version, err)
+		m, err = migrate.NewWithInstance("iofs", src, "postgres", drv)
+		if err != nil {
+			return fmt.Errorf("migrate: %w", err)
 		}
 	}
 
+	if err := m.Up(); err != nil && err != migrate.ErrNoChange {
+		return fmt.Errorf("run migrations: %w", err)
+	}
 	return nil
 }

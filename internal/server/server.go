@@ -3,7 +3,6 @@ package server
 
 import (
 	"context"
-	"database/sql"
 	"log/slog"
 	"net/http"
 	"os"
@@ -36,7 +35,7 @@ type Server struct {
 // New creates a new Server, wires up all routes, and starts background
 // goroutines. Call Shutdown to drain them gracefully. The oidcHandler may be
 // nil when OIDC is disabled.
-func New(cfg *config.Config, sqlDB *sql.DB, logger *slog.Logger, oidcHandler *auth.OIDCHandler) *Server {
+func New(cfg *config.Config, sqlDB *db.DB, logger *slog.Logger, oidcHandler *auth.OIDCHandler) *Server {
 	renderer, err := templates.New()
 	if err != nil {
 		// Template parse errors are programmer errors; panic early so they are

@@ -59,11 +59,11 @@ var ErrAliasLimitExceeded = errors.New("alias limit exceeded")
 
 // SQLLinkRepo is a database/sql-backed implementation of LinkRepo.
 type SQLLinkRepo struct {
-	db *sql.DB
+	db *DB
 }
 
 // NewLinkRepo creates a new SQLLinkRepo backed by db.
-func NewLinkRepo(db *sql.DB) *SQLLinkRepo {
+func NewLinkRepo(db *DB) *SQLLinkRepo {
 	return &SQLLinkRepo{db: db}
 }
 
@@ -74,10 +74,10 @@ const selectCols = `id, name, name_lower, target, owner_email, link_type, alias_
 // Create inserts a new link record and returns it.
 func (r *SQLLinkRepo) Create(ctx context.Context, name, target, ownerEmail string, linkType LinkType, aliasTarget string, requireAuth bool) (*Link, error) {
 	nameLower := strings.ToLower(name)
-	row := r.db.QueryRowContext(ctx, `
+	row := r.db.QueryRowContext(ctx, r.db.q(`
 		INSERT INTO links (name, name_lower, target, owner_email, link_type, alias_target, require_auth)
 		VALUES (?, ?, ?, ?, ?, ?, ?)
-		RETURNING `+selectCols,
+		RETURNING `+selectCols),
 		name, nameLower, target, ownerEmail, linkType, aliasTarget, requireAuth,
 	)
 	return scanLink(row)
@@ -85,9 +85,9 @@ func (r *SQLLinkRepo) Create(ctx context.Context, name, target, ownerEmail strin
 
 // GetByName retrieves a link by lower-cased name.
 func (r *SQLLinkRepo) GetByName(ctx context.Context, nameLower string) (*Link, error) {
-	row := r.db.QueryRowContext(ctx, `
+	row := r.db.QueryRowContext(ctx, r.db.q(`
 		SELECT `+selectCols+`
-		FROM links WHERE name_lower = ? LIMIT 1`,
+		FROM links WHERE name_lower = ? LIMIT 1`),
 		nameLower,
 	)
 	link, err := scanLink(row)
@@ -101,11 +101,11 @@ func (r *SQLLinkRepo) GetByName(ctx context.Context, nameLower string) (*Link, e
 // the updated record.  To convert a link to alias type use SetAlias.
 func (r *SQLLinkRepo) Update(ctx context.Context, id int64, name, target string, linkType LinkType, requireAuth bool) (*Link, error) {
 	nameLower := strings.ToLower(name)
-	row := r.db.QueryRowContext(ctx, `
+	row := r.db.QueryRowContext(ctx, r.db.q(`
 		UPDATE links
 		SET name = ?, name_lower = ?, target = ?, link_type = ?, alias_target = '', require_auth = ?
 		WHERE id = ?
-		RETURNING `+selectCols,
+		RETURNING `+selectCols),
 		name, nameLower, target, linkType, requireAuth, id,
 	)
 	link, err := scanLink(row)
@@ -126,7 +126,7 @@ func (r *SQLLinkRepo) SetAlias(ctx context.Context, id int64, name, aliasTargetL
 
 	// Find the current name_lower of this link so we can locate its aliases.
 	var currentNameLower string
-	if err := tx.QueryRowContext(ctx, "SELECT name_lower FROM links WHERE id = ?", id).Scan(&currentNameLower); err != nil {
+	if err := tx.QueryRowContext(ctx, r.db.q("SELECT name_lower FROM links WHERE id = ?"), id).Scan(&currentNameLower); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
 		}
@@ -136,7 +136,7 @@ func (r *SQLLinkRepo) SetAlias(ctx context.Context, id int64, name, aliasTargetL
 	// Count aliases that the target already has.
 	var targetAliasCount int
 	if err := tx.QueryRowContext(ctx,
-		"SELECT COUNT(*) FROM links WHERE alias_target = ?", aliasTargetLower,
+		r.db.q("SELECT COUNT(*) FROM links WHERE alias_target = ?"), aliasTargetLower,
 	).Scan(&targetAliasCount); err != nil {
 		return nil, fmt.Errorf("count target aliases: %w", err)
 	}
@@ -144,7 +144,7 @@ func (r *SQLLinkRepo) SetAlias(ctx context.Context, id int64, name, aliasTargetL
 	// Count aliases that this link currently has (they will be reparented).
 	var ownAliasCount int
 	if err := tx.QueryRowContext(ctx,
-		"SELECT COUNT(*) FROM links WHERE alias_target = ?", currentNameLower,
+		r.db.q("SELECT COUNT(*) FROM links WHERE alias_target = ?"), currentNameLower,
 	).Scan(&ownAliasCount); err != nil {
 		return nil, fmt.Errorf("count own aliases: %w", err)
 	}
@@ -158,7 +158,7 @@ func (r *SQLLinkRepo) SetAlias(ctx context.Context, id int64, name, aliasTargetL
 	// Reparent existing aliases of this link to the new target.
 	if ownAliasCount > 0 {
 		if _, err := tx.ExecContext(ctx,
-			"UPDATE links SET alias_target = ? WHERE alias_target = ?",
+			r.db.q("UPDATE links SET alias_target = ? WHERE alias_target = ?"),
 			aliasTargetLower, currentNameLower,
 		); err != nil {
 			return nil, fmt.Errorf("reparent aliases: %w", err)
@@ -167,11 +167,11 @@ func (r *SQLLinkRepo) SetAlias(ctx context.Context, id int64, name, aliasTargetL
 
 	// Convert this link to an alias.
 	nameLower := strings.ToLower(name)
-	row := tx.QueryRowContext(ctx, `
+	row := tx.QueryRowContext(ctx, r.db.q(`
 		UPDATE links
 		SET name = ?, name_lower = ?, target = '', link_type = ?, alias_target = ?, require_auth = ?
 		WHERE id = ?
-		RETURNING `+selectCols,
+		RETURNING `+selectCols),
 		name, nameLower, LinkTypeAlias, aliasTargetLower, requireAuth, id,
 	)
 	link, err := scanLink(row)
@@ -187,7 +187,7 @@ func (r *SQLLinkRepo) SetAlias(ctx context.Context, id int64, name, aliasTargetL
 
 // Delete removes the link with the given ID.
 func (r *SQLLinkRepo) Delete(ctx context.Context, id int64) error {
-	res, err := r.db.ExecContext(ctx, "DELETE FROM links WHERE id = ?", id)
+	res, err := r.db.ExecContext(ctx, r.db.q("DELETE FROM links WHERE id = ?"), id)
 	if err != nil {
 		return fmt.Errorf("delete link %d: %w", id, err)
 	}
@@ -217,9 +217,9 @@ func (r *SQLLinkRepo) List(ctx context.Context, limit, offset int, sortField Sor
 	}
 
 	// Safe to interpolate: values were validated against an allow-list above.
-	query := fmt.Sprintf(`
+	query := r.db.q(fmt.Sprintf(`
 		SELECT `+selectCols+`
-		FROM links ORDER BY %s %s LIMIT ? OFFSET ?`, sortField, sortDir)
+		FROM links ORDER BY %s %s LIMIT ? OFFSET ?`, sortField, sortDir))
 
 	rows, err := r.db.QueryContext(ctx, query, limit, offset)
 	if err != nil {
@@ -238,15 +238,15 @@ func (r *SQLLinkRepo) List(ctx context.Context, limit, offset int, sortField Sor
 func (r *SQLLinkRepo) ListByOwner(ctx context.Context, ownerEmail string, limit, offset int) ([]*Link, int, error) {
 	var total int
 	if err := r.db.QueryRowContext(ctx,
-		"SELECT COUNT(*) FROM links WHERE owner_email = ?", ownerEmail,
+		r.db.q("SELECT COUNT(*) FROM links WHERE owner_email = ?"), ownerEmail,
 	).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("count links by owner: %w", err)
 	}
 
-	rows, err := r.db.QueryContext(ctx, `
+	rows, err := r.db.QueryContext(ctx, r.db.q(`
 		SELECT `+selectCols+`
 		FROM links WHERE owner_email = ?
-		ORDER BY name_lower ASC LIMIT ? OFFSET ?`,
+		ORDER BY name_lower ASC LIMIT ? OFFSET ?`),
 		ownerEmail, limit, offset,
 	)
 	if err != nil {
@@ -267,15 +267,15 @@ func (r *SQLLinkRepo) Search(ctx context.Context, query string, limit, offset in
 
 	var total int
 	if err := r.db.QueryRowContext(ctx,
-		"SELECT COUNT(*) FROM links WHERE name_lower LIKE ?", pattern,
+		r.db.q("SELECT COUNT(*) FROM links WHERE name_lower LIKE ?"), pattern,
 	).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("count search links: %w", err)
 	}
 
-	rows, err := r.db.QueryContext(ctx, `
+	rows, err := r.db.QueryContext(ctx, r.db.q(`
 		SELECT `+selectCols+`
 		FROM links WHERE name_lower LIKE ?
-		ORDER BY name_lower ASC LIMIT ? OFFSET ?`,
+		ORDER BY name_lower ASC LIMIT ? OFFSET ?`),
 		pattern, limit, offset,
 	)
 	if err != nil {
@@ -293,7 +293,7 @@ func (r *SQLLinkRepo) Search(ctx context.Context, query string, limit, offset in
 // GetShares returns all emails/groups the link is shared with.
 func (r *SQLLinkRepo) GetShares(ctx context.Context, linkID int64) ([]string, error) {
 	rows, err := r.db.QueryContext(ctx,
-		"SELECT shared_with_email FROM link_shares WHERE link_id = ?", linkID,
+		r.db.q("SELECT shared_with_email FROM link_shares WHERE link_id = ?"), linkID,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("get shares for link %d: %w", linkID, err)
@@ -314,7 +314,7 @@ func (r *SQLLinkRepo) GetShares(ctx context.Context, linkID int64) ([]string, er
 // AddShare grants access for email on the link.  Duplicate entries are ignored.
 func (r *SQLLinkRepo) AddShare(ctx context.Context, linkID int64, email string) error {
 	_, err := r.db.ExecContext(ctx,
-		"INSERT OR IGNORE INTO link_shares (link_id, shared_with_email) VALUES (?, ?)",
+		r.db.q("INSERT INTO link_shares (link_id, shared_with_email) VALUES (?, ?) ON CONFLICT DO NOTHING"),
 		linkID, email,
 	)
 	if err != nil {
@@ -326,7 +326,7 @@ func (r *SQLLinkRepo) AddShare(ctx context.Context, linkID int64, email string) 
 // RemoveShare revokes access for email on the link.
 func (r *SQLLinkRepo) RemoveShare(ctx context.Context, linkID int64, email string) error {
 	_, err := r.db.ExecContext(ctx,
-		"DELETE FROM link_shares WHERE link_id = ? AND shared_with_email = ?",
+		r.db.q("DELETE FROM link_shares WHERE link_id = ? AND shared_with_email = ?"),
 		linkID, email,
 	)
 	if err != nil {
@@ -338,7 +338,7 @@ func (r *SQLLinkRepo) RemoveShare(ctx context.Context, linkID int64, email strin
 // IncrementUseCount bumps the hit counter and last-used timestamp for the link.
 func (r *SQLLinkRepo) IncrementUseCount(ctx context.Context, id int64) error {
 	_, err := r.db.ExecContext(ctx,
-		"UPDATE links SET use_count = use_count + 1, last_used_at = CURRENT_TIMESTAMP WHERE id = ?",
+		r.db.q("UPDATE links SET use_count = use_count + 1, last_used_at = CURRENT_TIMESTAMP WHERE id = ?"),
 		id,
 	)
 	if err != nil {
@@ -350,10 +350,10 @@ func (r *SQLLinkRepo) IncrementUseCount(ctx context.Context, id int64) error {
 // GetAliases returns all links that alias the given canonical link name,
 // ordered by name.
 func (r *SQLLinkRepo) GetAliases(ctx context.Context, nameLower string) ([]*Link, error) {
-	rows, err := r.db.QueryContext(ctx, `
+	rows, err := r.db.QueryContext(ctx, r.db.q(`
 		SELECT `+selectCols+`
 		FROM links WHERE alias_target = ?
-		ORDER BY name_lower ASC`,
+		ORDER BY name_lower ASC`),
 		nameLower,
 	)
 	if err != nil {
@@ -367,7 +367,7 @@ func (r *SQLLinkRepo) GetAliases(ctx context.Context, nameLower string) ([]*Link
 func (r *SQLLinkRepo) CountAliases(ctx context.Context, nameLower string) (int, error) {
 	var count int
 	err := r.db.QueryRowContext(ctx,
-		"SELECT COUNT(*) FROM links WHERE alias_target = ?", nameLower,
+		r.db.q("SELECT COUNT(*) FROM links WHERE alias_target = ?"), nameLower,
 	).Scan(&count)
 	if err != nil {
 		return 0, fmt.Errorf("count aliases for %q: %w", nameLower, err)

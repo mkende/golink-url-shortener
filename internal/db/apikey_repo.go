@@ -25,20 +25,20 @@ type APIKeyRepo interface {
 
 // SQLAPIKeyRepo is a database/sql-backed implementation of APIKeyRepo.
 type SQLAPIKeyRepo struct {
-	db *sql.DB
+	db *DB
 }
 
 // NewAPIKeyRepo creates a new SQLAPIKeyRepo backed by db.
-func NewAPIKeyRepo(db *sql.DB) *SQLAPIKeyRepo {
+func NewAPIKeyRepo(db *DB) *SQLAPIKeyRepo {
 	return &SQLAPIKeyRepo{db: db}
 }
 
 // Create inserts a new API key record.
 func (r *SQLAPIKeyRepo) Create(ctx context.Context, name, keyHash, createdBy string) (*APIKey, error) {
-	row := r.db.QueryRowContext(ctx, `
+	row := r.db.QueryRowContext(ctx, r.db.q(`
 		INSERT INTO api_keys (name, key_hash, created_by)
 		VALUES (?, ?, ?)
-		RETURNING id, name, key_hash, created_by, created_at, last_used_at`,
+		RETURNING id, name, key_hash, created_by, created_at, last_used_at`),
 		name, keyHash, createdBy,
 	)
 	return scanAPIKey(row)
@@ -46,9 +46,9 @@ func (r *SQLAPIKeyRepo) Create(ctx context.Context, name, keyHash, createdBy str
 
 // GetByHash retrieves an API key by its hash value.
 func (r *SQLAPIKeyRepo) GetByHash(ctx context.Context, hash string) (*APIKey, error) {
-	row := r.db.QueryRowContext(ctx, `
+	row := r.db.QueryRowContext(ctx, r.db.q(`
 		SELECT id, name, key_hash, created_by, created_at, last_used_at
-		FROM api_keys WHERE key_hash = ? LIMIT 1`,
+		FROM api_keys WHERE key_hash = ? LIMIT 1`),
 		hash,
 	)
 	k, err := scanAPIKey(row)
@@ -82,7 +82,7 @@ func (r *SQLAPIKeyRepo) List(ctx context.Context) ([]*APIKey, error) {
 
 // Delete removes the API key with the given ID.
 func (r *SQLAPIKeyRepo) Delete(ctx context.Context, id int64) error {
-	res, err := r.db.ExecContext(ctx, "DELETE FROM api_keys WHERE id = ?", id)
+	res, err := r.db.ExecContext(ctx, r.db.q("DELETE FROM api_keys WHERE id = ?"), id)
 	if err != nil {
 		return fmt.Errorf("delete api key %d: %w", id, err)
 	}
@@ -99,7 +99,7 @@ func (r *SQLAPIKeyRepo) Delete(ctx context.Context, id int64) error {
 // UpdateLastUsed sets last_used_at to the current timestamp for the given key.
 func (r *SQLAPIKeyRepo) UpdateLastUsed(ctx context.Context, id int64) error {
 	_, err := r.db.ExecContext(ctx,
-		"UPDATE api_keys SET last_used_at = CURRENT_TIMESTAMP WHERE id = ?", id,
+		r.db.q("UPDATE api_keys SET last_used_at = CURRENT_TIMESTAMP WHERE id = ?"), id,
 	)
 	if err != nil {
 		return fmt.Errorf("update last used for api key %d: %w", id, err)

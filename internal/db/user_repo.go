@@ -21,24 +21,24 @@ type UserRepo interface {
 
 // SQLUserRepo is a database/sql-backed implementation of UserRepo.
 type SQLUserRepo struct {
-	db *sql.DB
+	db *DB
 }
 
 // NewUserRepo creates a new SQLUserRepo backed by db.
-func NewUserRepo(db *sql.DB) *SQLUserRepo {
+func NewUserRepo(db *DB) *SQLUserRepo {
 	return &SQLUserRepo{db: db}
 }
 
 // Upsert inserts or updates a user record, refreshing last_seen_at.
 func (r *SQLUserRepo) Upsert(ctx context.Context, email, displayName, avatarURL string) (*User, error) {
-	row := r.db.QueryRowContext(ctx, `
+	row := r.db.QueryRowContext(ctx, r.db.q(`
 		INSERT INTO users (email, display_name, avatar_url, last_seen_at)
 		VALUES (?, ?, ?, CURRENT_TIMESTAMP)
 		ON CONFLICT(email) DO UPDATE SET
 			display_name = excluded.display_name,
 			avatar_url   = excluded.avatar_url,
 			last_seen_at = CURRENT_TIMESTAMP
-		RETURNING email, display_name, avatar_url, last_seen_at`,
+		RETURNING email, display_name, avatar_url, last_seen_at`),
 		email, displayName, avatarURL,
 	)
 	return scanUser(row)
@@ -46,9 +46,9 @@ func (r *SQLUserRepo) Upsert(ctx context.Context, email, displayName, avatarURL 
 
 // Get returns the user for the given email address.
 func (r *SQLUserRepo) Get(ctx context.Context, email string) (*User, error) {
-	row := r.db.QueryRowContext(ctx, `
+	row := r.db.QueryRowContext(ctx, r.db.q(`
 		SELECT email, display_name, avatar_url, last_seen_at
-		FROM users WHERE email = ? LIMIT 1`,
+		FROM users WHERE email = ? LIMIT 1`),
 		email,
 	)
 	u, err := scanUser(row)
@@ -60,9 +60,9 @@ func (r *SQLUserRepo) Get(ctx context.Context, email string) (*User, error) {
 
 // List returns a paginated list of users sorted by email.
 func (r *SQLUserRepo) List(ctx context.Context, limit, offset int) ([]*User, error) {
-	rows, err := r.db.QueryContext(ctx, `
+	rows, err := r.db.QueryContext(ctx, r.db.q(`
 		SELECT email, display_name, avatar_url, last_seen_at
-		FROM users ORDER BY email ASC LIMIT ? OFFSET ?`,
+		FROM users ORDER BY email ASC LIMIT ? OFFSET ?`),
 		limit, offset,
 	)
 	if err != nil {
@@ -75,11 +75,11 @@ func (r *SQLUserRepo) List(ctx context.Context, limit, offset int) ([]*User, err
 // Search returns users whose email or display name contain query (case-insensitive).
 func (r *SQLUserRepo) Search(ctx context.Context, query string, limit int) ([]*User, error) {
 	pattern := "%" + query + "%"
-	rows, err := r.db.QueryContext(ctx, `
+	rows, err := r.db.QueryContext(ctx, r.db.q(`
 		SELECT email, display_name, avatar_url, last_seen_at
 		FROM users
 		WHERE email LIKE ? OR display_name LIKE ?
-		ORDER BY email ASC LIMIT ?`,
+		ORDER BY email ASC LIMIT ?`),
 		pattern, pattern, limit,
 	)
 	if err != nil {
