@@ -551,14 +551,20 @@ func (s *Server) handleCreateAlias(w http.ResponseWriter, r *http.Request) {
 // linksPageData is the template data for /links and /mylinks.
 type linksPageData struct {
 	baseData
-	Links        []*db.Link
-	Query        string
-	Page         int
-	TotalPages   int
-	Sort         string
-	Dir          string
-	OwnedIDs     map[int64]bool // link IDs owned by the current user
-	SharedIDs    map[int64]bool // link IDs shared with the current user
+	Links      []*db.Link
+	Query      string
+	Page       int
+	TotalPages int
+	// Total is the total number of matching links across all pages.
+	Total int
+	// PageStart and PageEnd are the 1-based indices of the first and last link
+	// on the current page (both 0 when Total is 0).
+	PageStart int
+	PageEnd   int
+	Sort      string
+	Dir       string
+	OwnedIDs  map[int64]bool // link IDs owned by the current user
+	SharedIDs map[int64]bool // link IDs shared with the current user
 }
 
 // handleLinks serves GET /links.
@@ -588,12 +594,16 @@ func (s *Server) handleLinks(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	pageStart, pageEnd := pageRange(page, linksPerPage, len(linkList), total)
 	data := linksPageData{
 		baseData:   base,
 		Links:      linkList,
 		Query:      query,
 		Page:       page,
 		TotalPages: totalPages(total, linksPerPage),
+		Total:      total,
+		PageStart:  pageStart,
+		PageEnd:    pageEnd,
 		Sort:       sortStr,
 		Dir:        dirStr,
 	}
@@ -608,7 +618,10 @@ func (s *Server) handleLinks(w http.ResponseWriter, r *http.Request) {
 		}
 		data.OwnedIDs = ownedIDs
 
-		sharedIDs, sharedErr := s.links.SharedLinkIDs(r.Context(), base.Identity.Email)
+		// Include the user's groups so links shared with a group the user
+		// belongs to are also marked as shared.
+		identifiers := append([]string{base.Identity.Email}, base.Identity.Groups...)
+		sharedIDs, sharedErr := s.links.SharedLinkIDs(r.Context(), identifiers)
 		if sharedErr != nil {
 			s.logger.Error("links: shared link IDs", "error", sharedErr)
 		} else {
@@ -643,11 +656,15 @@ func (s *Server) handleMyLinks(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	pageStart, pageEnd := pageRange(page, linksPerPage, len(linkList), total)
 	s.renderer.Render(w, "mylinks", linksPageData{
 		baseData:   base,
 		Links:      linkList,
 		Page:       page,
 		TotalPages: totalPages(total, linksPerPage),
+		Total:      total,
+		PageStart:  pageStart,
+		PageEnd:    pageEnd,
 		Sort:       sortStr,
 		Dir:        dirStr,
 	})
@@ -791,6 +808,17 @@ func pageParam(r *http.Request) int {
 		return 1
 	}
 	return p
+}
+
+// pageRange returns the 1-based start and end indices of items on the current
+// page. Both values are 0 when total is 0.
+func pageRange(page, pageSize, pageLen, total int) (start, end int) {
+	if total == 0 {
+		return 0, 0
+	}
+	start = (page-1)*pageSize + 1
+	end = start + pageLen - 1
+	return start, end
 }
 
 // totalPages computes the total number of pages for the given item count and

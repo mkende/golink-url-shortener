@@ -6,17 +6,7 @@ nothing
 
 ## Improvements
 
-- Print the total number of links in the title of the /links and my link page
-  (e.g. "All Links (293)").
-- Print the current Link count of the page (e.g. "200-299 of 438", or
-  "1-48 of 48"). This should be below the search text box, just above the table
-  headers.
-- Make sure that we also have a tag in the link lists to show that a link is
-  shared with the current user, not just owned by him. This should also handle
-  groups membership, when a link is shared with a group for the current user
-  that we have retrieved from OIDC.
-- Make sure that the DB queries to gather the list of links, including with the
-  owners and sharing are efficient and can scale well.
+nothing
 
 # DONE
 
@@ -34,6 +24,17 @@ nothing
   "my links" page. For obvious reasons.
 - Allow to sort the all links and my links page by name, target and uses both
   increasing and decreasing.
+- Print the total number of links in the title of the /links and my link page
+  (e.g. "All Links (293)").
+- Print the current Link count of the page (e.g. "200-299 of 438", or
+  "1-48 of 48"). This should be below the search text box, just above the table
+  headers.
+- Make sure that we also have a tag in the link lists to show that a link is
+  shared with the current user, not just owned by him. This should also handle
+  groups membership, when a link is shared with a group for the current user
+  that we have retrieved from OIDC.
+- Make sure that the DB queries to gather the list of links, including with the
+  owners and sharing are efficient and can scale well.
 
 # VERIFIED
 

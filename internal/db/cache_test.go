@@ -69,8 +69,8 @@ func (r *countingLinkRepo) CountAliases(ctx context.Context, nameLower string) (
 	return r.inner.CountAliases(ctx, nameLower)
 }
 
-func (r *countingLinkRepo) SharedLinkIDs(ctx context.Context, email string) (map[int64]bool, error) {
-	return r.inner.SharedLinkIDs(ctx, email)
+func (r *countingLinkRepo) SharedLinkIDs(ctx context.Context, identifiers []string) (map[int64]bool, error) {
+	return r.inner.SharedLinkIDs(ctx, identifiers)
 }
 
 // TestCachingLinkRepo_HitAndMiss verifies that a second GetByName call for the
