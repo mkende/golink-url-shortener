@@ -4,6 +4,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"net"
 	"os"
 
 	"github.com/BurntSushi/toml"
@@ -27,6 +28,34 @@ type AnonymousConfig struct {
 type TailscaleConfig struct {
 	// Enabled controls whether Tailscale header-based auth is active.
 	Enabled bool `toml:"enabled"`
+	// TrustedCIDRs is an optional list of IP ranges (IPv4 or IPv6 CIDR notation)
+	// from which Tailscale-User-* headers are accepted. When the list is non-empty,
+	// requests arriving from IPs outside these ranges have their Tailscale headers
+	// silently ignored. An empty list preserves the original behaviour: headers
+	// are trusted regardless of origin.
+	TrustedCIDRs []string `toml:"trusted_cidrs"`
+}
+
+// ProxyAuthConfig holds settings for reverse-proxy header-based authentication.
+// This is similar to Tailscale auth but reads generic forward-auth headers
+// injected by a trusted reverse proxy such as nginx, Caddy, or Traefik.
+// The header names default to the de-facto standard used by Authelia.
+type ProxyAuthConfig struct {
+	// Enabled controls whether proxy header-based auth is active.
+	Enabled bool `toml:"enabled"`
+	// TrustedCIDRs is the list of IP ranges from which proxy auth headers are
+	// accepted. Required when enabled; requests from outside these ranges have
+	// their headers silently ignored.
+	TrustedCIDRs []string `toml:"trusted_cidrs"`
+	// UserHeader is the header containing the authenticated user's identifier
+	// (email or username). Defaults to "Remote-User".
+	UserHeader string `toml:"user_header"`
+	// NameHeader is the header containing the user's display name.
+	// Defaults to "Remote-Name".
+	NameHeader string `toml:"name_header"`
+	// GroupsHeader is the header containing a comma-separated list of the
+	// user's group memberships. Defaults to "Remote-Groups".
+	GroupsHeader string `toml:"groups_header"`
 }
 
 // OIDCConfig holds settings for OpenID Connect authentication.
@@ -90,6 +119,9 @@ type Config struct {
 	// Tailscale holds settings for Tailscale header-based authentication.
 	Tailscale TailscaleConfig `toml:"tailscale"`
 
+	// ProxyAuth holds settings for reverse-proxy header-based authentication.
+	ProxyAuth ProxyAuthConfig `toml:"proxy_auth"`
+
 	// OIDC holds settings for OpenID Connect authentication.
 	OIDC OIDCConfig `toml:"oidc"`
 
@@ -152,6 +184,15 @@ func applyDefaults(c *Config) {
 	if c.OIDC.GroupsClaim == "" {
 		c.OIDC.GroupsClaim = "groups"
 	}
+	if c.ProxyAuth.UserHeader == "" {
+		c.ProxyAuth.UserHeader = "Remote-User"
+	}
+	if c.ProxyAuth.NameHeader == "" {
+		c.ProxyAuth.NameHeader = "Remote-Name"
+	}
+	if c.ProxyAuth.GroupsHeader == "" {
+		c.ProxyAuth.GroupsHeader = "Remote-Groups"
+	}
 	if c.DB.Driver == "" {
 		c.DB.Driver = "sqlite"
 	}
@@ -172,6 +213,17 @@ func applyDefaults(c *Config) {
 	}
 }
 
+// validateCIDRList returns an error if any entry in cidrs is not a valid CIDR,
+// using fieldName in the error message for clarity.
+func validateCIDRList(fieldName string, cidrs []string) error {
+	for _, cidr := range cidrs {
+		if _, _, err := net.ParseCIDR(cidr); err != nil {
+			return fmt.Errorf("%s: %q is not a valid CIDR: %w", fieldName, cidr, err)
+		}
+	}
+	return nil
+}
+
 // validate checks that required fields are present and values are within
 // acceptable ranges. It returns a descriptive error for the first violation
 // found.
@@ -190,6 +242,15 @@ func validate(c *Config) error {
 	}
 	if c.OIDC.Enabled && c.OIDC.JWTSecret == "" {
 		return errors.New("oidc.jwt_secret is required when OIDC is enabled")
+	}
+	if c.ProxyAuth.Enabled && len(c.ProxyAuth.TrustedCIDRs) == 0 {
+		return errors.New("proxy_auth.trusted_cidrs must be set when proxy auth is enabled")
+	}
+	if err := validateCIDRList("tailscale.trusted_cidrs", c.Tailscale.TrustedCIDRs); err != nil {
+		return err
+	}
+	if err := validateCIDRList("proxy_auth.trusted_cidrs", c.ProxyAuth.TrustedCIDRs); err != nil {
+		return err
 	}
 	if c.UI.LinksPerPage < 10 {
 		return fmt.Errorf("ui.links_per_page must be >= 10, got %d", c.UI.LinksPerPage)

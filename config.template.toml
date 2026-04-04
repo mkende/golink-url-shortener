@@ -68,6 +68,48 @@ is_admin = false
 # Default: false
 enabled = false
 
+# Optional: restrict which source IPs may supply Tailscale-User-* headers.
+# When non-empty, requests arriving from IPs outside these CIDR ranges have
+# their Tailscale headers silently ignored. Supports both IPv4 and IPv6 CIDR
+# notation. When empty (the default), headers are accepted from any source —
+# this is safe only when your host is fully inside a Tailnet.
+# Example (Tailscale CGNAT range): ["100.64.0.0/10"]
+# Default: [] (accept from any source)
+trusted_cidrs = []
+
+# ── Reverse-proxy forward-auth ────────────────────────────────────────────────
+# When your server sits behind a reverse proxy (nginx, Caddy, Traefik, …) that
+# performs authentication and injects the authenticated user's identity into
+# HTTP headers, enable this to use those headers.  The header names default to
+# the de-facto standard used by Authelia's forward-auth integration.
+#
+# SECURITY: trusted_cidrs is REQUIRED when this mode is enabled.  Only requests
+# from the configured IP ranges will have their headers trusted; all others are
+# treated as unauthenticated.  Never expose this service directly to the
+# internet with proxy_auth enabled.
+[proxy_auth]
+# Default: false
+enabled = false
+
+# REQUIRED when enabled. IP ranges of the reverse proxy / load balancer.
+# Supports both IPv4 and IPv6 CIDR notation.
+# Example: ["127.0.0.0/8", "::1/128", "10.0.0.0/8"]
+trusted_cidrs = []
+
+# HTTP header containing the authenticated user's identifier (email or
+# username). This value is used as the user's email/login in golink.
+# Default: "Remote-User"  (Authelia / standard forward-auth convention)
+user_header = "Remote-User"
+
+# HTTP header containing the user's display name.
+# Default: "Remote-Name"
+name_header = "Remote-Name"
+
+# HTTP header containing a comma-separated list of the user's group
+# memberships.  Used for group-based sharing and the admin_group setting.
+# Default: "Remote-Groups"
+groups_header = "Remote-Groups"
+
 # ── OpenID Connect auth ───────────────────────────────────────────────────────
 [oidc]
 # Default: false
