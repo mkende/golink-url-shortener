@@ -6,6 +6,7 @@ import (
 	"html/template"
 	"io"
 	"net/http"
+	"strings"
 
 	webtemplates "github.com/mkende/golink-redirector/web/templates"
 )
@@ -46,10 +47,26 @@ type Renderer struct {
 }
 
 // New parses all page templates and returns a ready Renderer.
+// Pages are discovered automatically from the embedded FS: every .html file
+// that is not base.html and not listed in partials is treated as a page.
 // Returns an error if any template fails to parse.
 func New() (*Renderer, error) {
-	pages := []string{"index", "new", "edit", "details", "links", "mylinks", "help", "help_advanced", "help_search", "apikeys"}
 	partials := []string{"link_table.html", "pagination.html"}
+
+	entries, err := webtemplates.FS.ReadDir(".")
+	if err != nil {
+		return nil, fmt.Errorf("list templates: %w", err)
+	}
+	nonPages := map[string]bool{"base.html": true}
+	for _, p := range partials {
+		nonPages[p] = true
+	}
+	var pages []string
+	for _, e := range entries {
+		if !e.IsDir() && strings.HasSuffix(e.Name(), ".html") && !nonPages[e.Name()] {
+			pages = append(pages, strings.TrimSuffix(e.Name(), ".html"))
+		}
+	}
 
 	baseData, err := webtemplates.FS.ReadFile("base.html")
 	if err != nil {

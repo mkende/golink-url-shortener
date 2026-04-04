@@ -32,6 +32,7 @@ type APIKeyResponse struct {
 	CreatedBy string  `json:"created_by"`
 	CreatedAt string  `json:"created_at"`
 	LastUsed  *string `json:"last_used,omitempty"`
+	ReadOnly  bool    `json:"read_only"`
 }
 
 // isJSONRequest returns true when the caller prefers a JSON response, i.e.
@@ -110,6 +111,7 @@ func apiKeyToResponse(k *db.APIKey) APIKeyResponse {
 		Name:      k.Name,
 		CreatedBy: k.CreatedBy,
 		CreatedAt: k.CreatedAt.Format(time.RFC3339),
+		ReadOnly:  k.ReadOnly,
 	}
 	if k.LastUsedAt.Valid {
 		s := k.LastUsedAt.Time.Format(time.RFC3339)

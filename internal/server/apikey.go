@@ -45,9 +45,10 @@ func (s *Server) APIKeyMiddleware(next http.Handler) http.Handler {
 		}()
 
 		id := &auth.Identity{
-			Email:       "apikey:" + key.Name,
-			DisplayName: key.Name,
-			IsAdmin:     true,
+			Email:          "apikey:" + key.Name,
+			DisplayName:    key.Name,
+			IsAdmin:        true,
+			APIKeyReadOnly: key.ReadOnly,
 		}
 		next.ServeHTTP(w, r.WithContext(auth.WithIdentity(r.Context(), id)))
 	})

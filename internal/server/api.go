@@ -121,10 +121,6 @@ func (s *Server) handleAPIListLinks(w http.ResponseWriter, r *http.Request) {
 // handleAPICreateLink serves POST /api/links.
 func (s *Server) handleAPICreateLink(w http.ResponseWriter, r *http.Request) {
 	id := auth.FromContext(r.Context())
-	if id == nil {
-		writeJSONError(w, http.StatusUnauthorized, "authentication required")
-		return
-	}
 
 	var req createLinkRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -135,55 +131,29 @@ func (s *Server) handleAPICreateLink(w http.ResponseWriter, r *http.Request) {
 	req.Target = strings.TrimSpace(req.Target)
 	req.AliasTarget = strings.ToLower(strings.TrimSpace(req.AliasTarget))
 
-	if err := links.ValidateName(req.Name); err != nil {
-		writeJSONError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-
 	linkType, err := linkTypeFromString(req.LinkType)
 	if err != nil {
 		writeJSONError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	if linkType == db.LinkTypeAlias {
-		if req.AliasTarget == "" {
-			writeJSONError(w, http.StatusBadRequest, "alias_target is required for alias links")
-			return
-		}
-		// Resolve alias target to its canonical (non-alias) form.
-		req.AliasTarget, err = s.resolveAliasTarget(r, req.AliasTarget, "")
-		if err != nil {
-			writeJSONError(w, http.StatusBadRequest, err.Error())
-			return
-		}
-		// Check alias limit.
-		count, countErr := s.links.CountAliases(r.Context(), req.AliasTarget)
-		if countErr != nil {
-			s.logger.Error("api: count aliases", "target", req.AliasTarget, "error", countErr)
+	link, cerr := s.doCreateLink(r, createLinkParams{
+		Name:        req.Name,
+		Target:      req.Target,
+		LinkType:    linkType,
+		AliasTarget: req.AliasTarget,
+		RequireAuth: req.RequireAuth,
+	}, id.Email)
+	if cerr != nil {
+		switch cerr.Kind {
+		case createErrConflict:
+			writeJSONError(w, http.StatusConflict, cerr.Message)
+		case createErrValidation:
+			writeJSONError(w, http.StatusBadRequest, cerr.Message)
+		default:
+			s.logger.Error("api: create link", "name", req.Name, "error", cerr.Message)
 			writeJSONError(w, http.StatusInternalServerError, "internal server error")
-			return
 		}
-		if count >= s.cfg.MaxAliasesPerLink {
-			writeJSONError(w, http.StatusUnprocessableEntity, "alias limit reached for this link")
-			return
-		}
-	} else {
-		if err := links.ValidateTarget(req.Target); err != nil {
-			writeJSONError(w, http.StatusBadRequest, err.Error())
-			return
-		}
-	}
-
-	link, err := s.links.Create(r.Context(), req.Name, req.Target, id.Email, linkType, req.AliasTarget, req.RequireAuth)
-	if err != nil {
-		// Treat unique-constraint violations as conflict.
-		if strings.Contains(err.Error(), "UNIQUE") || strings.Contains(err.Error(), "unique") {
-			writeJSONError(w, http.StatusConflict, "link name already exists")
-			return
-		}
-		s.logger.Error("api: create link", "name", req.Name, "error", err)
-		writeJSONError(w, http.StatusInternalServerError, "internal server error")
 		return
 	}
 
@@ -212,10 +182,6 @@ func (s *Server) handleAPIUpdateLink(w http.ResponseWriter, r *http.Request) {
 	name := strings.ToLower(chi.URLParam(r, "name"))
 
 	id := auth.FromContext(r.Context())
-	if id == nil {
-		writeJSONError(w, http.StatusUnauthorized, "authentication required")
-		return
-	}
 
 	link, err := s.links.GetByName(r.Context(), name)
 	if err != nil {
@@ -317,10 +283,6 @@ func (s *Server) handleAPIDeleteLink(w http.ResponseWriter, r *http.Request) {
 	name := strings.ToLower(chi.URLParam(r, "name"))
 
 	id := auth.FromContext(r.Context())
-	if id == nil {
-		writeJSONError(w, http.StatusUnauthorized, "authentication required")
-		return
-	}
 
 	link, err := s.links.GetByName(r.Context(), name)
 	if err != nil {
@@ -410,13 +372,10 @@ type createAPIKeyResponse struct {
 // Returns the raw key once; subsequent lookups will not reveal it.
 func (s *Server) handleAPICreateAPIKey(w http.ResponseWriter, r *http.Request) {
 	id := auth.FromContext(r.Context())
-	if id == nil {
-		writeJSONError(w, http.StatusUnauthorized, "authentication required")
-		return
-	}
 
 	var body struct {
-		Name string `json:"name"`
+		Name     string `json:"name"`
+		ReadOnly *bool  `json:"read_only"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeJSONError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
@@ -427,6 +386,11 @@ func (s *Server) handleAPICreateAPIKey(w http.ResponseWriter, r *http.Request) {
 		writeJSONError(w, http.StatusBadRequest, "name is required")
 		return
 	}
+	// Default to read-only when the field is omitted.
+	readOnly := true
+	if body.ReadOnly != nil {
+		readOnly = *body.ReadOnly
+	}
 
 	rawKey, err := generateAPIKey()
 	if err != nil {
@@ -435,7 +399,7 @@ func (s *Server) handleAPICreateAPIKey(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	key, err := s.apiKeys.Create(r.Context(), body.Name, HashAPIKey(rawKey), id.Email)
+	key, err := s.apiKeys.Create(r.Context(), body.Name, HashAPIKey(rawKey), id.Email, readOnly)
 	if err != nil {
 		s.logger.Error("api: create api key", "error", err)
 		writeJSONError(w, http.StatusInternalServerError, "internal server error")

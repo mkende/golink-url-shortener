@@ -47,13 +47,20 @@ func newAPITestEnv(t *testing.T) *apiTestEnv {
 	}
 }
 
-// createTestAPIKey inserts an API key and returns the raw key string.
+// createTestAPIKey inserts a read-write API key and returns the raw key string.
 func createTestAPIKey(t *testing.T, env *apiTestEnv, name string) string {
+	t.Helper()
+	return createTestAPIKeyWithAccess(t, env, name, false)
+}
+
+// createTestAPIKeyWithAccess inserts an API key with the given readOnly flag
+// and returns the raw key string.
+func createTestAPIKeyWithAccess(t *testing.T, env *apiTestEnv, name string, readOnly bool) string {
 	t.Helper()
 	// Generate a predictable raw key for testing.
 	raw := "testkey-" + name
 	hash := server.HashAPIKey(raw)
-	_, err := env.apiKeys.Create(context.Background(), name, hash, "admin@example.com")
+	_, err := env.apiKeys.Create(context.Background(), name, hash, "admin@example.com", readOnly)
 	if err != nil {
 		t.Fatalf("create api key: %v", err)
 	}
@@ -152,9 +159,9 @@ func TestAPICreateLink_Unauthenticated(t *testing.T) {
 	}
 	w := doJSON(env.handler, http.MethodPost, "/api/links", body, "")
 
-	// Without auth, RequireAuth redirects to login (302) or returns 4xx.
-	if w.Code == http.StatusCreated {
-		t.Errorf("unauthenticated request should not succeed, got 201")
+	// Without auth, API paths return 401 (not a redirect).
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("unauthenticated API request should return 401, got %d", w.Code)
 	}
 }
 
@@ -412,9 +419,35 @@ func TestAPIKeyAuth_InvalidKey(t *testing.T) {
 
 	w := doJSON(env.handler, http.MethodGet, "/api/links", nil, "bad-key-value")
 
-	// Without valid auth, RequireAuth middleware redirects or forbids.
-	if w.Code == http.StatusOK {
-		t.Errorf("expected non-200 with invalid API key, got 200")
+	// An unrecognised API key leaves no identity; /api/ paths return 401.
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("expected 401 with invalid API key, got %d", w.Code)
+	}
+}
+
+func TestAPIUnauthenticated_AllEndpoints(t *testing.T) {
+	env := newAPITestEnv(t)
+
+	cases := []struct {
+		method string
+		path   string
+		body   interface{}
+	}{
+		{http.MethodGet, "/api/links", nil},
+		{http.MethodPost, "/api/links", map[string]interface{}{"name": "x", "target": "https://x.com"}},
+		{http.MethodGet, "/api/links/x", nil},
+		{http.MethodPatch, "/api/links/x", map[string]interface{}{"target": "https://x.com"}},
+		{http.MethodDelete, "/api/links/x", nil},
+		{http.MethodGet, "/api/export", nil},
+		{http.MethodPost, "/api/import", map[string]interface{}{"version": 1, "links": []interface{}{}}},
+	}
+
+	for _, tc := range cases {
+		w := doJSON(env.handler, tc.method, tc.path, tc.body, "")
+		if w.Code != http.StatusUnauthorized {
+			t.Errorf("%s %s: expected 401 for unauthenticated request, got %d",
+				tc.method, tc.path, w.Code)
+		}
 	}
 }
 
@@ -422,7 +455,7 @@ func TestAPIKeyAuth_BearerToken(t *testing.T) {
 	env := newAPITestEnv(t)
 	rawKey := "testkey-bearer"
 	hash := server.HashAPIKey(rawKey)
-	_, err := env.apiKeys.Create(context.Background(), "bearer", hash, "admin@example.com")
+	_, err := env.apiKeys.Create(context.Background(), "bearer", hash, "admin@example.com", false)
 	if err != nil {
 		t.Fatalf("create api key: %v", err)
 	}
@@ -439,6 +472,77 @@ func TestAPIKeyAuth_BearerToken(t *testing.T) {
 }
 
 // --- Quick name test ---
+
+// --- Read-only API key tests ---
+
+func TestReadOnlyKey_CanReadLinks(t *testing.T) {
+	env := newAPITestEnv(t)
+	key := createTestAPIKeyWithAccess(t, env, "rokey", true)
+
+	_, _ = env.links.Create(context.Background(), "visible", "https://example.com", "owner@example.com", db.LinkTypeSimple, "", false)
+
+	w := doJSON(env.handler, http.MethodGet, "/api/links", nil, key)
+	if w.Code != http.StatusOK {
+		t.Errorf("read-only key: expected 200 for GET /api/links, got %d", w.Code)
+	}
+
+	w2 := doJSON(env.handler, http.MethodGet, "/api/links/visible", nil, key)
+	if w2.Code != http.StatusOK {
+		t.Errorf("read-only key: expected 200 for GET /api/links/{name}, got %d", w2.Code)
+	}
+}
+
+func TestReadOnlyKey_CannotCreateLink(t *testing.T) {
+	env := newAPITestEnv(t)
+	key := createTestAPIKeyWithAccess(t, env, "rokey", true)
+
+	body := map[string]interface{}{"name": "newlink", "target": "https://example.com"}
+	w := doJSON(env.handler, http.MethodPost, "/api/links", body, key)
+	if w.Code != http.StatusForbidden {
+		t.Errorf("read-only key: expected 403 for POST /api/links, got %d", w.Code)
+	}
+}
+
+func TestReadOnlyKey_CannotUpdateLink(t *testing.T) {
+	env := newAPITestEnv(t)
+	key := createTestAPIKeyWithAccess(t, env, "rokey", true)
+
+	_, _ = env.links.Create(context.Background(), "existing", "https://example.com", "owner@example.com", db.LinkTypeSimple, "", false)
+
+	body := map[string]interface{}{"target": "https://new.com"}
+	w := doJSON(env.handler, http.MethodPatch, "/api/links/existing", body, key)
+	if w.Code != http.StatusForbidden {
+		t.Errorf("read-only key: expected 403 for PATCH /api/links/{name}, got %d", w.Code)
+	}
+}
+
+func TestReadOnlyKey_CannotDeleteLink(t *testing.T) {
+	env := newAPITestEnv(t)
+	key := createTestAPIKeyWithAccess(t, env, "rokey", true)
+
+	_, _ = env.links.Create(context.Background(), "deleteme", "https://example.com", "owner@example.com", db.LinkTypeSimple, "", false)
+
+	w := doJSON(env.handler, http.MethodDelete, "/api/links/deleteme", nil, key)
+	if w.Code != http.StatusForbidden {
+		t.Errorf("read-only key: expected 403 for DELETE /api/links/{name}, got %d", w.Code)
+	}
+}
+
+func TestReadOnlyKey_CannotManageAPIKeys(t *testing.T) {
+	env := newAPITestEnv(t)
+	key := createTestAPIKeyWithAccess(t, env, "rokey", true)
+
+	w := doJSON(env.handler, http.MethodGet, "/api/apikeys", nil, key)
+	if w.Code != http.StatusForbidden {
+		t.Errorf("read-only key: expected 403 for GET /api/apikeys, got %d", w.Code)
+	}
+
+	body := map[string]interface{}{"name": "newkey"}
+	w2 := doJSON(env.handler, http.MethodPost, "/api/apikeys", body, key)
+	if w2.Code != http.StatusForbidden {
+		t.Errorf("read-only key: expected 403 for POST /api/apikeys, got %d", w2.Code)
+	}
+}
 
 func TestAPIQuickName(t *testing.T) {
 	env := newAPITestEnv(t)

@@ -159,6 +159,14 @@ func (s *Server) buildRouter() chi.Router {
 			r.Post("/", s.handleCreateAPIKey)
 			r.Post("/{id}/delete", s.handleDeleteAPIKey)
 		})
+
+		// Admin: import / export UI
+		r.Route("/importexport", func(r chi.Router) {
+			r.Use(auth.RequireAuth(s.cfg))
+			r.Use(auth.RequireAdmin())
+			r.Get("/", s.handleImportExportPage)
+			r.Post("/", s.handleImportUpload)
+		})
 	})
 
 	// API key middleware applied before the API sub-router so that API key
@@ -171,27 +179,30 @@ func (s *Server) buildRouter() chi.Router {
 		r.Route("/api", func(r chi.Router) {
 			r.Use(auth.RequireAuth(s.cfg))
 
-			// Link CRUD
+			// Link CRUD: reads are open to any authenticated caller;
+			// writes additionally require write scope (blocks read-only API keys).
 			r.Get("/links", s.handleAPIListLinks)
-			r.Post("/links", s.handleAPICreateLink)
+			r.With(auth.RequireWriteScope()).Post("/links", s.handleAPICreateLink)
 			r.Get("/links/{name}", s.handleAPIGetLink)
-			r.Patch("/links/{name}", s.handleAPIUpdateLink)
-			r.Delete("/links/{name}", s.handleAPIDeleteLink)
+			r.With(auth.RequireWriteScope()).Patch("/links/{name}", s.handleAPIUpdateLink)
+			r.With(auth.RequireWriteScope()).Delete("/links/{name}", s.handleAPIDeleteLink)
 
 			// Quick-name generator (also reachable by HTMX from the group above)
 			r.Get("/quickname", s.handleQuickName)
 
-			// API key management — admin only
+			// API key management — admin only, always requires write scope.
 			r.Route("/apikeys", func(r chi.Router) {
 				r.Use(auth.RequireAdmin())
+				r.Use(auth.RequireWriteScope())
 				r.Get("/", s.handleAPIListAPIKeys)
 				r.Post("/", s.handleAPICreateAPIKey)
 				r.Delete("/{id}", s.handleAPIDeleteAPIKey)
 			})
 
-			// Import / export — admin only
+			// Export (read): admin only; read-only API keys may export.
+			// Import (write): admin only, additionally requires write scope.
 			r.With(auth.RequireAdmin()).Get("/export", s.handleExport)
-			r.With(auth.RequireAdmin()).Post("/import", s.handleImport)
+			r.With(auth.RequireAdmin(), auth.RequireWriteScope()).Post("/import", s.handleImport)
 		})
 	})
 

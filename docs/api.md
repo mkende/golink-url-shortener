@@ -24,9 +24,15 @@ or
 Authorization: Bearer <raw-key>
 ```
 
-API keys have full access to all API endpoints (create, edit, delete links and
-manage API keys). They are stored server-side only as a SHA-256 hash; the raw
-value is shown to the administrator once at creation time.
+API keys are either **read-only** (default) or **read/write**:
+
+- **Read-only** keys may resolve links, list/get link details, and export the
+  full link database.
+- **Read/write** keys additionally have full write access: create, edit, delete
+  links; manage API keys; and import.
+
+Keys are stored server-side only as a SHA-256 hash; the raw value is shown to
+the administrator once at creation time.
 
 ### Session Cookie
 
@@ -238,7 +244,8 @@ Returns all API keys (without the raw key value).
     "name": "CI pipeline",
     "created_by": "alice@example.com",
     "created_at": "2024-01-15T10:30:00Z",
-    "last_used": "2024-03-01T08:00:00Z"
+    "last_used": "2024-03-01T08:00:00Z",
+    "read_only": true
   }
 ]
 ```
@@ -260,8 +267,13 @@ is never retrievable again.
 **Request body**
 
 ```json
-{"name": "CI pipeline"}
+{"name": "CI pipeline", "read_only": true}
 ```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string | yes | Human-readable description for the key |
+| `read_only` | boolean | no | `true` (default) for read-only access; `false` for read/write |
 
 **Response** `201 Created`
 
@@ -271,6 +283,7 @@ is never retrievable again.
   "name": "CI pipeline",
   "created_by": "alice@example.com",
   "created_at": "2024-03-25T12:00:00Z",
+  "read_only": true,
   "raw_key": "abcdefghijklmnopqrstuvwxyz012345"
 }
 ```

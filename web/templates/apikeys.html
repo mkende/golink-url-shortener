@@ -23,6 +23,20 @@
         </div>
       </div>
     </div>
+    <div class="field">
+      <label class="label">Access Level</label>
+      <div class="control">
+        <label class="radio">
+          <input type="radio" name="read_only" value="true" checked>
+          Read-only <span class="has-text-grey">(resolve, list, export)</span>
+        </label>
+        &nbsp;
+        <label class="radio">
+          <input type="radio" name="read_only" value="false">
+          Read/write <span class="has-text-grey">(create, edit, delete, import)</span>
+        </label>
+      </div>
+    </div>
   </form>
 </div>
 {{if .Keys}}
@@ -31,6 +45,7 @@
     <thead>
       <tr>
         <th>Name</th>
+        <th>Access</th>
         <th>Created By</th>
         <th>Created At</th>
         <th>Last Used</th>
@@ -41,6 +56,7 @@
     {{range .Keys}}
     <tr>
       <td>{{.Name}}</td>
+      <td>{{if .ReadOnly}}<span class="tag">Read-only</span>{{else}}<span class="tag is-warning">Read/write</span>{{end}}</td>
       <td>{{.CreatedBy}}</td>
       <td>{{.CreatedAt.Format "2006-01-02"}}</td>
       <td>{{if .LastUsedAt.Valid}}{{.LastUsedAt.Time.Format "2006-01-02"}}{{else}}Never{{end}}</td>

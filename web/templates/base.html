@@ -24,6 +24,15 @@
       {{if .Identity}}
       <a class="navbar-item" href="/mylinks">My Links</a>
       <a class="navbar-item" href="/new">New Link</a>
+      {{if .Identity.IsAdmin}}
+      <div class="navbar-item has-dropdown is-hoverable">
+        <a class="navbar-link">Admin</a>
+        <div class="navbar-dropdown is-right">
+          <a class="navbar-item" href="/apikeys">API Keys</a>
+          <a class="navbar-item" href="/importexport">Import / Export</a>
+        </div>
+      </div>
+      {{end}}
       {{if eq .Identity.Source "oidc"}}
       <a class="navbar-item" href="/auth/logout">Logout ({{.Identity.Email}})</a>
       {{else if and (eq .Identity.Source "anonymous") .OIDCEnabled}}

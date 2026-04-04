@@ -63,6 +63,8 @@ func (s *Server) handleCreateAPIKey(w http.ResponseWriter, r *http.Request) {
 	}
 
 	name := strings.TrimSpace(r.FormValue("name"))
+	// The form sends "true" for read-only (default) and "false" for read-write.
+	readOnly := r.FormValue("read_only") != "false"
 
 	renderError := func(msg string) {
 		keys, _ := s.apiKeys.List(r.Context())
@@ -85,7 +87,7 @@ func (s *Server) handleCreateAPIKey(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, err := s.apiKeys.Create(r.Context(), name, HashAPIKey(rawKey), id.Email); err != nil {
+	if _, err := s.apiKeys.Create(r.Context(), name, HashAPIKey(rawKey), id.Email, readOnly); err != nil {
 		s.logger.Error("apikeys create: db create", "error", err)
 		renderError("Could not create API key. Please try again.")
 		return

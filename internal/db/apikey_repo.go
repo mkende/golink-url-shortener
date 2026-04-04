@@ -11,7 +11,8 @@ import (
 // Keys are stored only as hashes; the plaintext is never persisted.
 type APIKeyRepo interface {
 	// Create stores a new API key record (hash only) and returns it.
-	Create(ctx context.Context, name, keyHash, createdBy string) (*APIKey, error)
+	// readOnly controls whether the key may only perform read operations.
+	Create(ctx context.Context, name, keyHash, createdBy string, readOnly bool) (*APIKey, error)
 	// GetByHash looks up a key record by its hash. Returns ErrNotFound when
 	// the hash is not present.
 	GetByHash(ctx context.Context, hash string) (*APIKey, error)
@@ -34,12 +35,12 @@ func NewAPIKeyRepo(db *DB) *SQLAPIKeyRepo {
 }
 
 // Create inserts a new API key record.
-func (r *SQLAPIKeyRepo) Create(ctx context.Context, name, keyHash, createdBy string) (*APIKey, error) {
+func (r *SQLAPIKeyRepo) Create(ctx context.Context, name, keyHash, createdBy string, readOnly bool) (*APIKey, error) {
 	row := r.db.QueryRowContext(ctx, r.db.q(`
-		INSERT INTO api_keys (name, key_hash, created_by)
-		VALUES (?, ?, ?)
-		RETURNING id, name, key_hash, created_by, created_at, last_used_at`),
-		name, keyHash, createdBy,
+		INSERT INTO api_keys (name, key_hash, created_by, read_only)
+		VALUES (?, ?, ?, ?)
+		RETURNING id, name, key_hash, created_by, created_at, last_used_at, read_only`),
+		name, keyHash, createdBy, readOnly,
 	)
 	return scanAPIKey(row)
 }
@@ -47,7 +48,7 @@ func (r *SQLAPIKeyRepo) Create(ctx context.Context, name, keyHash, createdBy str
 // GetByHash retrieves an API key by its hash value.
 func (r *SQLAPIKeyRepo) GetByHash(ctx context.Context, hash string) (*APIKey, error) {
 	row := r.db.QueryRowContext(ctx, r.db.q(`
-		SELECT id, name, key_hash, created_by, created_at, last_used_at
+		SELECT id, name, key_hash, created_by, created_at, last_used_at, read_only
 		FROM api_keys WHERE key_hash = ? LIMIT 1`),
 		hash,
 	)
@@ -61,7 +62,7 @@ func (r *SQLAPIKeyRepo) GetByHash(ctx context.Context, hash string) (*APIKey, er
 // List returns all API key records ordered by creation time descending.
 func (r *SQLAPIKeyRepo) List(ctx context.Context) ([]*APIKey, error) {
 	rows, err := r.db.QueryContext(ctx, `
-		SELECT id, name, key_hash, created_by, created_at, last_used_at
+		SELECT id, name, key_hash, created_by, created_at, last_used_at, read_only
 		FROM api_keys ORDER BY created_at DESC`,
 	)
 	if err != nil {
@@ -72,7 +73,7 @@ func (r *SQLAPIKeyRepo) List(ctx context.Context) ([]*APIKey, error) {
 	var keys []*APIKey
 	for rows.Next() {
 		var k APIKey
-		if err := rows.Scan(&k.ID, &k.Name, &k.KeyHash, &k.CreatedBy, &k.CreatedAt, &k.LastUsedAt); err != nil {
+		if err := rows.Scan(&k.ID, &k.Name, &k.KeyHash, &k.CreatedBy, &k.CreatedAt, &k.LastUsedAt, &k.ReadOnly); err != nil {
 			return nil, fmt.Errorf("scan api key row: %w", err)
 		}
 		keys = append(keys, &k)
@@ -110,7 +111,7 @@ func (r *SQLAPIKeyRepo) UpdateLastUsed(ctx context.Context, id int64) error {
 // scanAPIKey reads a single APIKey from a *sql.Row.
 func scanAPIKey(row *sql.Row) (*APIKey, error) {
 	var k APIKey
-	if err := row.Scan(&k.ID, &k.Name, &k.KeyHash, &k.CreatedBy, &k.CreatedAt, &k.LastUsedAt); err != nil {
+	if err := row.Scan(&k.ID, &k.Name, &k.KeyHash, &k.CreatedBy, &k.CreatedAt, &k.LastUsedAt, &k.ReadOnly); err != nil {
 		return nil, fmt.Errorf("scan api key: %w", err)
 	}
 	return &k, nil

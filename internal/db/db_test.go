@@ -721,7 +721,7 @@ func TestAPIKeyRepo_CreateAndGetByHash(t *testing.T) {
 			repo := NewAPIKeyRepo(b.db)
 			ctx := context.Background()
 
-			k, err := repo.Create(ctx, "my-key", "hashvalue123", "admin@example.com")
+			k, err := repo.Create(ctx, "my-key", "hashvalue123", "admin@example.com", false)
 			if err != nil {
 				t.Fatalf("Create: %v", err)
 			}
@@ -766,7 +766,7 @@ func TestAPIKeyRepo_List(t *testing.T) {
 
 			for i, name := range []string{"key-a", "key-b", "key-c"} {
 				hash := strings.Repeat("x", i+1) // distinct hashes
-				if _, err := repo.Create(ctx, name, hash, "admin@example.com"); err != nil {
+				if _, err := repo.Create(ctx, name, hash, "admin@example.com", false); err != nil {
 					t.Fatalf("Create %s: %v", name, err)
 				}
 			}
@@ -788,7 +788,7 @@ func TestAPIKeyRepo_Delete(t *testing.T) {
 			repo := NewAPIKeyRepo(b.db)
 			ctx := context.Background()
 
-			k, err := repo.Create(ctx, "to-delete", "hash-del", "admin@example.com")
+			k, err := repo.Create(ctx, "to-delete", "hash-del", "admin@example.com", false)
 			if err != nil {
 				t.Fatalf("Create: %v", err)
 			}
@@ -821,7 +821,7 @@ func TestAPIKeyRepo_UpdateLastUsed(t *testing.T) {
 			repo := NewAPIKeyRepo(b.db)
 			ctx := context.Background()
 
-			k, err := repo.Create(ctx, "ts-key", "hash-ts", "admin@example.com")
+			k, err := repo.Create(ctx, "ts-key", "hash-ts", "admin@example.com", false)
 			if err != nil {
 				t.Fatalf("Create: %v", err)
 			}

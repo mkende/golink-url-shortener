@@ -77,6 +77,9 @@ type APIKey struct {
 	CreatedBy  string
 	CreatedAt  time.Time
 	LastUsedAt sql.NullTime
+	// ReadOnly controls whether the key may only perform read operations (list,
+	// get, export). When false the key has full read/write access.
+	ReadOnly   bool
 }
 
 // SortField is a column name used to order link list results.

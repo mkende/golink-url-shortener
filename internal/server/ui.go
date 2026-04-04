@@ -146,60 +146,30 @@ func (s *Server) handleNew(w http.ResponseWriter, r *http.Request) {
 		s.renderer.Render(w, "new", newPageData{baseData: base, Error: msg, Form: form})
 	}
 
-	if err := links.ValidateName(form.Name); err != nil {
-		renderError(err.Error())
-		return
+	linkType := db.LinkTypeSimple
+	if form.LinkType == "advanced" {
+		linkType = db.LinkTypeAdvanced
+	} else if form.LinkType == "alias" {
+		linkType = db.LinkTypeAlias
 	}
 
-	switch form.LinkType {
-	case "alias":
-		// Target is the canonical link name for aliases.
-		aliasTarget := strings.ToLower(form.Target)
-		if aliasTarget == "" {
-			renderError("Alias target link name cannot be empty.")
-			return
+	_, cerr := s.doCreateLink(r, createLinkParams{
+		Name:        form.Name,
+		Target:      form.Target,
+		LinkType:    linkType,
+		AliasTarget: strings.ToLower(form.Target), // used only when LinkType==alias
+		RequireAuth: form.RequireAuth,
+	}, id.Email)
+	if cerr != nil {
+		switch cerr.Kind {
+		case createErrConflict:
+			renderError("A link with that name already exists.")
+		case createErrInternal:
+			s.logger.Error("new: create link", "name", form.Name, "error", cerr.Message)
+			renderError("Could not create link. Please try again.")
+		default:
+			renderError(cerr.Message)
 		}
-		// Verify the canonical link exists.
-		canonical, lookupErr := s.links.GetByName(r.Context(), aliasTarget)
-		if lookupErr != nil {
-			if errors.Is(lookupErr, db.ErrNotFound) {
-				renderError("Target link \"" + form.Target + "\" does not exist.")
-			} else {
-				s.logger.Error("new: lookup alias target", "target", aliasTarget, "error", lookupErr)
-				renderError("Could not look up alias target. Please try again.")
-			}
-			return
-		}
-		if canonical.IsAlias() {
-			renderError("Cannot create an alias of an alias.")
-			return
-		}
-		count, countErr := s.links.CountAliases(r.Context(), aliasTarget)
-		if countErr != nil {
-			s.logger.Error("new: count aliases", "target", aliasTarget, "error", countErr)
-			renderError("Could not create alias. Please try again.")
-			return
-		}
-		if count >= s.cfg.MaxAliasesPerLink {
-			renderError(fmt.Sprintf("Alias limit reached: a link may have at most %d aliases.", s.cfg.MaxAliasesPerLink))
-			return
-		}
-		_, err = s.links.Create(r.Context(), form.Name, "", id.Email, db.LinkTypeAlias, aliasTarget, form.RequireAuth)
-	default:
-		// Simple or advanced.
-		if err := links.ValidateTarget(form.Target); err != nil {
-			renderError(err.Error())
-			return
-		}
-		linkType := db.LinkTypeSimple
-		if form.LinkType == "advanced" {
-			linkType = db.LinkTypeAdvanced
-		}
-		_, err = s.links.Create(r.Context(), form.Name, form.Target, id.Email, linkType, "", form.RequireAuth)
-	}
-	if err != nil {
-		s.logger.Error("new: create link", "name", form.Name, "error", err)
-		renderError("Could not create link. A link with that name may already exist.")
 		return
 	}
 

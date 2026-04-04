@@ -278,22 +278,22 @@ func TestImport_InvalidTarget(t *testing.T) {
 
 // --- Access control ---
 
-func TestExport_RequiresAdmin(t *testing.T) {
+func TestExport_RequiresAuth(t *testing.T) {
 	env := newAPITestEnv(t)
 	// No API key => not authenticated at all.
 	w := doRaw(env.handler, http.MethodGet, "/api/export", nil, "", "")
-	if w.Code == http.StatusOK {
-		t.Errorf("unauthenticated export should not succeed, got 200")
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("unauthenticated export should return 401, got %d", w.Code)
 	}
 }
 
-func TestImport_RequiresAdmin(t *testing.T) {
+func TestImport_RequiresAuth(t *testing.T) {
 	env := newAPITestEnv(t)
 	data := &server.ExportData{Version: 1}
 	body, _ := json.Marshal(data)
 	w := doRaw(env.handler, http.MethodPost, "/api/import", body, "application/json", "")
-	if w.Code == http.StatusOK {
-		t.Errorf("unauthenticated import should not succeed, got 200")
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("unauthenticated import should return 401, got %d", w.Code)
 	}
 }
 
@@ -307,6 +307,28 @@ func TestExport_EmptyDatabase(t *testing.T) {
 	}
 	if len(data.Links) != 0 {
 		t.Errorf("expected 0 links in empty export, got %d", len(data.Links))
+	}
+}
+
+func TestReadOnlyKey_CanExport(t *testing.T) {
+	env := newAPITestEnv(t)
+	key := createTestAPIKeyWithAccess(t, env, "rokey", true)
+
+	w := doRaw(env.handler, http.MethodGet, "/api/export", nil, "", key)
+	if w.Code != http.StatusOK {
+		t.Errorf("read-only key: expected 200 for GET /api/export, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestReadOnlyKey_CannotImport(t *testing.T) {
+	env := newAPITestEnv(t)
+	key := createTestAPIKeyWithAccess(t, env, "rokey", true)
+
+	data := &server.ExportData{Version: 1}
+	body, _ := json.Marshal(data)
+	w := doRaw(env.handler, http.MethodPost, "/api/import", body, "application/json", key)
+	if w.Code != http.StatusForbidden {
+		t.Errorf("read-only key: expected 403 for POST /api/import, got %d", w.Code)
 	}
 }
 

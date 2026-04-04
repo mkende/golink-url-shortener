@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -20,18 +21,10 @@ type importResult struct {
 	Errors  []string `json:"errors,omitempty"`
 }
 
-// handleImport serves POST /api/import (admin only).
-// It reads an ExportData JSON body and upserts every link and its shares,
-// returning a summary of created, updated, and skipped links.
-func (s *Server) handleImport(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-
-	var data ExportData
-	if err := json.NewDecoder(r.Body).Decode(&data); err != nil {
-		writeJSONError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
-		return
-	}
-
+// doImport performs the actual import logic, upserting every link and its
+// shares from data, and returning a summary of created, updated, and skipped
+// links.
+func (s *Server) doImport(ctx context.Context, data ExportData) importResult {
 	result := importResult{}
 
 	for _, el := range data.Links {
@@ -120,5 +113,19 @@ func (s *Server) handleImport(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	return result
+}
+
+// handleImport serves POST /api/import (admin only).
+// It reads an ExportData JSON body and upserts every link and its shares,
+// returning a summary of created, updated, and skipped links.
+func (s *Server) handleImport(w http.ResponseWriter, r *http.Request) {
+	var data ExportData
+	if err := json.NewDecoder(r.Body).Decode(&data); err != nil {
+		writeJSONError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
+		return
+	}
+
+	result := s.doImport(r.Context(), data)
 	writeJSON(w, http.StatusOK, result)
 }

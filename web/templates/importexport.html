@@ -1,0 +1,53 @@
+{{define "title"}}Import / Export — {{.Title}}{{end}}
+{{define "content"}}
+<h1 class="title">Import / Export</h1>
+
+{{if .Error}}<div class="notification is-danger">{{.Error}}</div>{{end}}
+
+{{if .Result}}
+<div class="notification {{if .Result.Errors}}is-warning{{else}}is-success{{end}}">
+  <p><strong>Import complete.</strong></p>
+  <ul>
+    <li>Created: {{.Result.Created}}</li>
+    <li>Updated: {{.Result.Updated}}</li>
+    <li>Skipped: {{.Result.Skipped}}</li>
+  </ul>
+  {{if .Result.Errors}}
+  <p class="mt-2"><strong>Errors:</strong></p>
+  <ul>
+    {{range .Result.Errors}}<li><code>{{.}}</code></li>{{end}}
+  </ul>
+  {{end}}
+</div>
+{{end}}
+
+<div class="columns">
+  <div class="column">
+    <div class="box">
+      <h2 class="subtitle">Export</h2>
+      <p class="mb-4">Download all links as a JSON file.</p>
+      <a class="button is-primary" href="/api/export">Download Export</a>
+    </div>
+  </div>
+  <div class="column">
+    <div class="box">
+      <h2 class="subtitle">Import</h2>
+      <p class="mb-4">Upload a previously exported JSON file to create or update links.</p>
+      <form method="POST" action="/importexport" enctype="multipart/form-data">
+        <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+        <div class="field">
+          <label class="label" for="import-file">JSON File</label>
+          <div class="control">
+            <input id="import-file" class="input" type="file" name="file" accept=".json,application/json" required>
+          </div>
+        </div>
+        <div class="field">
+          <div class="control">
+            <button class="button is-primary" type="submit">Import</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{{end}}

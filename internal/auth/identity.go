@@ -24,6 +24,9 @@ type Identity struct {
 	IsAdmin     bool
 	// Source identifies which authentication mechanism produced this identity.
 	Source AuthSource
+	// APIKeyReadOnly is true when the identity was established by a read-only API
+	// key. Such identities may not perform write or mutating operations.
+	APIKeyReadOnly bool
 }
 
 type contextKey int
