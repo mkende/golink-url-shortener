@@ -87,9 +87,11 @@ func (s *Server) buildRouter() chi.Router {
 	r.Use(serverMiddleware.RequestLogger(s.logger))
 	r.Use(serverMiddleware.SecurityHeaders)
 
-	// Auth middleware: populate identity context from Tailscale headers or JWT cookie
+	// Auth middleware: populate identity context from Tailscale headers, JWT
+	// cookie, or anonymous fallback (in that priority order).
 	r.Use(auth.TailscaleMiddleware(s.cfg, s.users))
 	r.Use(auth.OIDCMiddleware(s.cfg))
+	r.Use(auth.AnonymousMiddleware(s.cfg))
 
 	// Favicon — served before domain redirect so browsers always get it.
 	r.Get("/favicon.ico", s.handleFavicon)

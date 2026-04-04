@@ -9,6 +9,20 @@ import (
 	"github.com/BurntSushi/toml"
 )
 
+// AnonymousConfig holds settings for anonymous (user-less) authentication.
+// In this mode every request is automatically treated as a single shared
+// anonymous user. Intended for local development, testing, or private
+// instances where no real user management is needed.
+// WARNING: Do not enable on a publicly reachable server.
+type AnonymousConfig struct {
+	// Enabled controls whether anonymous auth is active.
+	Enabled bool `toml:"enabled"`
+	// IsAdmin grants the anonymous user full admin privileges when true.
+	// Useful for private/test instances where you also need API key management
+	// and import/export access. Default: false.
+	IsAdmin bool `toml:"is_admin"`
+}
+
 // TailscaleConfig holds settings for Tailscale header-based authentication.
 type TailscaleConfig struct {
 	// Enabled controls whether Tailscale header-based auth is active.
@@ -64,6 +78,9 @@ type Config struct {
 	// FaviconPath is a filesystem path to a custom favicon file.
 	// An empty string means the embedded default favicon is used.
 	FaviconPath string `toml:"favicon_path"`
+
+	// Anonymous holds settings for anonymous (user-less) authentication.
+	Anonymous AnonymousConfig `toml:"anonymous"`
 
 	// Tailscale holds settings for Tailscale header-based authentication.
 	Tailscale TailscaleConfig `toml:"tailscale"`
