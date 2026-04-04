@@ -15,7 +15,8 @@ import (
 	"github.com/mkende/golink-redirector/internal/links"
 )
 
-const linksPerPage = 100
+// linksPerPage returns the configured page size for link list pages.
+func (s *Server) linksPerPage() int { return s.cfg.UI.LinksPerPage }
 
 // baseData holds the template data common to all pages.
 type baseData struct {
@@ -584,9 +585,9 @@ func (s *Server) handleLinks(w http.ResponseWriter, r *http.Request) {
 	var total int
 
 	if query != "" {
-		linkList, total, err = s.links.Search(r.Context(), query, linksPerPage, (page-1)*linksPerPage)
+		linkList, total, err = s.links.Search(r.Context(), query, s.linksPerPage(), (page-1)*s.linksPerPage())
 	} else {
-		linkList, total, err = s.links.List(r.Context(), linksPerPage, (page-1)*linksPerPage, sortField, sortDir)
+		linkList, total, err = s.links.List(r.Context(), s.linksPerPage(), (page-1)*s.linksPerPage(), sortField, sortDir)
 	}
 	if err != nil {
 		s.logger.Error("links: list", "error", err)
@@ -594,13 +595,13 @@ func (s *Server) handleLinks(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	pageStart, pageEnd := pageRange(page, linksPerPage, len(linkList), total)
+	pageStart, pageEnd := pageRange(page, s.linksPerPage(), len(linkList), total)
 	data := linksPageData{
 		baseData:   base,
 		Links:      linkList,
 		Query:      query,
 		Page:       page,
-		TotalPages: totalPages(total, linksPerPage),
+		TotalPages: totalPages(total, s.linksPerPage()),
 		Total:      total,
 		PageStart:  pageStart,
 		PageEnd:    pageEnd,
@@ -647,10 +648,18 @@ func (s *Server) handleMyLinks(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	query := r.URL.Query().Get("q")
 	page := pageParam(r)
 	sortField, sortDir, sortStr, dirStr := parseSortParams(r)
 	identifiers := append([]string{id.Email}, id.Groups...)
-	linkList, total, err := s.links.ListOwnedOrSharedWith(r.Context(), id.Email, identifiers, linksPerPage, (page-1)*linksPerPage, sortField, sortDir)
+
+	var linkList []*db.Link
+	var total int
+	if query != "" {
+		linkList, total, err = s.links.SearchOwnedOrSharedWith(r.Context(), id.Email, identifiers, query, s.linksPerPage(), (page-1)*s.linksPerPage())
+	} else {
+		linkList, total, err = s.links.ListOwnedOrSharedWith(r.Context(), id.Email, identifiers, s.linksPerPage(), (page-1)*s.linksPerPage(), sortField, sortDir)
+	}
 	if err != nil {
 		s.logger.Error("mylinks: list owned or shared", "error", err)
 		http.Error(w, "internal server error", http.StatusInternalServerError)
@@ -664,12 +673,13 @@ func (s *Server) handleMyLinks(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	pageStart, pageEnd := pageRange(page, linksPerPage, len(linkList), total)
+	pageStart, pageEnd := pageRange(page, s.linksPerPage(), len(linkList), total)
 	s.renderer.Render(w, "mylinks", linksPageData{
 		baseData:   base,
 		Links:      linkList,
+		Query:      query,
 		Page:       page,
-		TotalPages: totalPages(total, linksPerPage),
+		TotalPages: totalPages(total, s.linksPerPage()),
 		Total:      total,
 		PageStart:  pageStart,
 		PageEnd:    pageEnd,
@@ -699,6 +709,17 @@ func (s *Server) handleHelpAdvanced(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.renderer.Render(w, "help_advanced", base)
+}
+
+// handleHelpSearch serves GET /help/search.
+func (s *Server) handleHelpSearch(w http.ResponseWriter, r *http.Request) {
+	base, err := s.newBaseData(w, r)
+	if err != nil {
+		s.logger.Error("help/search: baseData", "error", err)
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+	s.renderer.Render(w, "help_search", base)
 }
 
 // handleQuickName serves GET /api/quickname and returns an HTML <input> element

@@ -35,8 +35,8 @@
     <div class="content">
       <ul>
         <li>Use count: <strong>{{.Link.UseCount}}</strong></li>
-        {{if .Link.LastUsedAt.Valid}}<li>Last used: <strong>{{.Link.LastUsedAt.Time.Format "2006-01-02 15:04 UTC"}}</strong></li>{{end}}
-        <li>Created: <strong>{{.Link.CreatedAt.Format "2006-01-02"}}</strong></li>
+        {{if .Link.LastUsedAt.Valid}}<li>Last used: <strong><time class="local-time" datetime="{{.Link.LastUsedAt.Time.UTC.Format "2006-01-02T15:04:05Z"}}">{{.Link.LastUsedAt.Time.UTC.Format "2006-01-02 15:04 UTC"}}</time></strong></li>{{end}}
+        <li>Created: <strong><time class="local-time" datetime="{{.Link.CreatedAt.UTC.Format "2006-01-02T15:04:05Z"}}">{{.Link.CreatedAt.UTC.Format "2006-01-02 15:04 UTC"}}</time></strong></li>
         <li>Owner: <strong>{{.Link.OwnerEmail}}</strong></li>
       </ul>
     </div>
@@ -134,8 +134,8 @@
     <div class="content">
       <ul>
         <li>Use count: <strong>{{.Link.UseCount}}</strong></li>
-        {{if .Link.LastUsedAt.Valid}}<li>Last used: <strong>{{.Link.LastUsedAt.Time.Format "2006-01-02 15:04 UTC"}}</strong></li>{{end}}
-        <li>Created: <strong>{{.Link.CreatedAt.Format "2006-01-02"}}</strong></li>
+        {{if .Link.LastUsedAt.Valid}}<li>Last used: <strong><time class="local-time" datetime="{{.Link.LastUsedAt.Time.UTC.Format "2006-01-02T15:04:05Z"}}">{{.Link.LastUsedAt.Time.UTC.Format "2006-01-02 15:04 UTC"}}</time></strong></li>{{end}}
+        <li>Created: <strong><time class="local-time" datetime="{{.Link.CreatedAt.UTC.Format "2006-01-02T15:04:05Z"}}">{{.Link.CreatedAt.UTC.Format "2006-01-02 15:04 UTC"}}</time></strong></li>
         <li>Owner: <strong>{{.Link.OwnerEmail}}</strong></li>
         <li>Type: <strong>{{if .Link.IsAdvanced}}Advanced (Go template){{else}}Simple{{end}}</strong></li>
         {{if .Link.RequireAuth}}<li><span class="tag is-warning">Requires authentication</span></li>{{end}}
@@ -262,7 +262,7 @@
       <tr>
         <td><a href="/{{.Name}}">{{.Name}}</a></td>
         <td>{{.UseCount}}</td>
-        <td>{{if .LastUsedAt.Valid}}{{.LastUsedAt.Time.Format "2006-01-02"}}{{else}}—{{end}}</td>
+        <td>{{if .LastUsedAt.Valid}}<time class="local-time" datetime="{{.LastUsedAt.Time.UTC.Format "2006-01-02T15:04:05Z"}}">{{.LastUsedAt.Time.UTC.Format "2006-01-02 15:04 UTC"}}</time>{{else}}—{{end}}</td>
         <td>{{.OwnerEmail}}</td>
         <td><a href="/details/{{.Name}}" class="button is-small is-info">Details</a></td>
       </tr>

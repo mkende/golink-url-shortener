@@ -2,7 +2,23 @@
 {{define "title"}}My Links{{if .Total}} ({{.Total}}){{end}} — {{.Title}}{{end}}
 {{define "content"}}
 <h1 class="title">My Links{{if .Total}} <span class="has-text-grey-light">({{.Total}})</span>{{end}}</h1>
+<div class="field">
+  <label class="label" for="search-links">Search
+    <a href="/help/search" target="_blank" title="Search syntax help"
+       style="display: inline-flex; align-items: center; justify-content: center;
+              width: 1.2em; height: 1.2em; border: 1.5px solid #666; border-radius: 50%;
+              font-size: 0.85em; font-weight: bold; color: #666; text-decoration: none;
+              vertical-align: middle; margin-left: 0.3em;">?</a>
+  </label>
+  <div class="control">
+    <input id="search-links" class="input" type="search" placeholder="Search links..."
+      hx-get="/mylinks" hx-target="#links-table" hx-swap="outerHTML" hx-select="#links-table"
+      hx-trigger="input changed delay:300ms" name="q" value="{{.Query}}"
+      aria-label="Search links">
+  </div>
+</div>
 <div id="links-table">
+  <div class="mt-4 mb-2">{{template "pagination" .}}</div>
   {{if .Total}}<p class="has-text-grey is-size-7 mb-2">{{.PageStart}}–{{.PageEnd}} of {{.Total}}</p>{{end}}
   <table class="table is-fullwidth is-striped is-hoverable">
     <colgroup>

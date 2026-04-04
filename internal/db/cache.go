@@ -134,3 +134,8 @@ func (r *CachingLinkRepo) SharedLinkIDs(ctx context.Context, identifiers []strin
 func (r *CachingLinkRepo) ListOwnedOrSharedWith(ctx context.Context, ownerEmail string, identifiers []string, limit, offset int, sortField SortField, sortDir SortDir) ([]*Link, int, error) {
 	return r.inner.ListOwnedOrSharedWith(ctx, ownerEmail, identifiers, limit, offset, sortField, sortDir)
 }
+
+// SearchOwnedOrSharedWith delegates to the inner repo without caching.
+func (r *CachingLinkRepo) SearchOwnedOrSharedWith(ctx context.Context, ownerEmail string, identifiers []string, query string, limit, offset int) ([]*Link, int, error) {
+	return r.inner.SearchOwnedOrSharedWith(ctx, ownerEmail, identifiers, query, limit, offset)
+}

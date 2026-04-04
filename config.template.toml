@@ -168,6 +168,14 @@ cache_size = 1000
 # Default: 100
 max_aliases_per_link = 100
 
+# ─── UI Behaviour ────────────────────────────────────────────────────────────
+[ui]
+
+# Number of links displayed per page on the /links and /mylinks list pages.
+# Must be >= 10.
+# Default: 100
+links_per_page = 100
+
 # ─── Admin ────────────────────────────────────────────────────────────────────
 
 # Email addresses of users who have full admin privileges.

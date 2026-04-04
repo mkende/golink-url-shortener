@@ -6,10 +6,7 @@ nothing
 
 ## Improvements
 
-- store (and display) the time with the creation date.
-- display the creation and last used time in the current user timezone.
-- have a search box on the home page (no dynamic search), it goes to the all
-  links page when you press search (with the right search filter set).
+nothing
 
 # DONE
 
@@ -19,6 +16,10 @@ nothing
 
 ## Improvements
 
+- store (and display) the time with the creation date.
+- display the creation and last used time in the current user timezone.
+- have a search box on the home page (no dynamic search), it goes to the all
+  links page when you press search (with the right search filter set).
 - can we make the go-template execution of the advanced links be much more
   leniant: if any variable is undefined we evaluate it to the empty string but
   the redirection should still work if there is any way for it to succeed.

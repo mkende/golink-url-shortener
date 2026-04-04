@@ -149,6 +149,7 @@ func (s *Server) buildRouter() chi.Router {
 		// Help pages
 		r.Get("/help", s.handleHelp)
 		r.Get("/help/advanced", s.handleHelpAdvanced)
+		r.Get("/help/search", s.handleHelpSearch)
 
 		// Admin: API key management UI
 		r.Route("/apikeys", func(r chi.Router) {

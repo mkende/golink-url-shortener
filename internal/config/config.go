@@ -126,6 +126,16 @@ type Config struct {
 	// MaxAliasesPerLink is the maximum number of alias links that may target
 	// any single canonical link.  Defaults to 100.
 	MaxAliasesPerLink int `toml:"max_aliases_per_link"`
+
+	// UI holds settings that control the behaviour of the web UI.
+	UI UIConfig `toml:"ui"`
+}
+
+// UIConfig holds settings that control the behaviour of the web UI.
+type UIConfig struct {
+	// LinksPerPage is the number of links shown on each page of the /links and
+	// /mylinks lists. Must be >= 10. Defaults to 100.
+	LinksPerPage int `toml:"links_per_page"`
 }
 
 // applyDefaults fills in zero-value fields with their documented defaults.
@@ -157,6 +167,9 @@ func applyDefaults(c *Config) {
 	if c.MaxAliasesPerLink == 0 {
 		c.MaxAliasesPerLink = 100
 	}
+	if c.UI.LinksPerPage == 0 {
+		c.UI.LinksPerPage = 100
+	}
 }
 
 // validate checks that required fields are present and values are within
@@ -177,6 +190,9 @@ func validate(c *Config) error {
 	}
 	if c.OIDC.Enabled && c.OIDC.JWTSecret == "" {
 		return errors.New("oidc.jwt_secret is required when OIDC is enabled")
+	}
+	if c.UI.LinksPerPage < 10 {
+		return fmt.Errorf("ui.links_per_page must be >= 10, got %d", c.UI.LinksPerPage)
 	}
 	return nil
 }

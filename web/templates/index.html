@@ -47,6 +47,25 @@
     {{end}}
   </div>
 </div>
+<div class="box">
+  <h2 class="subtitle">Search Links
+    <a href="/help/search" target="_blank" title="Search syntax help"
+       style="display: inline-flex; align-items: center; justify-content: center;
+              width: 1.2em; height: 1.2em; border: 1.5px solid #666; border-radius: 50%;
+              font-size: 0.85em; font-weight: bold; color: #666; text-decoration: none;
+              vertical-align: middle; margin-left: 0.3em;">?</a>
+  </h2>
+  <form method="GET" action="/links">
+    <div class="field has-addons">
+      <div class="control is-expanded">
+        <input class="input" type="search" name="q" placeholder="Search links..." aria-label="Search links">
+      </div>
+      <div class="control">
+        <button class="button is-info" type="submit">Search</button>
+      </div>
+    </div>
+  </form>
+</div>
 {{if .PopularLinks}}
 <div class="box">
   <h2 class="subtitle">Popular Links</h2>

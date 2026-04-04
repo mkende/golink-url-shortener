@@ -36,6 +36,9 @@ type LinkRepo interface {
 	ListByOwner(ctx context.Context, ownerEmail string, limit, offset int, sortField SortField, sortDir SortDir) ([]*Link, int, error)
 	// Search returns links whose lower-cased name contains query, paginated.
 	Search(ctx context.Context, query string, limit, offset int) ([]*Link, int, error)
+	// SearchOwnedOrSharedWith is like Search but restricted to links that are
+	// owned by ownerEmail or shared with any of the given identifiers.
+	SearchOwnedOrSharedWith(ctx context.Context, ownerEmail string, identifiers []string, query string, limit, offset int) ([]*Link, int, error)
 	// GetShares returns the emails/group names a link is shared with.
 	GetShares(ctx context.Context, linkID int64) ([]string, error)
 	// AddShare grants access to email for the given link.
@@ -355,6 +358,89 @@ func (r *SQLLinkRepo) Search(ctx context.Context, query string, limit, offset in
 		return nil, 0, err
 	}
 	return links, total, nil
+}
+
+// SearchOwnedOrSharedWith returns links matching query that are owned by
+// ownerEmail or shared with any of the given identifiers, paginated.
+// The query syntax is identical to Search (field prefixes and ^ / $ anchors).
+func (r *SQLLinkRepo) SearchOwnedOrSharedWith(ctx context.Context, ownerEmail string, identifiers []string, query string, limit, offset int) ([]*Link, int, error) {
+	field, pattern := parseSearchQuery(query)
+
+	var matchExpr string
+	switch field {
+	case searchName:
+		matchExpr = "name_lower LIKE ?"
+	case searchTarget:
+		matchExpr = "LOWER(target) LIKE ?"
+	default:
+		matchExpr = "(name_lower LIKE ? OR LOWER(target) LIKE ?)"
+	}
+	// patternArgs holds the LIKE arguments for one branch of the UNION.
+	patternArgs := []any{pattern}
+	if field == searchBoth {
+		patternArgs = []any{pattern, pattern}
+	}
+
+	if len(identifiers) == 0 {
+		// Fast path: no sharing, restrict to owner only.
+		countSQL := r.db.q("SELECT COUNT(*) FROM links WHERE owner_email = ? AND " + matchExpr)
+		listSQL := r.db.q("SELECT " + selectCols + " FROM links WHERE owner_email = ? AND " + matchExpr + " ORDER BY name_lower ASC LIMIT ? OFFSET ?")
+
+		var total int
+		countArgs := append([]any{ownerEmail}, patternArgs...)
+		if err := r.db.QueryRowContext(ctx, countSQL, countArgs...).Scan(&total); err != nil {
+			return nil, 0, fmt.Errorf("count search owned links: %w", err)
+		}
+		listArgs := append(countArgs, limit, offset)
+		rows, err := r.db.QueryContext(ctx, listSQL, listArgs...)
+		if err != nil {
+			return nil, 0, fmt.Errorf("search owned links: %w", err)
+		}
+		defer rows.Close()
+		links, err := scanLinks(rows)
+		return links, total, err
+	}
+
+	placeholders := strings.Repeat("?,", len(identifiers))
+	placeholders = placeholders[:len(placeholders)-1]
+	sharedArgs := make([]any, len(identifiers))
+	for i, id := range identifiers {
+		sharedArgs[i] = id
+	}
+
+	// owned branch args: ownerEmail + pattern(s)
+	ownedBranchArgs := append([]any{ownerEmail}, patternArgs...)
+	// shared branch args: sharedArgs + ownerEmail (NOT owner) + pattern(s)
+	sharedBranchArgs := append(sharedArgs, ownerEmail)
+	sharedBranchArgs = append(sharedBranchArgs, patternArgs...)
+
+	countArgs := append(ownedBranchArgs, sharedBranchArgs...)
+	countSQL := r.db.q(`SELECT COUNT(*) FROM (
+		SELECT id FROM links WHERE owner_email = ? AND ` + matchExpr + `
+		UNION
+		SELECT id FROM links
+		WHERE id IN (SELECT link_id FROM link_shares WHERE shared_with_email IN (` + placeholders + `))
+		AND owner_email != ? AND ` + matchExpr + `)`)
+	var total int
+	if err := r.db.QueryRowContext(ctx, countSQL, countArgs...).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("count search owned-or-shared links: %w", err)
+	}
+
+	listArgs := append(ownedBranchArgs, sharedBranchArgs...)
+	listArgs = append(listArgs, limit, offset)
+	listSQL := r.db.q(`SELECT ` + selectCols + ` FROM links WHERE owner_email = ? AND ` + matchExpr + `
+		UNION
+		SELECT ` + selectCols + ` FROM links
+		WHERE id IN (SELECT link_id FROM link_shares WHERE shared_with_email IN (` + placeholders + `))
+		AND owner_email != ? AND ` + matchExpr + `
+		ORDER BY name_lower ASC LIMIT ? OFFSET ?`)
+	rows, err := r.db.QueryContext(ctx, listSQL, listArgs...)
+	if err != nil {
+		return nil, 0, fmt.Errorf("search owned-or-shared links: %w", err)
+	}
+	defer rows.Close()
+	links, err := scanLinks(rows)
+	return links, total, err
 }
 
 // GetShares returns all emails/groups the link is shared with.
