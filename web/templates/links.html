@@ -1,7 +1,7 @@
 {{template "base.html" .}}
-{{define "title"}}All Links — {{.Title}}{{end}}
+{{define "title"}}All Links{{if .Total}} ({{.Total}}){{end}} — {{.Title}}{{end}}
 {{define "content"}}
-<h1 class="title">All Links</h1>
+<h1 class="title">All Links{{if .Total}} <span class="has-text-grey-light">({{.Total}})</span>{{end}}</h1>
 <div class="field">
   <label class="label" for="search-links">Search</label>
   <div class="control">
@@ -12,6 +12,7 @@
   </div>
 </div>
 <div id="links-table">
+  {{if .Total}}<p class="has-text-grey is-size-7 mb-2">{{.PageStart}}–{{.PageEnd}} of {{.Total}}</p>{{end}}
   <table class="table is-fullwidth is-striped is-hoverable">
     <thead>
       <tr>

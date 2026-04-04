@@ -42,8 +42,9 @@ type LinkRepo interface {
 	AddShare(ctx context.Context, linkID int64, email string) error
 	// RemoveShare revokes access to email for the given link.
 	RemoveShare(ctx context.Context, linkID int64, email string) error
-	// SharedLinkIDs returns the set of link IDs that are shared with the given email.
-	SharedLinkIDs(ctx context.Context, email string) (map[int64]bool, error)
+	// SharedLinkIDs returns the set of link IDs shared with any of the given
+	// identifiers (user email plus group names). An empty slice returns an empty map.
+	SharedLinkIDs(ctx context.Context, identifiers []string) (map[int64]bool, error)
 	// IncrementUseCount bumps the link's use counter and last-used timestamp.
 	IncrementUseCount(ctx context.Context, id int64) error
 	// GetAliases returns all links that alias the given canonical link name.
@@ -345,10 +346,22 @@ func (r *SQLLinkRepo) RemoveShare(ctx context.Context, linkID int64, email strin
 	return nil
 }
 
-// SharedLinkIDs returns the set of link IDs shared with the given email.
-func (r *SQLLinkRepo) SharedLinkIDs(ctx context.Context, email string) (map[int64]bool, error) {
+// SharedLinkIDs returns the set of link IDs shared with any of the given
+// identifiers (typically the user's email plus their group names). Using a
+// single IN query is far more efficient than issuing one query per identifier.
+func (r *SQLLinkRepo) SharedLinkIDs(ctx context.Context, identifiers []string) (map[int64]bool, error) {
+	if len(identifiers) == 0 {
+		return make(map[int64]bool), nil
+	}
+	placeholders := strings.Repeat("?,", len(identifiers))
+	placeholders = placeholders[:len(placeholders)-1]
+	args := make([]any, len(identifiers))
+	for i, id := range identifiers {
+		args[i] = id
+	}
 	rows, err := r.db.QueryContext(ctx,
-		r.db.q("SELECT link_id FROM link_shares WHERE shared_with_email = ?"), email,
+		r.db.q("SELECT link_id FROM link_shares WHERE shared_with_email IN ("+placeholders+")"),
+		args...,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("shared link IDs: %w", err)

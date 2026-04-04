@@ -126,6 +126,6 @@ func (r *CachingLinkRepo) CountAliases(ctx context.Context, nameLower string) (i
 }
 
 // SharedLinkIDs delegates to the inner repo without caching.
-func (r *CachingLinkRepo) SharedLinkIDs(ctx context.Context, email string) (map[int64]bool, error) {
-	return r.inner.SharedLinkIDs(ctx, email)
+func (r *CachingLinkRepo) SharedLinkIDs(ctx context.Context, identifiers []string) (map[int64]bool, error) {
+	return r.inner.SharedLinkIDs(ctx, identifiers)
 }
