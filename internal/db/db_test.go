@@ -322,25 +322,54 @@ func TestLinkRepo_Search(t *testing.T) {
 			repo := NewLinkRepo(b.db)
 			ctx := context.Background()
 
-			for _, n := range []string{"go-docs", "go-api", "go-home", "other"} {
-				if _, err := repo.Create(ctx, n, "https://"+n+".example.com", "o@example.com", LinkTypeSimple, "", false); err != nil {
-					t.Fatalf("Create %s: %v", n, err)
+			links := []struct{ name, target string }{
+				{"go-docs", "https://docs.example.com"},
+				{"go-api", "https://api.example.com"},
+				{"go-home", "https://home.example.com"},
+				{"other", "https://other.example.com/go-extra"},
+			}
+			for _, l := range links {
+				if _, err := repo.Create(ctx, l.name, l.target, "o@example.com", LinkTypeSimple, "", false); err != nil {
+					t.Fatalf("Create %s: %v", l.name, err)
 				}
 			}
 
-			results, total, err := repo.Search(ctx, "go-", 10, 0)
-			if err != nil {
-				t.Fatalf("Search: %v", err)
+			cases := []struct {
+				query  string
+				want   int
+				checkFn func(l *Link) bool
+			}{
+				// Plain substring — name or target
+				{"go-", 4, nil}, // "go-" appears in all 4 names or targets
+				// Anchor on name
+				{"^go-", 3, func(l *Link) bool { return strings.HasPrefix(l.NameLower, "go-") }},
+				{"docs$", 1, func(l *Link) bool { return strings.HasSuffix(l.NameLower, "docs") }},
+				{"^go-docs$", 1, func(l *Link) bool { return l.NameLower == "go-docs" }},
+				{"^nomatch$", 0, nil},
+				// name: prefix
+				{"name:go-", 3, func(l *Link) bool { return strings.Contains(l.NameLower, "go-") }},
+				{"n:^go-", 3, func(l *Link) bool { return strings.HasPrefix(l.NameLower, "go-") }},
+				{"n:^other$", 1, func(l *Link) bool { return l.NameLower == "other" }},
+				// target: prefix
+				{"target:docs", 1, func(l *Link) bool { return strings.Contains(strings.ToLower(l.Target), "docs") }},
+				{"t:^https://", 4, func(l *Link) bool { return strings.HasPrefix(strings.ToLower(l.Target), "https://") }},
+				{"t:example.com$", 3, func(l *Link) bool { return strings.HasSuffix(strings.ToLower(l.Target), "example.com") }},
+				{"t:extra$", 1, func(l *Link) bool { return strings.HasSuffix(strings.ToLower(l.Target), "extra") }},
 			}
-			if total != 3 {
-				t.Errorf("total = %d, want 3", total)
-			}
-			if len(results) != 3 {
-				t.Errorf("results len = %d, want 3", len(results))
-			}
-			for _, l := range results {
-				if !strings.HasPrefix(l.NameLower, "go-") {
-					t.Errorf("unexpected result: %s", l.Name)
+			for _, tc := range cases {
+				results, total, err := repo.Search(ctx, tc.query, 10, 0)
+				if err != nil {
+					t.Fatalf("Search(%q): %v", tc.query, err)
+				}
+				if total != tc.want {
+					t.Errorf("Search(%q) total = %d, want %d", tc.query, total, tc.want)
+				}
+				if tc.checkFn != nil {
+					for _, l := range results {
+						if !tc.checkFn(l) {
+							t.Errorf("Search(%q) unexpected result: name=%s target=%s", tc.query, l.Name, l.Target)
+						}
+					}
 				}
 			}
 		})

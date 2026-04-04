@@ -45,6 +45,11 @@ type LinkRepo interface {
 	// SharedLinkIDs returns the set of link IDs shared with any of the given
 	// identifiers (user email plus group names). An empty slice returns an empty map.
 	SharedLinkIDs(ctx context.Context, identifiers []string) (map[int64]bool, error)
+	// ListOwnedOrSharedWith returns a paginated, sorted slice of links that are
+	// either owned by ownerEmail or shared with any of the given identifiers
+	// (excluding links already owned by ownerEmail from the shared set), plus
+	// the total count.
+	ListOwnedOrSharedWith(ctx context.Context, ownerEmail string, identifiers []string, limit, offset int, sortField SortField, sortDir SortDir) ([]*Link, int, error)
 	// IncrementUseCount bumps the link's use counter and last-used timestamp.
 	IncrementUseCount(ctx context.Context, id int64) error
 	// GetAliases returns all links that alias the given canonical link name.
@@ -272,23 +277,74 @@ func (r *SQLLinkRepo) ListByOwner(ctx context.Context, ownerEmail string, limit,
 	return links, total, nil
 }
 
-// Search returns links whose lower-cased name contains query.
+// searchField indicates which column(s) a search query targets.
+type searchField int
+
+const (
+	searchBoth   searchField = iota // default: name and target
+	searchName                      // name: or n: prefix
+	searchTarget                    // target: or t: prefix
+)
+
+// parseSearchQuery parses an optional field prefix (name:/n:/target:/t:) and
+// ^ / $ anchors from a raw search string, returning the field scope and the
+// LIKE pattern to use.
+func parseSearchQuery(query string) (searchField, string) {
+	field := searchBoth
+	q := query
+	switch {
+	case strings.HasPrefix(q, "name:"):
+		field, q = searchName, q[len("name:"):]
+	case strings.HasPrefix(q, "n:"):
+		field, q = searchName, q[len("n:"):]
+	case strings.HasPrefix(q, "target:"):
+		field, q = searchTarget, q[len("target:"):]
+	case strings.HasPrefix(q, "t:"):
+		field, q = searchTarget, q[len("t:"):]
+	}
+	q = strings.ToLower(q)
+	prefix, suffix := "%", "%"
+	if strings.HasPrefix(q, "^") {
+		prefix = ""
+		q = q[1:]
+	}
+	if strings.HasSuffix(q, "$") {
+		suffix = ""
+		q = q[:len(q)-1]
+	}
+	return field, prefix + q + suffix
+}
+
+// Search returns links whose name or target matches query.
+// An optional prefix selects the field: "name:" or "n:" restricts to the link
+// name, "target:" or "t:" restricts to the target URL. Without a prefix both
+// fields are searched. The remainder supports ^ and $ anchors.
 func (r *SQLLinkRepo) Search(ctx context.Context, query string, limit, offset int) ([]*Link, int, error) {
-	pattern := "%" + strings.ToLower(query) + "%"
+	field, pattern := parseSearchQuery(query)
+
+	var countSQL, listSQL string
+	var baseArgs []any
+	switch field {
+	case searchName:
+		countSQL = r.db.q("SELECT COUNT(*) FROM links WHERE name_lower LIKE ?")
+		listSQL = r.db.q("SELECT " + selectCols + " FROM links WHERE name_lower LIKE ? ORDER BY name_lower ASC LIMIT ? OFFSET ?")
+		baseArgs = []any{pattern}
+	case searchTarget:
+		countSQL = r.db.q("SELECT COUNT(*) FROM links WHERE LOWER(target) LIKE ?")
+		listSQL = r.db.q("SELECT " + selectCols + " FROM links WHERE LOWER(target) LIKE ? ORDER BY name_lower ASC LIMIT ? OFFSET ?")
+		baseArgs = []any{pattern}
+	default:
+		countSQL = r.db.q("SELECT COUNT(*) FROM links WHERE name_lower LIKE ? OR LOWER(target) LIKE ?")
+		listSQL = r.db.q("SELECT " + selectCols + " FROM links WHERE name_lower LIKE ? OR LOWER(target) LIKE ? ORDER BY name_lower ASC LIMIT ? OFFSET ?")
+		baseArgs = []any{pattern, pattern}
+	}
 
 	var total int
-	if err := r.db.QueryRowContext(ctx,
-		r.db.q("SELECT COUNT(*) FROM links WHERE name_lower LIKE ?"), pattern,
-	).Scan(&total); err != nil {
+	if err := r.db.QueryRowContext(ctx, countSQL, baseArgs...).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("count search links: %w", err)
 	}
 
-	rows, err := r.db.QueryContext(ctx, r.db.q(`
-		SELECT `+selectCols+`
-		FROM links WHERE name_lower LIKE ?
-		ORDER BY name_lower ASC LIMIT ? OFFSET ?`),
-		pattern, limit, offset,
-	)
+	rows, err := r.db.QueryContext(ctx, listSQL, append(baseArgs, limit, offset)...)
 	if err != nil {
 		return nil, 0, fmt.Errorf("search links: %w", err)
 	}
@@ -377,6 +433,70 @@ func (r *SQLLinkRepo) SharedLinkIDs(ctx context.Context, identifiers []string) (
 		ids[id] = true
 	}
 	return ids, rows.Err()
+}
+
+// ListOwnedOrSharedWith returns links owned by ownerEmail UNION links shared
+// with any of the given identifiers (excluding those already owned by ownerEmail).
+func (r *SQLLinkRepo) ListOwnedOrSharedWith(ctx context.Context, ownerEmail string, identifiers []string, limit, offset int, sortField SortField, sortDir SortDir) ([]*Link, int, error) {
+	if !validSortFields[sortField] {
+		return nil, 0, fmt.Errorf("invalid sort field: %q", sortField)
+	}
+	if !validSortDirs[sortDir] {
+		return nil, 0, fmt.Errorf("invalid sort direction: %q", sortDir)
+	}
+
+	if len(identifiers) == 0 {
+		return r.ListByOwner(ctx, ownerEmail, limit, offset, sortField, sortDir)
+	}
+
+	placeholders := strings.Repeat("?,", len(identifiers))
+	placeholders = placeholders[:len(placeholders)-1]
+
+	sharedArgs := make([]any, len(identifiers))
+	for i, id := range identifiers {
+		sharedArgs[i] = id
+	}
+
+	// Count via UNION (UNION deduplicates, so shared links that are also owned
+	// are not double-counted; the owner_email != ? clause already excludes them
+	// from the shared branch).
+	countArgs := append([]any{ownerEmail}, sharedArgs...)
+	countArgs = append(countArgs, ownerEmail)
+	var total int
+	if err := r.db.QueryRowContext(ctx, r.db.q(`
+		SELECT COUNT(*) FROM (
+			SELECT id FROM links WHERE owner_email = ?
+			UNION
+			SELECT id FROM links
+			WHERE id IN (SELECT link_id FROM link_shares WHERE shared_with_email IN (`+placeholders+`))
+			AND owner_email != ?
+		)`), countArgs...,
+	).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("count owned or shared links: %w", err)
+	}
+
+	// Fetch page.
+	listArgs := append([]any{ownerEmail}, sharedArgs...)
+	listArgs = append(listArgs, ownerEmail, limit, offset)
+	rows, err := r.db.QueryContext(ctx, r.db.q(fmt.Sprintf(`
+		SELECT `+selectCols+` FROM links WHERE owner_email = ?
+		UNION
+		SELECT `+selectCols+` FROM links
+		WHERE id IN (SELECT link_id FROM link_shares WHERE shared_with_email IN (`+placeholders+`))
+		AND owner_email != ?
+		ORDER BY %s %s LIMIT ? OFFSET ?`, sortField, sortDir)),
+		listArgs...,
+	)
+	if err != nil {
+		return nil, 0, fmt.Errorf("list owned or shared links: %w", err)
+	}
+	defer rows.Close()
+
+	links, err := scanLinks(rows)
+	if err != nil {
+		return nil, 0, err
+	}
+	return links, total, nil
 }
 
 // IncrementUseCount bumps the hit counter and last-used timestamp for the link.

@@ -5,6 +5,12 @@
 <div id="links-table">
   {{if .Total}}<p class="has-text-grey is-size-7 mb-2">{{.PageStart}}–{{.PageEnd}} of {{.Total}}</p>{{end}}
   <table class="table is-fullwidth is-striped is-hoverable">
+    <colgroup>
+      <col style="width:22%">
+      <col>
+      <col style="width:6%">
+      <col style="width:8%">
+    </colgroup>
     <thead>
       <tr>
         <th><a href="{{sortURL "/mylinks" .Sort .Dir "name"}}">Name{{sortIcon .Sort .Dir "name"}}</a></th>
@@ -20,6 +26,7 @@
         <a href="/{{.Name}}">{{.Name}}</a>
         {{if .IsAlias}}<span class="tag is-info is-small ml-1">alias</span>{{end}}
         {{if .IsAdvanced}}<span class="tag is-warning is-small ml-1">advanced</span>{{end}}
+        {{if hasKey $.SharedIDs .ID}}<span class="tag is-link is-light is-small ml-1">shared with me</span>{{end}}
       </td>
       <td>
         {{if .IsAlias}}

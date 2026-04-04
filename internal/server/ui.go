@@ -649,11 +649,19 @@ func (s *Server) handleMyLinks(w http.ResponseWriter, r *http.Request) {
 
 	page := pageParam(r)
 	sortField, sortDir, sortStr, dirStr := parseSortParams(r)
-	linkList, total, err := s.links.ListByOwner(r.Context(), id.Email, linksPerPage, (page-1)*linksPerPage, sortField, sortDir)
+	identifiers := append([]string{id.Email}, id.Groups...)
+	linkList, total, err := s.links.ListOwnedOrSharedWith(r.Context(), id.Email, identifiers, linksPerPage, (page-1)*linksPerPage, sortField, sortDir)
 	if err != nil {
-		s.logger.Error("mylinks: list by owner", "error", err)
+		s.logger.Error("mylinks: list owned or shared", "error", err)
 		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
+	}
+
+	sharedIDs := make(map[int64]bool)
+	for _, l := range linkList {
+		if !strings.EqualFold(l.OwnerEmail, id.Email) {
+			sharedIDs[l.ID] = true
+		}
 	}
 
 	pageStart, pageEnd := pageRange(page, linksPerPage, len(linkList), total)
@@ -667,6 +675,7 @@ func (s *Server) handleMyLinks(w http.ResponseWriter, r *http.Request) {
 		PageEnd:    pageEnd,
 		Sort:       sortStr,
 		Dir:        dirStr,
+		SharedIDs:  sharedIDs,
 	})
 }
 

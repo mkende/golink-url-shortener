@@ -6,7 +6,10 @@ nothing
 
 ## Improvements
 
-nothing
+- store (and display) the time with the creation date.
+- display the creation and last used time in the current user timezone.
+- have a search box on the home page (no dynamic search), it goes to the all
+  links page when you press search (with the right search filter set).
 
 # DONE
 

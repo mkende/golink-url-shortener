@@ -129,3 +129,8 @@ func (r *CachingLinkRepo) CountAliases(ctx context.Context, nameLower string) (i
 func (r *CachingLinkRepo) SharedLinkIDs(ctx context.Context, identifiers []string) (map[int64]bool, error) {
 	return r.inner.SharedLinkIDs(ctx, identifiers)
 }
+
+// ListOwnedOrSharedWith delegates to the inner repo without caching.
+func (r *CachingLinkRepo) ListOwnedOrSharedWith(ctx context.Context, ownerEmail string, identifiers []string, limit, offset int, sortField SortField, sortDir SortDir) ([]*Link, int, error) {
+	return r.inner.ListOwnedOrSharedWith(ctx, ownerEmail, identifiers, limit, offset, sortField, sortDir)
+}

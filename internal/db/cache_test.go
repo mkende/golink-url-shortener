@@ -73,6 +73,10 @@ func (r *countingLinkRepo) SharedLinkIDs(ctx context.Context, identifiers []stri
 	return r.inner.SharedLinkIDs(ctx, identifiers)
 }
 
+func (r *countingLinkRepo) ListOwnedOrSharedWith(ctx context.Context, ownerEmail string, identifiers []string, limit, offset int, sortField SortField, sortDir SortDir) ([]*Link, int, error) {
+	return r.inner.ListOwnedOrSharedWith(ctx, ownerEmail, identifiers, limit, offset, sortField, sortDir)
+}
+
 // TestCachingLinkRepo_HitAndMiss verifies that a second GetByName call for the
 // same name does not reach the underlying repository.
 func TestCachingLinkRepo_HitAndMiss(t *testing.T) {
