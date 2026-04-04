@@ -35,6 +35,25 @@ favicon_path = ""
 # Default: false
 require_auth_for_redirects = false
 
+# ── Anonymous (user-less) auth ────────────────────────────────────────────────
+# In anonymous mode every request is automatically treated as a single shared
+# user ("anonymous@localhost"). No login flow is required.
+#
+# Use this for local development, testing, or isolated private instances where
+# real user management is unnecessary.
+#
+# WARNING: Do not enable this on a publicly reachable server. Any visitor will
+# be able to create, edit, and delete links as the anonymous user.
+[anonymous]
+# Default: false
+enabled = false
+
+# Grant the anonymous user full admin privileges (API key management,
+# import/export). Useful when you also need admin features in a private
+# instance.
+# Default: false
+is_admin = false
+
 # ── Tailscale header-based auth ───────────────────────────────────────────────
 # When your server sits behind a Tailscale node that injects Tailscale-User-*
 # headers, enable this to use those headers for authentication. No additional
