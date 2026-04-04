@@ -31,9 +31,9 @@ type LinkRepo interface {
 	Delete(ctx context.Context, id int64) error
 	// List returns a paginated, sorted slice of all links plus the total count.
 	List(ctx context.Context, limit, offset int, sortField SortField, sortDir SortDir) ([]*Link, int, error)
-	// ListByOwner returns a paginated slice of links owned by ownerEmail plus
-	// the total count for that owner.
-	ListByOwner(ctx context.Context, ownerEmail string, limit, offset int) ([]*Link, int, error)
+	// ListByOwner returns a paginated, sorted slice of links owned by ownerEmail
+	// plus the total count for that owner.
+	ListByOwner(ctx context.Context, ownerEmail string, limit, offset int, sortField SortField, sortDir SortDir) ([]*Link, int, error)
 	// Search returns links whose lower-cased name contains query, paginated.
 	Search(ctx context.Context, query string, limit, offset int) ([]*Link, int, error)
 	// GetShares returns the emails/group names a link is shared with.
@@ -42,6 +42,8 @@ type LinkRepo interface {
 	AddShare(ctx context.Context, linkID int64, email string) error
 	// RemoveShare revokes access to email for the given link.
 	RemoveShare(ctx context.Context, linkID int64, email string) error
+	// SharedLinkIDs returns the set of link IDs that are shared with the given email.
+	SharedLinkIDs(ctx context.Context, email string) (map[int64]bool, error)
 	// IncrementUseCount bumps the link's use counter and last-used timestamp.
 	IncrementUseCount(ctx context.Context, id int64) error
 	// GetAliases returns all links that alias the given canonical link name.
@@ -234,8 +236,15 @@ func (r *SQLLinkRepo) List(ctx context.Context, limit, offset int, sortField Sor
 	return links, total, nil
 }
 
-// ListByOwner returns a paginated slice of links for ownerEmail.
-func (r *SQLLinkRepo) ListByOwner(ctx context.Context, ownerEmail string, limit, offset int) ([]*Link, int, error) {
+// ListByOwner returns a paginated, sorted slice of links for ownerEmail.
+func (r *SQLLinkRepo) ListByOwner(ctx context.Context, ownerEmail string, limit, offset int, sortField SortField, sortDir SortDir) ([]*Link, int, error) {
+	if !validSortFields[sortField] {
+		return nil, 0, fmt.Errorf("invalid sort field: %q", sortField)
+	}
+	if !validSortDirs[sortDir] {
+		return nil, 0, fmt.Errorf("invalid sort direction: %q", sortDir)
+	}
+
 	var total int
 	if err := r.db.QueryRowContext(ctx,
 		r.db.q("SELECT COUNT(*) FROM links WHERE owner_email = ?"), ownerEmail,
@@ -243,10 +252,11 @@ func (r *SQLLinkRepo) ListByOwner(ctx context.Context, ownerEmail string, limit,
 		return nil, 0, fmt.Errorf("count links by owner: %w", err)
 	}
 
-	rows, err := r.db.QueryContext(ctx, r.db.q(`
+	// Safe to interpolate: values were validated against an allow-list above.
+	rows, err := r.db.QueryContext(ctx, r.db.q(fmt.Sprintf(`
 		SELECT `+selectCols+`
 		FROM links WHERE owner_email = ?
-		ORDER BY name_lower ASC LIMIT ? OFFSET ?`),
+		ORDER BY %s %s LIMIT ? OFFSET ?`, sortField, sortDir)),
 		ownerEmail, limit, offset,
 	)
 	if err != nil {
@@ -333,6 +343,27 @@ func (r *SQLLinkRepo) RemoveShare(ctx context.Context, linkID int64, email strin
 		return fmt.Errorf("remove share: %w", err)
 	}
 	return nil
+}
+
+// SharedLinkIDs returns the set of link IDs shared with the given email.
+func (r *SQLLinkRepo) SharedLinkIDs(ctx context.Context, email string) (map[int64]bool, error) {
+	rows, err := r.db.QueryContext(ctx,
+		r.db.q("SELECT link_id FROM link_shares WHERE shared_with_email = ?"), email,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("shared link IDs: %w", err)
+	}
+	defer rows.Close()
+
+	ids := make(map[int64]bool)
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("scan shared link ID: %w", err)
+		}
+		ids[id] = true
+	}
+	return ids, rows.Err()
 }
 
 // IncrementUseCount bumps the hit counter and last-used timestamp for the link.

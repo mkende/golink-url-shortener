@@ -7,6 +7,31 @@
 <form method="POST" action="/new">
   <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
   <div class="field">
+    <label class="label">Link Type</label>
+    <div class="control">
+      <label class="radio">
+        <input type="radio" name="link_type" value="simple" {{if ne .Form.LinkType "advanced"}}{{if ne .Form.LinkType "alias"}}checked{{end}}{{end}} onchange="updatePlaceholder()"> Simple
+      </label>
+      <label class="radio">
+        <input type="radio" name="link_type" value="advanced" {{if eq .Form.LinkType "advanced"}}checked{{end}} onchange="updatePlaceholder()"> Advanced (Go Template)
+      </label>
+      <a href="/help/advanced" target="_blank" title="Advanced syntax help"
+         style="display: inline-flex; align-items: center; justify-content: center;
+                width: 1.2em; height: 1.2em; border: 1.5px solid #666; border-radius: 50%;
+                font-size: 0.85em; font-weight: bold; color: #666; text-decoration: none;
+                vertical-align: middle; margin-left: 0.3em;">?</a>
+      <label class="radio" style="margin-left: 1em;">
+        <input type="radio" name="link_type" value="alias" {{if eq .Form.LinkType "alias"}}checked{{end}} onchange="updatePlaceholder()"> Alias
+      </label>
+    </div>
+  </div>
+  <div class="field">
+    <label class="label" for="target" id="target-label">Target URL</label>
+    <div class="control">
+      <input id="target" class="input" type="text" name="target" value="{{.Form.Target}}" placeholder="https://example.com" required>
+    </div>
+  </div>
+  <div class="field">
     <label class="label" for="name">Link Name</label>
     <div class="field has-addons">
       <div class="control is-expanded">
@@ -22,17 +47,6 @@
     <p id="name-help" class="help">Letters, digits, hyphens, underscores, and dots only.</p>
   </div>
   <div class="field">
-    <label class="label" for="target">Target URL</label>
-    <div class="control">
-      <input id="target" class="input" type="url" name="target" value="{{.Form.Target}}" placeholder="https://example.com" required>
-    </div>
-  </div>
-  <div class="field">
-    <label class="checkbox">
-      <input type="checkbox" name="is_advanced" {{if .Form.IsAdvanced}}checked{{end}}> Advanced (Go template)
-    </label>
-  </div>
-  <div class="field">
     <label class="checkbox">
       <input type="checkbox" name="require_auth" {{if .Form.RequireAuth}}checked{{end}}> Require authentication
     </label>
@@ -45,4 +59,18 @@
   </div>
 </form>
 </div>
+<script>
+var placeholders = {
+  simple: {label: 'Target URL', placeholder: 'https://example.com'},
+  advanced: {label: 'Target URL (Go Template)', placeholder: 'https://example.com/{{"{{"}} .path {{"}}"}}'},
+  alias: {label: 'Target Link Name', placeholder: 'existing-link-name'}
+};
+function updatePlaceholder() {
+  var selected = document.querySelector('input[name="link_type"]:checked').value;
+  var info = placeholders[selected] || placeholders.simple;
+  document.getElementById('target').placeholder = info.placeholder;
+  document.getElementById('target-label').textContent = info.label;
+}
+document.addEventListener('DOMContentLoaded', updatePlaceholder);
+</script>
 {{end}}

@@ -8,10 +8,12 @@ import (
 )
 
 // ResolveSimple computes the redirect URL for a simple (non-template) link.
-// suffix is the path suffix after the link name (e.g. "/extra/path"), may be empty.
-// fragment is the URL fragment (not available server-side but included for completeness).
-func ResolveSimple(target, suffix string) (string, error) {
-	if suffix == "" {
+// suffix is the path suffix after the link name (e.g. "/extra/path"), may be
+// empty. query is the raw query string from the incoming request (without the
+// leading "?"), which is appended to any query string already present in the
+// target URL.
+func ResolveSimple(target, suffix, query string) (string, error) {
+	if suffix == "" && query == "" {
 		return target, nil
 	}
 
@@ -23,9 +25,19 @@ func ResolveSimple(target, suffix string) (string, error) {
 		return "", fmt.Errorf("invalid target URL %q: missing scheme or host", target)
 	}
 
-	// Avoid double slash when target has a trailing slash and suffix starts with "/".
-	base := strings.TrimRight(u.Path, "/")
-	u.Path = base + "/" + strings.TrimLeft(suffix, "/")
+	if suffix != "" {
+		// Avoid double slash when target has a trailing slash and suffix starts with "/".
+		base := strings.TrimRight(u.Path, "/")
+		u.Path = base + "/" + strings.TrimLeft(suffix, "/")
+	}
+
+	if query != "" {
+		if u.RawQuery != "" {
+			u.RawQuery = u.RawQuery + "&" + query
+		} else {
+			u.RawQuery = query
+		}
+	}
 
 	return u.String(), nil
 }

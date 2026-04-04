@@ -450,7 +450,7 @@ func TestLinkRepo_ListByOwner(t *testing.T) {
 				t.Fatalf("Create other: %v", err)
 			}
 
-			links, total, err := repo.ListByOwner(ctx, "alice@example.com", 10, 0)
+			links, total, err := repo.ListByOwner(ctx, "alice@example.com", 10, 0, SortByName, SortAsc)
 			if err != nil {
 				t.Fatalf("ListByOwner: %v", err)
 			}

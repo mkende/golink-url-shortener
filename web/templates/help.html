@@ -12,8 +12,8 @@
 <table class="table">
   <thead><tr><th>Variable</th><th>Description</th></tr></thead>
   <tbody>
-    <tr><td><code>{{"{{"}} .path {{"}}"}}</code></td><td>Full path suffix after the link name</td></tr>
-    <tr><td><code>{{"{{"}} .parts {{"}}"}}</code></td><td>Path suffix split on "/"</td></tr>
+    <tr><td><code>{{"{{"}} .path {{"}}"}}</code></td><td>Path suffix after the link name, without leading slash (e.g. <code>foo/bar</code> for <code>go/name/foo/bar</code>)</td></tr>
+    <tr><td><code>{{"{{"}} .parts {{"}}"}}</code></td><td>Path suffix split on "/" (e.g. <code>["foo", "bar"]</code>)</td></tr>
     <tr><td><code>{{"{{"}} .args {{"}}"}}</code></td><td>Query string split on "&amp;"</td></tr>
     <tr><td><code>{{"{{"}} .ua {{"}}"}}</code></td><td>User-Agent header</td></tr>
     <tr><td><code>{{"{{"}} .email {{"}}"}}</code></td><td>Authenticated user's email</td></tr>

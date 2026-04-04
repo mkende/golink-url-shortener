@@ -28,6 +28,7 @@ func TailscaleMiddleware(cfg *config.Config, users db.UserRepo) func(http.Handle
 				Email:       login,
 				DisplayName: r.Header.Get("Tailscale-User-Name"),
 				AvatarURL:   r.Header.Get("Tailscale-User-Profile-Pic"),
+				Source:      AuthSourceTailscale,
 			}
 			id.IsAdmin = isAdmin(cfg, id)
 

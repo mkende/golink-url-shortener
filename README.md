@@ -17,8 +17,18 @@ A production-grade Go URL shortener in the [go-link](https://www.golinks.io/) st
 
 ### 1. Download or build
 
+**Install from source** (requires Go 1.21+):
+
 ```bash
 go install github.com/mkende/golink-redirector/cmd/golink@latest
+```
+
+**Or build locally**:
+
+```bash
+git clone https://github.com/mkende/golink-redirector.git
+cd golink-redirector
+go build -o golink ./cmd/golink
 ```
 
 ### 2. Configure

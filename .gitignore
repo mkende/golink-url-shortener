@@ -27,6 +27,10 @@
 .env.*
 !.env.example
 
+# Local configuration at the root level
+/*.toml
+!/config.template.toml
+
 # Editor files
 .idea/
 .vscode/

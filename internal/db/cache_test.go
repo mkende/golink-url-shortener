@@ -37,8 +37,8 @@ func (r *countingLinkRepo) List(ctx context.Context, limit, offset int, sortFiel
 	return r.inner.List(ctx, limit, offset, sortField, sortDir)
 }
 
-func (r *countingLinkRepo) ListByOwner(ctx context.Context, ownerEmail string, limit, offset int) ([]*Link, int, error) {
-	return r.inner.ListByOwner(ctx, ownerEmail, limit, offset)
+func (r *countingLinkRepo) ListByOwner(ctx context.Context, ownerEmail string, limit, offset int, sortField SortField, sortDir SortDir) ([]*Link, int, error) {
+	return r.inner.ListByOwner(ctx, ownerEmail, limit, offset, sortField, sortDir)
 }
 
 func (r *countingLinkRepo) Search(ctx context.Context, query string, limit, offset int) ([]*Link, int, error) {
@@ -67,6 +67,10 @@ func (r *countingLinkRepo) GetAliases(ctx context.Context, nameLower string) ([]
 
 func (r *countingLinkRepo) CountAliases(ctx context.Context, nameLower string) (int, error) {
 	return r.inner.CountAliases(ctx, nameLower)
+}
+
+func (r *countingLinkRepo) SharedLinkIDs(ctx context.Context, email string) (map[int64]bool, error) {
+	return r.inner.SharedLinkIDs(ctx, email)
 }
 
 // TestCachingLinkRepo_HitAndMiss verifies that a second GetByName call for the

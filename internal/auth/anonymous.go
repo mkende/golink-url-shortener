@@ -37,6 +37,7 @@ func AnonymousMiddleware(cfg *config.Config) func(http.Handler) http.Handler {
 				Email:       anonymousIdentity.Email,
 				DisplayName: anonymousIdentity.DisplayName,
 				IsAdmin:     cfg.Anonymous.IsAdmin,
+				Source:      AuthSourceAnonymous,
 			}
 			next.ServeHTTP(w, r.WithContext(WithIdentity(r.Context(), id)))
 		})

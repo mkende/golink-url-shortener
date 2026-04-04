@@ -13,6 +13,31 @@ import (
 var funcMap = template.FuncMap{
 	"add": func(a, b int) int { return a + b },
 	"sub": func(a, b int) int { return a - b },
+	// hasKey reports whether the map contains the given key (for ownership checks).
+	"hasKey": func(m map[int64]bool, key int64) bool {
+		if m == nil {
+			return false
+		}
+		return m[key]
+	},
+	// sortURL builds a sort link preserving the current query and page.
+	"sortURL": func(basePath, currentSort, currentDir, column string) string {
+		dir := "asc"
+		if currentSort == column && currentDir == "asc" {
+			dir = "desc"
+		}
+		return basePath + "?sort=" + column + "&dir=" + dir
+	},
+	// sortIcon returns an arrow indicator for the active sort column.
+	"sortIcon": func(currentSort, currentDir, column string) string {
+		if currentSort != column {
+			return ""
+		}
+		if currentDir == "asc" {
+			return " \u25B2"
+		}
+		return " \u25BC"
+	},
 }
 
 // Renderer holds parsed HTML templates ready for execution.
@@ -23,7 +48,7 @@ type Renderer struct {
 // New parses all page templates and returns a ready Renderer.
 // Returns an error if any template fails to parse.
 func New() (*Renderer, error) {
-	pages := []string{"index", "new", "edit", "links", "mylinks", "help", "apikeys"}
+	pages := []string{"index", "new", "edit", "details", "links", "mylinks", "help", "help_advanced", "apikeys"}
 	partials := []string{"link_table.html", "pagination.html"}
 
 	baseData, err := webtemplates.FS.ReadFile("base.html")

@@ -84,8 +84,8 @@ func (r *CachingLinkRepo) List(ctx context.Context, limit, offset int, sortField
 }
 
 // ListByOwner delegates to the inner repo without caching.
-func (r *CachingLinkRepo) ListByOwner(ctx context.Context, ownerEmail string, limit, offset int) ([]*Link, int, error) {
-	return r.inner.ListByOwner(ctx, ownerEmail, limit, offset)
+func (r *CachingLinkRepo) ListByOwner(ctx context.Context, ownerEmail string, limit, offset int, sortField SortField, sortDir SortDir) ([]*Link, int, error) {
+	return r.inner.ListByOwner(ctx, ownerEmail, limit, offset, sortField, sortDir)
 }
 
 // Search delegates to the inner repo without caching.
@@ -123,4 +123,9 @@ func (r *CachingLinkRepo) GetAliases(ctx context.Context, nameLower string) ([]*
 // CountAliases delegates to the inner repo without caching.
 func (r *CachingLinkRepo) CountAliases(ctx context.Context, nameLower string) (int, error) {
 	return r.inner.CountAliases(ctx, nameLower)
+}
+
+// SharedLinkIDs delegates to the inner repo without caching.
+func (r *CachingLinkRepo) SharedLinkIDs(ctx context.Context, email string) (map[int64]bool, error) {
+	return r.inner.SharedLinkIDs(ctx, email)
 }

@@ -27,6 +27,8 @@ type baseData struct {
 	CSRFToken string
 	// FaviconPath is non-empty when a custom favicon is configured.
 	FaviconPath string
+	// OIDCEnabled is true when OIDC authentication is configured.
+	OIDCEnabled bool
 }
 
 // newBaseData populates baseData from the current request and writes a fresh
@@ -42,6 +44,7 @@ func (s *Server) newBaseData(w http.ResponseWriter, r *http.Request) (baseData, 
 		Identity:    auth.FromContext(r.Context()),
 		CSRFToken:   token,
 		FaviconPath: s.cfg.FaviconPath,
+		OIDCEnabled: s.cfg.OIDC.Enabled,
 	}, nil
 }
 
@@ -64,7 +67,7 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 
 	// Show the authenticated user's recent links.
 	if base.Identity != nil {
-		recent, _, err := s.links.ListByOwner(r.Context(), base.Identity.Email, 5, 0)
+		recent, _, err := s.links.ListByOwner(r.Context(), base.Identity.Email, 5, 0, db.SortByCreated, db.SortDesc)
 		if err != nil {
 			s.logger.Error("index: list by owner", "error", err)
 		} else {
@@ -87,7 +90,7 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 type newLinkForm struct {
 	Name        string
 	Target      string
-	IsAdvanced  bool
+	LinkType    string // "simple", "advanced", or "alias"
 	RequireAuth bool
 }
 
@@ -108,7 +111,11 @@ func (s *Server) handleNew(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if r.Method == http.MethodGet {
-		s.renderer.Render(w, "new", newPageData{baseData: base})
+		form := newLinkForm{
+			Name:   r.URL.Query().Get("name"),
+			Target: r.URL.Query().Get("target"),
+		}
+		s.renderer.Render(w, "new", newPageData{baseData: base, Form: form})
 		return
 	}
 
@@ -127,8 +134,11 @@ func (s *Server) handleNew(w http.ResponseWriter, r *http.Request) {
 	form := newLinkForm{
 		Name:        strings.TrimSpace(r.FormValue("name")),
 		Target:      strings.TrimSpace(r.FormValue("target")),
-		IsAdvanced:  r.FormValue("is_advanced") == "on",
+		LinkType:    r.FormValue("link_type"),
 		RequireAuth: r.FormValue("require_auth") == "on",
+	}
+	if form.LinkType == "" {
+		form.LinkType = "simple"
 	}
 
 	renderError := func(msg string) {
@@ -139,17 +149,53 @@ func (s *Server) handleNew(w http.ResponseWriter, r *http.Request) {
 		renderError(err.Error())
 		return
 	}
-	if err := links.ValidateTarget(form.Target); err != nil {
-		renderError(err.Error())
-		return
-	}
 
-	linkType := db.LinkTypeSimple
-	if form.IsAdvanced {
-		linkType = db.LinkTypeAdvanced
+	switch form.LinkType {
+	case "alias":
+		// Target is the canonical link name for aliases.
+		aliasTarget := strings.ToLower(form.Target)
+		if aliasTarget == "" {
+			renderError("Alias target link name cannot be empty.")
+			return
+		}
+		// Verify the canonical link exists.
+		canonical, lookupErr := s.links.GetByName(r.Context(), aliasTarget)
+		if lookupErr != nil {
+			if errors.Is(lookupErr, db.ErrNotFound) {
+				renderError("Target link \"" + form.Target + "\" does not exist.")
+			} else {
+				s.logger.Error("new: lookup alias target", "target", aliasTarget, "error", lookupErr)
+				renderError("Could not look up alias target. Please try again.")
+			}
+			return
+		}
+		if canonical.IsAlias() {
+			renderError("Cannot create an alias of an alias.")
+			return
+		}
+		count, countErr := s.links.CountAliases(r.Context(), aliasTarget)
+		if countErr != nil {
+			s.logger.Error("new: count aliases", "target", aliasTarget, "error", countErr)
+			renderError("Could not create alias. Please try again.")
+			return
+		}
+		if count >= s.cfg.MaxAliasesPerLink {
+			renderError(fmt.Sprintf("Alias limit reached: a link may have at most %d aliases.", s.cfg.MaxAliasesPerLink))
+			return
+		}
+		_, err = s.links.Create(r.Context(), form.Name, "", id.Email, db.LinkTypeAlias, aliasTarget, form.RequireAuth)
+	default:
+		// Simple or advanced.
+		if err := links.ValidateTarget(form.Target); err != nil {
+			renderError(err.Error())
+			return
+		}
+		linkType := db.LinkTypeSimple
+		if form.LinkType == "advanced" {
+			linkType = db.LinkTypeAdvanced
+		}
+		_, err = s.links.Create(r.Context(), form.Name, form.Target, id.Email, linkType, "", form.RequireAuth)
 	}
-
-	_, err = s.links.Create(r.Context(), form.Name, form.Target, id.Email, linkType, "", form.RequireAuth)
 	if err != nil {
 		s.logger.Error("new: create link", "name", form.Name, "error", err)
 		renderError("Could not create link. A link with that name may already exist.")
@@ -505,10 +551,14 @@ func (s *Server) handleCreateAlias(w http.ResponseWriter, r *http.Request) {
 // linksPageData is the template data for /links and /mylinks.
 type linksPageData struct {
 	baseData
-	Links      []*db.Link
-	Query      string
-	Page       int
-	TotalPages int
+	Links        []*db.Link
+	Query        string
+	Page         int
+	TotalPages   int
+	Sort         string
+	Dir          string
+	OwnedIDs     map[int64]bool // link IDs owned by the current user
+	SharedIDs    map[int64]bool // link IDs shared with the current user
 }
 
 // handleLinks serves GET /links.
@@ -522,6 +572,7 @@ func (s *Server) handleLinks(w http.ResponseWriter, r *http.Request) {
 
 	query := r.URL.Query().Get("q")
 	page := pageParam(r)
+	sortField, sortDir, sortStr, dirStr := parseSortParams(r)
 
 	var linkList []*db.Link
 	var total int
@@ -529,7 +580,7 @@ func (s *Server) handleLinks(w http.ResponseWriter, r *http.Request) {
 	if query != "" {
 		linkList, total, err = s.links.Search(r.Context(), query, linksPerPage, (page-1)*linksPerPage)
 	} else {
-		linkList, total, err = s.links.List(r.Context(), linksPerPage, (page-1)*linksPerPage, db.SortByName, db.SortAsc)
+		linkList, total, err = s.links.List(r.Context(), linksPerPage, (page-1)*linksPerPage, sortField, sortDir)
 	}
 	if err != nil {
 		s.logger.Error("links: list", "error", err)
@@ -537,13 +588,35 @@ func (s *Server) handleLinks(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.renderer.Render(w, "links", linksPageData{
+	data := linksPageData{
 		baseData:   base,
 		Links:      linkList,
 		Query:      query,
 		Page:       page,
 		TotalPages: totalPages(total, linksPerPage),
-	})
+		Sort:       sortStr,
+		Dir:        dirStr,
+	}
+
+	// Build ownership/shared sets for the current user.
+	if base.Identity != nil {
+		ownedIDs := make(map[int64]bool, len(linkList))
+		for _, l := range linkList {
+			if strings.EqualFold(l.OwnerEmail, base.Identity.Email) {
+				ownedIDs[l.ID] = true
+			}
+		}
+		data.OwnedIDs = ownedIDs
+
+		sharedIDs, sharedErr := s.links.SharedLinkIDs(r.Context(), base.Identity.Email)
+		if sharedErr != nil {
+			s.logger.Error("links: shared link IDs", "error", sharedErr)
+		} else {
+			data.SharedIDs = sharedIDs
+		}
+	}
+
+	s.renderer.Render(w, "links", data)
 }
 
 // handleMyLinks serves GET /mylinks.
@@ -562,7 +635,8 @@ func (s *Server) handleMyLinks(w http.ResponseWriter, r *http.Request) {
 	}
 
 	page := pageParam(r)
-	linkList, total, err := s.links.ListByOwner(r.Context(), id.Email, linksPerPage, (page-1)*linksPerPage)
+	sortField, sortDir, sortStr, dirStr := parseSortParams(r)
+	linkList, total, err := s.links.ListByOwner(r.Context(), id.Email, linksPerPage, (page-1)*linksPerPage, sortField, sortDir)
 	if err != nil {
 		s.logger.Error("mylinks: list by owner", "error", err)
 		http.Error(w, "internal server error", http.StatusInternalServerError)
@@ -574,6 +648,8 @@ func (s *Server) handleMyLinks(w http.ResponseWriter, r *http.Request) {
 		Links:      linkList,
 		Page:       page,
 		TotalPages: totalPages(total, linksPerPage),
+		Sort:       sortStr,
+		Dir:        dirStr,
 	})
 }
 
@@ -586,6 +662,17 @@ func (s *Server) handleHelp(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.renderer.Render(w, "help", base)
+}
+
+// handleHelpAdvanced serves GET /help/advanced.
+func (s *Server) handleHelpAdvanced(w http.ResponseWriter, r *http.Request) {
+	base, err := s.newBaseData(w, r)
+	if err != nil {
+		s.logger.Error("help/advanced: baseData", "error", err)
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+	s.renderer.Render(w, "help_advanced", base)
 }
 
 // handleQuickName serves GET /api/quickname and returns an HTML <input> element
@@ -667,6 +754,34 @@ func (s *Server) isSharedWith(ctx context.Context, linkID int64, id *auth.Identi
 		}
 	}
 	return false, nil
+}
+
+// parseSortParams reads "sort" and "dir" query parameters and returns validated
+// sort field/direction along with their string representations for templates.
+func parseSortParams(r *http.Request) (db.SortField, db.SortDir, string, string) {
+	sortStr := r.URL.Query().Get("sort")
+	dirStr := r.URL.Query().Get("dir")
+
+	sortField := db.SortByName
+	switch sortStr {
+	case "target":
+		sortField = db.SortByTarget
+	case "uses":
+		sortField = db.SortByUseCount
+	case "name":
+		sortField = db.SortByName
+	default:
+		sortStr = "name"
+	}
+
+	sortDir := db.SortAsc
+	if dirStr == "desc" {
+		sortDir = db.SortDesc
+	} else {
+		dirStr = "asc"
+	}
+
+	return sortField, sortDir, sortStr, dirStr
 }
 
 // pageParam parses the ?page= query parameter, defaulting to 1.

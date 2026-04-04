@@ -91,6 +91,8 @@ const (
 	SortByLastUsed SortField = "last_used_at"
 	// SortByUseCount sorts links by total use count, highest first.
 	SortByUseCount SortField = "use_count"
+	// SortByTarget sorts links alphabetically by target URL.
+	SortByTarget SortField = "target"
 )
 
 // SortDir is the direction of a sort: ascending or descending.
@@ -109,6 +111,7 @@ var validSortFields = map[SortField]bool{
 	SortByCreated:  true,
 	SortByLastUsed: true,
 	SortByUseCount: true,
+	SortByTarget:   true,
 }
 
 // validSortDirs is the set of allowed sort directions.

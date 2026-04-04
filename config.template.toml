@@ -28,6 +28,12 @@ title = "GoLink"
 # Default: "" (use embedded favicon)
 favicon_path = ""
 
+# When true, disable the automatic HTTPS redirect for non-redirect requests.
+# Useful for local development or deployments behind a TLS-terminating proxy
+# that does not set X-Forwarded-Proto.
+# Default: false
+allow_http = false
+
 # ─── Authentication ───────────────────────────────────────────────────────────
 
 # When true, unauthenticated users cannot follow any redirect; they are

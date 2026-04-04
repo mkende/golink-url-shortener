@@ -135,6 +135,7 @@ func (h *OIDCHandler) HandleCallback(w http.ResponseWriter, r *http.Request) {
 		DisplayName: claims.Name,
 		AvatarURL:   claims.Picture,
 		Groups:      groups,
+		Source:      AuthSourceOIDC,
 	}
 	id.IsAdmin = isAdmin(h.cfg, id)
 
@@ -247,6 +248,7 @@ func OIDCMiddleware(cfg *config.Config) func(http.Handler) http.Handler {
 				AvatarURL:   claims.AvatarURL,
 				Groups:      claims.Groups,
 				IsAdmin:     claims.IsAdmin,
+				Source:      AuthSourceOIDC,
 			}
 			next.ServeHTTP(w, r.WithContext(WithIdentity(r.Context(), id)))
 		})

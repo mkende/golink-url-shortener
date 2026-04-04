@@ -1,0 +1,85 @@
+{{template "base.html" .}}
+{{define "title"}}Advanced Links — {{.Title}}{{end}}
+{{define "content"}}
+<h1 class="title">Advanced Link Syntax</h1>
+<div class="content">
+<p>
+  Advanced links use <a href="https://pkg.go.dev/text/template" target="_blank">Go template</a>
+  syntax for the target URL. When a user visits the link, the template is
+  evaluated and the result is used as the redirect destination.
+</p>
+
+<h2>Template Variables</h2>
+<table class="table is-striped">
+  <thead><tr><th>Variable</th><th>Type</th><th>Description</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><code>{{"{{"}} .path {{"}}"}}</code></td>
+      <td>string</td>
+      <td>Path suffix after the link name, without the leading slash. For <code>go/name/foo/bar</code>, <code>.path</code> is <code>foo/bar</code>.</td>
+    </tr>
+    <tr>
+      <td><code>{{"{{"}} .parts {{"}}"}}</code></td>
+      <td>[]string</td>
+      <td>Path suffix split on <code>/</code>. For <code>go/name/foo/bar</code>, <code>.parts</code> is <code>["foo", "bar"]</code>. Index 0 is the first segment.</td>
+    </tr>
+    <tr>
+      <td><code>{{"{{"}} .args {{"}}"}}</code></td>
+      <td>[]string</td>
+      <td>Query string split on <code>&amp;</code>. For <code>go/name?a=1&amp;b=2</code>, <code>.args</code> is <code>["a=1", "b=2"]</code>.</td>
+    </tr>
+    <tr>
+      <td><code>{{"{{"}} .ua {{"}}"}}</code></td>
+      <td>string</td>
+      <td>The request's <code>User-Agent</code> header.</td>
+    </tr>
+    <tr>
+      <td><code>{{"{{"}} .email {{"}}"}}</code></td>
+      <td>string</td>
+      <td>The authenticated user's email address (empty if unauthenticated).</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>Template Functions</h2>
+<table class="table is-striped">
+  <thead><tr><th>Function</th><th>Description</th><th>Example</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><code>match "pattern" string</code></td>
+      <td>Returns true if the string matches the regexp (partial match unless anchored with <code>^</code> and <code>$</code>).</td>
+      <td><code>{{"{{"}} if match "^[0-9]+$" .path {{"}}"}}...{{"{{"}} end {{"}}"}}</code></td>
+    </tr>
+    <tr>
+      <td><code>extract "pattern" string</code></td>
+      <td>Returns the first submatch group. Returns an empty string if there is no match.</td>
+      <td><code>{{"{{"}} extract "id=([0-9]+)" .path {{"}}"}}</code></td>
+    </tr>
+    <tr>
+      <td><code>replace "pattern" "replacement" string</code></td>
+      <td>Replaces all matches of the regexp with the replacement string. Supports <code>$1</code>, <code>$2</code>, etc. for capture groups.</td>
+      <td><code>{{"{{"}} replace "-" "_" .path {{"}}"}}</code></td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>Examples</h2>
+
+<h3>Simple path passthrough</h3>
+<pre>https://docs.example.com/{{"{{"}} .path {{"}}"}}</pre>
+<p><code>go/docs/api/v2</code> → <code>https://docs.example.com/api/v2</code></p>
+
+<h3>Conditional redirect based on path</h3>
+<pre>{{"{{"}} if match "^[0-9]+$" .path {{"}}"}}https://issues.example.com/issue/{{"{{"}} .path {{"}}"}}{{"{{"}} else {{"}}"}}https://issues.example.com/search?q={{"{{"}} .path {{"}}"}}{{"{{"}} end {{"}}"}}</pre>
+<p><code>go/issue/123</code> → <code>https://issues.example.com/issue/123</code><br>
+<code>go/issue/login-bug</code> → <code>https://issues.example.com/search?q=login-bug</code></p>
+
+<h3>Extract a value from the path</h3>
+<pre>https://github.com/org/repo/pull/{{"{{"}} extract "pr/([0-9]+)" .path {{"}}"}}</pre>
+<p><code>go/myrepo/pr/42</code> → <code>https://github.com/org/repo/pull/42</code></p>
+
+<h3>Per-user redirect</h3>
+<pre>https://dashboard.example.com/user/{{"{{"}} .email {{"}}"}}</pre>
+<p>Each user is sent to their own dashboard page.</p>
+</div>
+{{end}}

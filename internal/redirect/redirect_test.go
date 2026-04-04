@@ -15,13 +15,13 @@ func TestResolveSimple(t *testing.T) {
 		name    string
 		target  string
 		suffix  string
+		query   string
 		want    string
 		wantErr bool
 	}{
 		{
-			name:   "no suffix",
+			name:   "no suffix no query",
 			target: "https://example.com/docs",
-			suffix: "",
 			want:   "https://example.com/docs",
 		},
 		{
@@ -43,6 +43,32 @@ func TestResolveSimple(t *testing.T) {
 			want:   "https://example.com/extra",
 		},
 		{
+			name:   "query only no suffix",
+			target: "https://example.com",
+			query:  "bar=1",
+			want:   "https://example.com?bar=1",
+		},
+		{
+			name:   "suffix and query",
+			target: "https://example.com",
+			suffix: "/path",
+			query:  "baz=2",
+			want:   "https://example.com/path?baz=2",
+		},
+		{
+			name:   "query appended to target with existing query",
+			target: "https://example.com/docs?existing=1",
+			query:  "extra=2",
+			want:   "https://example.com/docs?existing=1&extra=2",
+		},
+		{
+			name:   "suffix and query with target query",
+			target: "https://example.com/docs?a=1",
+			suffix: "/sub",
+			query:  "b=2",
+			want:   "https://example.com/docs/sub?a=1&b=2",
+		},
+		{
 			name:    "invalid target URL",
 			target:  "://bad",
 			suffix:  "/x",
@@ -60,12 +86,12 @@ func TestResolveSimple(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got, err := ResolveSimple(tc.target, tc.suffix)
+			got, err := ResolveSimple(tc.target, tc.suffix, tc.query)
 			if (err != nil) != tc.wantErr {
-				t.Fatalf("ResolveSimple(%q, %q) error = %v, wantErr %v", tc.target, tc.suffix, err, tc.wantErr)
+				t.Fatalf("ResolveSimple(%q, %q, %q) error = %v, wantErr %v", tc.target, tc.suffix, tc.query, err, tc.wantErr)
 			}
 			if !tc.wantErr && got != tc.want {
-				t.Errorf("ResolveSimple(%q, %q) = %q, want %q", tc.target, tc.suffix, got, tc.want)
+				t.Errorf("ResolveSimple(%q, %q, %q) = %q, want %q", tc.target, tc.suffix, tc.query, got, tc.want)
 			}
 		})
 	}
@@ -93,39 +119,39 @@ func TestResolveAdvanced(t *testing.T) {
 		},
 		{
 			name:        "using path variable",
-			templateStr: "https://example.com{{.Path}}",
-			vars:        TemplateVars{Path: "/foo/bar"},
+			templateStr: "https://example.com/{{.path}}",
+			vars:        TemplateVars{Path: "foo/bar"},
 			want:        "https://example.com/foo/bar",
 		},
 		{
 			name:        "using parts variable",
-			templateStr: `https://example.com/{{index .Parts 1}}`,
-			vars:        TemplateVars{Parts: []string{"", "section", "page"}},
+			templateStr: `https://example.com/{{index .parts 0}}`,
+			vars:        TemplateVars{Parts: []string{"section", "page"}},
 			want:        "https://example.com/section",
 		},
 		{
 			name:        "using match function – true branch",
-			templateStr: `{{if match "foo" .Path}}https://foo.example.com{{else}}https://other.example.com{{end}}`,
-			vars:        TemplateVars{Path: "/foo/bar"},
+			templateStr: `{{if match "foo" .path}}https://foo.example.com{{else}}https://other.example.com{{end}}`,
+			vars:        TemplateVars{Path: "foo/bar"},
 			want:        "https://foo.example.com",
 		},
 		{
 			name:        "using match function – false branch",
-			templateStr: `{{if match "foo" .Path}}https://foo.example.com{{else}}https://other.example.com{{end}}`,
-			vars:        TemplateVars{Path: "/baz"},
+			templateStr: `{{if match "foo" .path}}https://foo.example.com{{else}}https://other.example.com{{end}}`,
+			vars:        TemplateVars{Path: "baz"},
 			want:        "https://other.example.com",
 		},
 		{
 			name:        "using extract function",
-			templateStr: `https://example.com/search?q={{extract "q=([^&]+)" .Path}}`,
+			templateStr: `https://example.com/search?q={{extract "q=([^&]+)" .path}}`,
 			vars:        TemplateVars{Path: "q=hello&page=1"},
 			want:        "https://example.com/search?q=hello",
 		},
 		{
 			name:        "using replace function",
-			templateStr: `https://example.com/{{replace "/" "-" .Path}}`,
-			vars:        TemplateVars{Path: "/foo/bar"},
-			want:        "https://example.com/-foo-bar",
+			templateStr: `https://example.com/{{replace "/" "-" .path}}`,
+			vars:        TemplateVars{Path: "foo/bar"},
+			want:        "https://example.com/foo-bar",
 		},
 		{
 			name:        "whitespace trimmed from output",
@@ -140,7 +166,7 @@ func TestResolveAdvanced(t *testing.T) {
 		},
 		{
 			name:        "template execution error",
-			templateStr: "{{.NonExistentField.Sub}}",
+			templateStr: `{{index .parts 99}}`,
 			vars:        TemplateVars{},
 			wantErr:     true,
 		},
@@ -167,6 +193,12 @@ func TestResolveAdvanced(t *testing.T) {
 			templateStr: "/relative/path",
 			vars:        TemplateVars{},
 			wantErr:     true,
+		},
+		{
+			name:        "undefined variable evaluates to empty string",
+			templateStr: "https://example.com/{{.nonexistent}}page",
+			vars:        TemplateVars{},
+			want:        "https://example.com/page",
 		},
 	}
 
@@ -270,12 +302,12 @@ func TestValidateTemplate(t *testing.T) {
 		},
 		{
 			name:        "valid template with variables",
-			templateStr: "https://example.com{{.Path}}",
+			templateStr: "https://example.com/{{.path}}",
 			wantErr:     false,
 		},
 		{
 			name:        "valid template with custom functions",
-			templateStr: `{{if match "foo" .Path}}https://foo.com{{else}}https://bar.com{{end}}`,
+			templateStr: `{{if match "foo" .path}}https://foo.com{{else}}https://bar.com{{end}}`,
 			wantErr:     false,
 		},
 		{

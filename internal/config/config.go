@@ -79,6 +79,11 @@ type Config struct {
 	// An empty string means the embedded default favicon is used.
 	FaviconPath string `toml:"favicon_path"`
 
+	// AllowHTTP disables the automatic HTTPS redirect for non-redirect requests.
+	// When true, requests are served on whatever scheme they arrive on.
+	// Defaults to false.
+	AllowHTTP bool `toml:"allow_http"`
+
 	// Anonymous holds settings for anonymous (user-less) authentication.
 	Anonymous AnonymousConfig `toml:"anonymous"`
 

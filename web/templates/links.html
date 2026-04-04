@@ -12,7 +12,38 @@
   </div>
 </div>
 <div id="links-table">
-  {{template "link_table" .Links}}
+  <table class="table is-fullwidth is-striped is-hoverable">
+    <thead>
+      <tr>
+        <th><a href="{{sortURL "/links" .Sort .Dir "name"}}">Name{{sortIcon .Sort .Dir "name"}}</a></th>
+        <th><a href="{{sortURL "/links" .Sort .Dir "target"}}">Target{{sortIcon .Sort .Dir "target"}}</a></th>
+        <th><a href="{{sortURL "/links" .Sort .Dir "uses"}}">Uses{{sortIcon .Sort .Dir "uses"}}</a></th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+    {{range .Links}}
+    <tr>
+      <td>
+        <a href="/{{.Name}}">{{.Name}}</a>
+        {{if .IsAlias}}<span class="tag is-info is-small ml-1">alias</span>{{end}}
+        {{if .IsAdvanced}}<span class="tag is-warning is-small ml-1">advanced</span>{{end}}
+        {{if hasKey $.OwnedIDs .ID}}<span class="tag is-success is-light is-small ml-1">mine</span>
+        {{else if hasKey $.SharedIDs .ID}}<span class="tag is-link is-light is-small ml-1">shared</span>{{end}}
+      </td>
+      <td>
+        {{if .IsAlias}}
+          <span class="has-text-grey">alias of </span><a href="/details/{{.AliasTarget}}">{{.AliasTarget}}</a>
+        {{else}}
+          <a href="{{.Target}}" class="has-text-truncated">{{.Target}}</a>
+        {{end}}
+      </td>
+      <td>{{.UseCount}}</td>
+      <td><a href="/details/{{.Name}}" class="button is-small is-info">Details</a></td>
+    </tr>
+    {{end}}
+    </tbody>
+  </table>
   {{template "pagination" .}}
 </div>
 {{end}}

@@ -42,8 +42,8 @@ The following variables are available inside the template:
 
 | Variable | Type | Description |
 |----------|------|-------------|
-| `.path` | string | Full path suffix after the link name, e.g. `/PROJ-123` |
-| `.parts` | []string | Path suffix split by `/` (leading empty element removed) |
+| `.path` | string | Path suffix after the link name, without leading slash (e.g. `PROJ-123` for `go/name/PROJ-123`) |
+| `.parts` | []string | Path suffix split by `/` (e.g. `["foo", "bar"]` for `go/name/foo/bar`) |
 | `.args` | string | Raw query string (everything after `?`) |
 | `.ua` | string | `User-Agent` header value |
 | `.email` | string | Authenticated user's email address; empty for anonymous users |

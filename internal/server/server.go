@@ -106,6 +106,14 @@ func (s *Server) buildRouter() chi.Router {
 		r.Get("/auth/callback", s.oidcH.HandleCallback)
 		r.Post("/auth/logout", s.oidcH.HandleLogout)
 		r.Get("/auth/logout", s.oidcH.HandleLogout)
+	} else {
+		// Fallback logout: redirect to home for non-OIDC modes (anonymous,
+		// Tailscale) so the logout link never 404s.
+		logoutFallback := func(w http.ResponseWriter, r *http.Request) {
+			http.Redirect(w, r, "/", http.StatusFound)
+		}
+		r.Get("/auth/logout", logoutFallback)
+		r.Post("/auth/logout", logoutFallback)
 	}
 
 	// Redirect routes bypass domain redirect middleware
@@ -138,8 +146,9 @@ func (s *Server) buildRouter() chi.Router {
 		r.Get("/links", s.handleLinks)
 		r.Get("/mylinks", s.handleMyLinks)
 
-		// Help page
+		// Help pages
 		r.Get("/help", s.handleHelp)
+		r.Get("/help/advanced", s.handleHelpAdvanced)
 
 		// Admin: API key management UI
 		r.Route("/apikeys", func(r chi.Router) {

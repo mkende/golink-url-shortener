@@ -14,10 +14,7 @@ import (
 
 func (s *Server) handleRedirect(w http.ResponseWriter, r *http.Request) {
 	name := strings.ToLower(chi.URLParam(r, "name"))
-	suffix := ""
-	if rest := chi.URLParam(r, "*"); rest != "" {
-		suffix = "/" + rest
-	}
+	suffix := chi.URLParam(r, "*") // no leading "/"
 
 	link, err := s.links.GetByName(r.Context(), name)
 	if err != nil {
@@ -90,7 +87,7 @@ func (s *Server) handleRedirect(w http.ResponseWriter, r *http.Request) {
 		}
 		targetURL, err = redirect.ResolveAdvanced(link.Target, vars)
 	} else {
-		targetURL, err = redirect.ResolveSimple(link.Target, suffix)
+		targetURL, err = redirect.ResolveSimple(link.Target, suffix, r.URL.RawQuery)
 	}
 
 	if err != nil {
@@ -108,8 +105,7 @@ func (s *Server) handleRedirect(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, targetURL, http.StatusFound)
 }
 
-// splitPath splits a path suffix on "/" returning all parts including empty
-// elements for leading slashes.
+// splitPath splits a path suffix on "/" returning all non-empty path segments.
 func splitPath(suffix string) []string {
 	if suffix == "" {
 		return nil

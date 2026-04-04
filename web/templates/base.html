@@ -24,7 +24,14 @@
       {{if .Identity}}
       <a class="navbar-item" href="/mylinks">My Links</a>
       <a class="navbar-item" href="/new">New Link</a>
+      {{if eq .Identity.Source "oidc"}}
       <a class="navbar-item" href="/auth/logout">Logout ({{.Identity.Email}})</a>
+      {{else if and (eq .Identity.Source "anonymous") .OIDCEnabled}}
+      <span class="navbar-item">{{.Identity.Email}}</span>
+      <a class="navbar-item" href="/auth/login">Login</a>
+      {{else}}
+      <span class="navbar-item">{{.Identity.Email}}</span>
+      {{end}}
       {{else}}
       <a class="navbar-item" href="/auth/login">Login</a>
       {{end}}

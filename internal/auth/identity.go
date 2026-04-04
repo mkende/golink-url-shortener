@@ -3,6 +3,18 @@ package auth
 
 import "context"
 
+// AuthSource identifies how the user was authenticated.
+type AuthSource string
+
+const (
+	// AuthSourceOIDC indicates authentication via OpenID Connect.
+	AuthSourceOIDC AuthSource = "oidc"
+	// AuthSourceTailscale indicates authentication via Tailscale headers.
+	AuthSourceTailscale AuthSource = "tailscale"
+	// AuthSourceAnonymous indicates the anonymous fallback identity.
+	AuthSourceAnonymous AuthSource = "anonymous"
+)
+
 // Identity holds the authenticated user's information.
 type Identity struct {
 	Email       string
@@ -10,6 +22,8 @@ type Identity struct {
 	AvatarURL   string
 	Groups      []string
 	IsAdmin     bool
+	// Source identifies which authentication mechanism produced this identity.
+	Source AuthSource
 }
 
 type contextKey int
