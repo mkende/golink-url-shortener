@@ -109,6 +109,10 @@ Random name of configurable length (default 6), lowercase letters + digits.
 - Any change that affects the public API shape or config file format
 - Any new external dependency not already listed in Architecture constraints
 
+Asking is for validation, not a signal that new dependencies are unwelcome.
+Present the dependency, explain why it is the right choice, and proceed once
+the owner confirms.
+
 For everything else you may proceed, but document your choice briefly in the
 commit message.
 
