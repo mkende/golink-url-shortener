@@ -1,4 +1,4 @@
-// Package db provides database access for golink-redirector.
+// Package db provides database access for golink-url-shortener.
 package db
 
 import (

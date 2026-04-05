@@ -1,6 +1,6 @@
 # Binaries
 /golink
-/golink-redirector
+/golink-url-shortener
 *.exe
 *.exe~
 *.dll

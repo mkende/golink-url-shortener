@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mkende/golink-redirector/internal/db"
+	"github.com/mkende/golink-url-shortener/internal/db"
 )
 
 // LinkResponse is the JSON representation of a short link returned by the API.

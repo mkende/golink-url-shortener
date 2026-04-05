@@ -11,12 +11,12 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
-	"github.com/mkende/golink-redirector/internal/auth"
-	"github.com/mkende/golink-redirector/internal/config"
-	"github.com/mkende/golink-redirector/internal/db"
-	serverMiddleware "github.com/mkende/golink-redirector/internal/server/middleware"
-	"github.com/mkende/golink-redirector/internal/templates"
-	"github.com/mkende/golink-redirector/web/static"
+	"github.com/mkende/golink-url-shortener/internal/auth"
+	"github.com/mkende/golink-url-shortener/internal/config"
+	"github.com/mkende/golink-url-shortener/internal/db"
+	serverMiddleware "github.com/mkende/golink-url-shortener/internal/server/middleware"
+	"github.com/mkende/golink-url-shortener/internal/templates"
+	"github.com/mkende/golink-url-shortener/web/static"
 )
 
 // Server is the root HTTP handler. It implements http.Handler via ServeHTTP.

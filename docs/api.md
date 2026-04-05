@@ -1,6 +1,6 @@
 # REST API Reference
 
-golink-redirector exposes a REST API on the same host as the web UI. All API
+golink-url-shortener exposes a REST API on the same host as the web UI. All API
 routes live under the `/api/` prefix. Responses are always JSON.
 
 ---

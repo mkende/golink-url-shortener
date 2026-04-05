@@ -3,7 +3,7 @@ package links_test
 import (
 	"testing"
 
-	"github.com/mkende/golink-redirector/internal/links"
+	"github.com/mkende/golink-url-shortener/internal/links"
 )
 
 func TestValidateName(t *testing.T) {

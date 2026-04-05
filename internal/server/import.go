@@ -8,9 +8,9 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/mkende/golink-redirector/internal/auth"
-	"github.com/mkende/golink-redirector/internal/db"
-	"github.com/mkende/golink-redirector/internal/links"
+	"github.com/mkende/golink-url-shortener/internal/auth"
+	"github.com/mkende/golink-url-shortener/internal/db"
+	"github.com/mkende/golink-url-shortener/internal/links"
 )
 
 // importResult is the JSON summary returned after a POST /api/import request.

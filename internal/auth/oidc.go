@@ -12,8 +12,8 @@ import (
 
 	gooidc "github.com/coreos/go-oidc/v3/oidc"
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/mkende/golink-redirector/internal/config"
-	"github.com/mkende/golink-redirector/internal/db"
+	"github.com/mkende/golink-url-shortener/internal/config"
+	"github.com/mkende/golink-url-shortener/internal/db"
 	"golang.org/x/oauth2"
 )
 

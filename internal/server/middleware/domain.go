@@ -4,8 +4,8 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/mkende/golink-redirector/internal/auth"
-	"github.com/mkende/golink-redirector/internal/config"
+	"github.com/mkende/golink-url-shortener/internal/auth"
+	"github.com/mkende/golink-url-shortener/internal/config"
 )
 
 // DomainRedirect returns middleware that redirects requests to the canonical

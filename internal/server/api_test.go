@@ -13,9 +13,9 @@ import (
 	"testing"
 
 	_ "github.com/mattn/go-sqlite3"
-	"github.com/mkende/golink-redirector/internal/config"
-	"github.com/mkende/golink-redirector/internal/db"
-	"github.com/mkende/golink-redirector/internal/server"
+	"github.com/mkende/golink-url-shortener/internal/config"
+	"github.com/mkende/golink-url-shortener/internal/db"
+	"github.com/mkende/golink-url-shortener/internal/server"
 )
 
 // apiTestEnv holds a test server and the repos needed to set up state.

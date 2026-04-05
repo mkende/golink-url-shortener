@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"strings"
 
-	webtemplates "github.com/mkende/golink-redirector/web/templates"
+	webtemplates "github.com/mkende/golink-url-shortener/web/templates"
 )
 
 var funcMap = template.FuncMap{

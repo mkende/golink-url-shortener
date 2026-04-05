@@ -11,8 +11,8 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/mkende/golink-redirector/internal/db"
-	"github.com/mkende/golink-redirector/internal/server"
+	"github.com/mkende/golink-url-shortener/internal/db"
+	"github.com/mkende/golink-url-shortener/internal/server"
 )
 
 // makeAdminAPIKey creates an API key whose identity is treated as an admin.
