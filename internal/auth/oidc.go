@@ -62,11 +62,21 @@ func NewOIDCHandler(ctx context.Context, cfg *config.Config, users db.UserRepo) 
 
 // HandleLogin redirects to the OIDC provider.
 func (h *OIDCHandler) HandleLogin(w http.ResponseWriter, r *http.Request) {
-	state, err := randomState()
+	random, err := randomState()
 	if err != nil {
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
+
+	// Encode the post-login destination into the state so it survives the
+	// round-trip to the OIDC provider. The callback URL has no "rd" param —
+	// the provider only returns "code" and "state". Format: "<random>|<rd>".
+	rd := r.URL.Query().Get("rd")
+	if rd == "" || !strings.HasPrefix(rd, "/") || strings.HasPrefix(rd, "//") {
+		rd = "/"
+	}
+	state := random + "|" + rd
+
 	http.SetCookie(w, &http.Cookie{
 		Name:     stateCookieName,
 		Value:    state,
@@ -153,12 +163,13 @@ func (h *OIDCHandler) HandleCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Redirect to original destination or home.
-	// Accept paths starting with "/" but reject protocol-relative URLs like
-	// "//evil.com" which browsers interpret as absolute URLs.
+	// Extract the post-login destination from the state (format: "<random>|<rd>").
+	// Reject protocol-relative URLs like "//evil.com" which browsers treat as absolute.
 	dest := "/"
-	if rd := r.URL.Query().Get("rd"); rd != "" && strings.HasPrefix(rd, "/") && !strings.HasPrefix(rd, "//") {
-		dest = rd
+	if parts := strings.SplitN(stateCookie.Value, "|", 2); len(parts) == 2 {
+		if rd := parts[1]; strings.HasPrefix(rd, "/") && !strings.HasPrefix(rd, "//") {
+			dest = rd
+		}
 	}
 	http.Redirect(w, r, dest, http.StatusFound)
 }
