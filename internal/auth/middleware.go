@@ -5,7 +5,7 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/mkende/golink-redirector/internal/config"
+	"github.com/mkende/golink-url-shortener/internal/config"
 )
 
 // RequireAuth returns a middleware that enforces authentication.

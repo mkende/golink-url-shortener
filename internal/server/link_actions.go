@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/mkende/golink-redirector/internal/db"
-	"github.com/mkende/golink-redirector/internal/links"
+	"github.com/mkende/golink-url-shortener/internal/db"
+	"github.com/mkende/golink-url-shortener/internal/links"
 )
 
 // createLinkParams holds the already-parsed, normalised inputs for creating a link.

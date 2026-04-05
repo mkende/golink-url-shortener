@@ -9,9 +9,9 @@ import (
 	"testing"
 
 	_ "github.com/mattn/go-sqlite3"
-	"github.com/mkende/golink-redirector/internal/config"
-	"github.com/mkende/golink-redirector/internal/db"
-	"github.com/mkende/golink-redirector/internal/server"
+	"github.com/mkende/golink-url-shortener/internal/config"
+	"github.com/mkende/golink-url-shortener/internal/db"
+	"github.com/mkende/golink-url-shortener/internal/server"
 )
 
 func newTestServer(t *testing.T) (http.Handler, db.LinkRepo) {

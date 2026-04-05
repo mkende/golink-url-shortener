@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/mkende/golink-redirector/internal/db"
+	"github.com/mkende/golink-url-shortener/internal/db"
 )
 
 // ExportLink is the JSON representation of a link for export/import.

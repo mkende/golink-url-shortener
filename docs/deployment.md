@@ -1,6 +1,6 @@
 # Deployment Guide
 
-This document describes how to deploy golink-redirector in various environments.
+This document describes how to deploy golink-url-shortener in various environments.
 
 ---
 
@@ -15,15 +15,15 @@ This document describes how to deploy golink-redirector in various environments.
 ### Build
 
 ```bash
-git clone https://github.com/mkende/golink-redirector.git
-cd golink-redirector
+git clone https://github.com/mkende/golink-url-shortener.git
+cd golink-url-shortener
 go build -o golink ./cmd/golink
 ```
 
 Or install directly:
 
 ```bash
-go install github.com/mkende/golink-redirector/cmd/golink@latest
+go install github.com/mkende/golink-url-shortener/cmd/golink@latest
 ```
 
 ### Configure
@@ -56,7 +56,7 @@ Create `/etc/systemd/system/golink.service`:
 
 ```ini
 [Unit]
-Description=golink-redirector URL shortener
+Description=golink-url-shortener URL shortener
 After=network.target
 
 [Service]
@@ -87,7 +87,7 @@ sudo journalctl -u golink -f
 
 ### Reverse proxy (nginx)
 
-golink-redirector does not terminate TLS itself. Place it behind a reverse proxy. Example nginx config:
+golink-url-shortener does not terminate TLS itself. Place it behind a reverse proxy. Example nginx config:
 
 ```nginx
 server {
@@ -118,7 +118,7 @@ go.example.com {
 
 ## Docker
 
-A pre-built image is published to `ghcr.io/mkende/golink-redirector`.
+A pre-built image is published to `ghcr.io/mkende/golink-url-shortener`.
 
 ### Basic run
 
@@ -128,7 +128,7 @@ docker run -d \
   -p 8080:8080 \
   -v /data/golink:/data \
   -e GOLINK_CONFIG=/data/simple.conf \
-  ghcr.io/mkende/golink-redirector:latest
+  ghcr.io/mkende/golink-url-shortener:latest
 ```
 
 Mount a directory to `/data` and place your `simple.conf` there. The SQLite database file is also stored there by default (set `db.dsn = "/data/golink.db"` in your config).
@@ -152,7 +152,7 @@ A minimal Compose file with SQLite:
 ```yaml
 services:
   golink:
-    image: ghcr.io/mkende/golink-redirector:latest
+    image: ghcr.io/mkende/golink-url-shortener:latest
     restart: unless-stopped
     ports:
       - "8080:8080"
@@ -170,7 +170,7 @@ volumes:
 ```yaml
 services:
   golink:
-    image: ghcr.io/mkende/golink-redirector:latest
+    image: ghcr.io/mkende/golink-url-shortener:latest
     restart: unless-stopped
     ports:
       - "8080:8080"
@@ -283,7 +283,7 @@ spec:
     spec:
       containers:
         - name: golink
-          image: ghcr.io/mkende/golink-redirector:latest
+          image: ghcr.io/mkende/golink-url-shortener:latest
           args: ["-config", "/etc/golink/simple.conf"]
           ports:
             - containerPort: 8080

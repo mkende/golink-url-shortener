@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mkende/golink-redirector/internal/links"
+	"github.com/mkende/golink-url-shortener/internal/links"
 )
 
 func TestGenerateQuickName(t *testing.T) {

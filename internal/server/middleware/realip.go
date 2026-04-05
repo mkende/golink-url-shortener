@@ -3,7 +3,7 @@ package middleware
 import (
 	"net/http"
 
-	"github.com/mkende/golink-redirector/internal/auth"
+	"github.com/mkende/golink-url-shortener/internal/auth"
 )
 
 // PreserveRemoteAddr saves r.RemoteAddr into the request context before any

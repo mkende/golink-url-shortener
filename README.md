@@ -24,14 +24,14 @@ A production-grade URL shortener in the *go/* link style.
 **Install from source** (requires Go 1.21+):
 
 ```bash
-go install github.com/mkende/golink-redirector/cmd/golink@latest
+go install github.com/mkende/golink-url-shortener/cmd/golink@latest
 ```
 
 **Or build locally**:
 
 ```bash
-git clone https://github.com/mkende/golink-redirector.git
-cd golink-redirector
+git clone https://github.com/mkende/golink-url-shortener.git
+cd golink-url-shortener
 go build -o golink ./cmd/golink
 ```
 

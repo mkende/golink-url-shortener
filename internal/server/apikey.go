@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/mkende/golink-redirector/internal/auth"
+	"github.com/mkende/golink-url-shortener/internal/auth"
 )
 
 // HashAPIKey hashes a raw API key using SHA-256 for storage and lookup.

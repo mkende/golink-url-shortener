@@ -3,7 +3,7 @@ package auth
 import (
 	"net/http"
 
-	"github.com/mkende/golink-redirector/internal/config"
+	"github.com/mkende/golink-url-shortener/internal/config"
 )
 
 // anonymousIdentity is the fixed identity used when anonymous auth is enabled.

@@ -1,4 +1,4 @@
-# golink-redirector configuration template
+# golink-url-shortener configuration template
 #
 # Copy this file to simple.conf (or any path you prefer) and adjust the values
 # below. Lines beginning with '#' are comments. All keys are optional unless

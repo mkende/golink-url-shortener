@@ -1,4 +1,4 @@
-# Agent Instructions — golink-redirector
+# Agent Instructions — golink-url-shortener
 
 This document contains the standing instructions for any AI agent working on
 this project. Read it in full before making any changes. The original
@@ -9,7 +9,7 @@ intent behind any requirement.
 
 ## Project summary
 
-`golink-redirector` is a production-grade Go URL shortener (go-link style).
+`golink-url-shortener` is a production-grade Go URL shortener (go-link style).
 Users browse or are redirected from a short name like `go/docs` to a full URL.
 The service features authentication, link sharing, advanced template-based
 redirects, a REST API, import/export, and full deployment documentation.

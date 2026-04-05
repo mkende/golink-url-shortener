@@ -1,4 +1,4 @@
-// Package config provides configuration loading and validation for golink-redirector.
+// Package config provides configuration loading and validation for golink-url-shortener.
 package config
 
 import (

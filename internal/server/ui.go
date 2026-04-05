@@ -10,9 +10,9 @@ import (
 	"strings"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/mkende/golink-redirector/internal/auth"
-	"github.com/mkende/golink-redirector/internal/db"
-	"github.com/mkende/golink-redirector/internal/links"
+	"github.com/mkende/golink-url-shortener/internal/auth"
+	"github.com/mkende/golink-url-shortener/internal/db"
+	"github.com/mkende/golink-url-shortener/internal/links"
 )
 
 // linksPerPage returns the configured page size for link list pages.

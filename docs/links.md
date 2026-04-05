@@ -1,6 +1,6 @@
 # Redirect Patterns
 
-This page explains how golink-redirector processes redirects for both simple
+This page explains how golink-url-shortener processes redirects for both simple
 and advanced links.
 
 ---

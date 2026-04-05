@@ -32,7 +32,7 @@ All keys are optional unless marked **required**.
 
 ### `[tailscale]` — Tailscale header-based auth
 
-Enable this when golink-redirector sits behind a Tailscale node that injects `Tailscale-User-*` headers. No additional credentials are needed.
+Enable this when golink-url-shortener sits behind a Tailscale node that injects `Tailscale-User-*` headers. No additional credentials are needed.
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|

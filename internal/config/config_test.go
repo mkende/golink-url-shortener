@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/mkende/golink-redirector/internal/config"
+	"github.com/mkende/golink-url-shortener/internal/config"
 )
 
 // writeTemp writes content to a temporary TOML file and returns its path.

@@ -5,8 +5,8 @@ import (
 	"net"
 	"net/http"
 
-	"github.com/mkende/golink-redirector/internal/config"
-	"github.com/mkende/golink-redirector/internal/db"
+	"github.com/mkende/golink-url-shortener/internal/config"
+	"github.com/mkende/golink-url-shortener/internal/db"
 )
 
 // TailscaleMiddleware reads Tailscale-User-* headers and populates the identity

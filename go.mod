@@ -1,4 +1,4 @@
-module github.com/mkende/golink-redirector
+module github.com/mkende/golink-url-shortener
 
 go 1.24.7
 

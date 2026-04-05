@@ -30,7 +30,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ghcr.io/mkende/golink-redirector
+          images: ghcr.io/mkende/golink-url-shortener
           flavor: |
             latest=false
           tags: |

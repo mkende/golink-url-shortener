@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/mkende/golink-redirector/internal/auth"
-	"github.com/mkende/golink-redirector/internal/config"
+	"github.com/mkende/golink-url-shortener/internal/auth"
+	"github.com/mkende/golink-url-shortener/internal/config"
 )
 
 const testJWTSecret = "test-secret-for-unit-tests"
