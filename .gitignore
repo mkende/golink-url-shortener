@@ -40,5 +40,7 @@
 .DS_Store
 
 # Go workspace
-go.work
-go.work.sum
+/go.work
+/go.work.sum
+
+/TODO.md

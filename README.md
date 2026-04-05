@@ -1,17 +1,21 @@
-# golink-redirector
+# golink url shortener
 
-A production-grade Go URL shortener in the [go-link](https://www.golinks.io/) style.
+A production-grade URL shortener in the *go/* link style.
 
 ## Features
 
-- **Simple redirects**: `go/docs` → your long URL, with path passthrough (`go/docs/api` → `https://docs.example.com/api`)
-- **Advanced redirects**: Go template syntax with regexp functions (`match`, `extract`, `replace`) and variables (`path`, `parts`, `args`, `ua`, `email`)
-- **Authentication**: Tailscale header-based or OIDC (Authelia, Keycloak, etc.)
+- **Redirection syntax**: supports a simple syntax or advanced Go template with
+  regexp functions (`match`, `extract`, `replace`) and variables (`path`,
+  `parts`, `args`, `ua`, `email`)
+- **Authentication**: Tailscale header-based, OIDC (Authelia, Keycloak, etc.),
+  reverse proxy autorization header, etc.
 - **Link sharing**: Share links with other users by email or group
-- **REST API**: Full CRUD with API key authentication
-- **Import / export**: JSON dump and restore (admin only)
-- **High performance**: LRU cache + async use-count writes; ~6.5 µs/op on the redirect path
-- **SQLite default, PostgreSQL optional**
+- **REST API**: Full API support to create/edit/resolve links and perform
+  administrative duties (DB dump and restore).
+- **Easy to deploy**: Just one SQLite DB (or optionnaly Postgres), documentation
+  for Docker, Docker compose, Kubernetes, etc.
+- **High performance**: LRU cache and async use-count writes. Designed for 
+  hundred of thousands of users and short links.
 
 ## Quick start
 
@@ -34,17 +38,17 @@ go build -o golink ./cmd/golink
 ### 2. Configure
 
 ```bash
-cp config.template.toml simple.conf
-# Edit simple.conf — at minimum set canonical_domain
+cp config.template.toml golink.conf
+# Edit golink.conf
 ```
 
 ### 3. Run
 
 ```bash
-golink -config simple.conf
+golink -config golink.conf
 ```
 
-The server starts on `0.0.0.0:8080` by default. Point your DNS for `go.example.com` at the server and set `canonical_domain = "go.example.com"` in the config.
+The server starts on `0.0.0.0:8080` by default.
 
 ## Documentation
 

@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
 ## Build stage
-FROM golang:1.24-alpine AS builder
+FROM golang:alpine AS builder
 
 WORKDIR /build
 
@@ -15,7 +15,7 @@ COPY . .
 RUN CGO_ENABLED=1 go build -ldflags="-s -w" -o golink ./cmd/golink
 
 ## Runtime stage
-FROM alpine:3.19
+FROM alpine:latest
 
 RUN apk add --no-cache ca-certificates tzdata sqlite-libs
 
