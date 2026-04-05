@@ -28,4 +28,3 @@ VOLUME ["/app/data"]
 EXPOSE 8080
 
 ENTRYPOINT ["/app/golink"]
-CMD ["-config", "/app/data/simple.conf"]
