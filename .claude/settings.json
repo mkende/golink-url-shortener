@@ -2,7 +2,12 @@
   "permissions": {
     "allow": [
       "Bash(go build:*)",
-      "Bash(go run:*)"
+      "Bash(go run:*)",
+      "Bash(go test:*)",
+      "Bash(sqlite3 /mnt/d/Projets/golink-redirector/golink.db:*)",
+      "Bash(git add:*)",
+      "Bash(git commit':*)",
+      "Bash(git push:*)"
     ]
   }
 }
