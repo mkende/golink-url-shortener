@@ -22,11 +22,12 @@ following conditions are true:
 
 1. `canonical_domain` is set in config.
 2. `allow_http` is `false`.
-3. The request is not authenticated via **Tailscale** or **reverse-proxy
-   forward-auth** (see [Exempt cases](#exempt-cases) below).
-4. The request is **not** already on HTTPS pointing at the canonical domain —
+3. The request is **not** already on HTTPS pointing at the canonical domain —
    that is, either the scheme is not HTTPS, or the `Host` header differs from
    `canonical_domain`.
+
+This applies regardless of auth source — Tailscale and reverse-proxy auth users
+are subject to the same redirect as everyone else for UI pages.
 
 HTTPS is detected via `r.TLS` (direct TLS) or the `X-Forwarded-Proto: https`
 header set by a terminating proxy.
@@ -46,13 +47,6 @@ All UI pages (`/`, `/new`, `/edit`, `/browse`, `/admin`, …) and all API
 endpoints (`/api/…`) **are** subject to the redirect.
 
 ## Exempt cases
-
-### Tailscale and reverse-proxy auth
-
-When a request carries a Tailscale identity header or a trusted forward-auth
-header, the domain redirect is skipped entirely. In those deployments the
-hostname is controlled by the internal proxy, and enforcing the canonical domain
-would create a redirect loop.
 
 ### `allow_http = true`
 
@@ -83,13 +77,12 @@ URL is used instead.
 ```
 Incoming request
 │
-├─ Is it a link redirect (/{name})?  ──YES──► Serve redirect directly (no domain check)
+├─ Is it a link redirect (/{name})?    ──YES──► Serve redirect directly (no domain check)
 │
-├─ Is canonical_domain empty?        ──YES──► Serve request as-is
-├─ Is allow_http = true?             ──YES──► Serve request as-is
-├─ Is auth source Tailscale/Proxy?   ──YES──► Serve request as-is
+├─ Is canonical_domain empty?          ──YES──► Serve request as-is
+├─ Is allow_http = true?               ──YES──► Serve request as-is
 │
-├─ Is request on HTTPS + correct host? ─YES──► Serve request normally
+├─ Is request on HTTPS + correct host? ──YES──► Serve request normally
 │
 └─ Otherwise ──► 301 to https://<canonical_domain><path>?<query>
 ```

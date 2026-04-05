@@ -75,10 +75,11 @@ redirects, a REST API, import/export, and full deployment documentation.
 For every non-redirect request (UI pages, API, etc.) the server checks:
 1. Is the request using the configured canonical HTTPS domain?
 2. If not → 301 to the canonical HTTPS URL (same path).
-Exception: redirect requests are served directly without this check.
+This applies to all auth sources including Tailscale and reverse-proxy auth.
+Exception: pure link redirects that do not require authentication are served
+directly without this check.
 For OIDC auth on links that require authentication: redirect to canonical
 domain first so the auth cookie is present.
-Tailscale auth: if the Tailscale header is present, skip the redirect check.
 
 ### Quick link
 Random name of configurable length (default 6), lowercase letters + digits.
