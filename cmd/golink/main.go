@@ -18,10 +18,19 @@ import (
 )
 
 func main() {
-	configPath := flag.String("config", "simple.conf", "path to configuration file")
+	configPath := flag.String("config", "", "path to configuration file (overrides $GOLINK_CONFIG)")
 	flag.Parse()
 
-	cfg, err := config.Load(*configPath)
+	path := *configPath
+	if path == "" {
+		path = os.Getenv("GOLINK_CONFIG")
+	}
+	if path == "" {
+		fmt.Fprintln(os.Stderr, "error: config file must be specified via -config flag or GOLINK_CONFIG environment variable")
+		os.Exit(1)
+	}
+
+	cfg, err := config.Load(path)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "configuration error: %v\n", err)
 		os.Exit(1)
