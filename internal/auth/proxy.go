@@ -17,11 +17,14 @@ import (
 //
 // Header names default to the de-facto standard used by Authelia:
 //
-//   - Remote-User   — user identifier (email or username)
+//   - Remote-User   — username / login name (fallback identifier)
+//   - Remote-Email  — email address (preferred primary identifier)
 //   - Remote-Name   — display name
 //   - Remote-Groups — comma-separated group memberships
 //
-// All three names are configurable via ProxyAuthConfig.
+// Identity.Email is set from EmailHeader when present; otherwise UserHeader is
+// used as the identifier. All four header names are configurable via
+// ProxyAuthConfig.
 func ProxyAuthMiddleware(cfg *config.Config, users db.UserRepo) func(http.Handler) http.Handler {
 	// Pre-parse CIDRs once at construction time.
 	var trustedNets []*net.IPNet
@@ -49,15 +52,22 @@ func ProxyAuthMiddleware(cfg *config.Config, users db.UserRepo) func(http.Handle
 				return
 			}
 
-			user := r.Header.Get(cfg.ProxyAuth.UserHeader)
-			if user == "" {
-				// Proxy is trusted but sent no user header — unauthenticated request.
+			// Determine the primary identifier. Prefer the dedicated email header
+			// (Remote-Email by default) over the username header (Remote-User),
+			// because Identity.Email is the system-wide user key. Fall back to
+			// UserHeader when EmailHeader is absent or empty.
+			email := r.Header.Get(cfg.ProxyAuth.EmailHeader)
+			if email == "" {
+				email = r.Header.Get(cfg.ProxyAuth.UserHeader)
+			}
+			if email == "" {
+				// Proxy is trusted but sent no identity headers — unauthenticated.
 				next.ServeHTTP(w, r)
 				return
 			}
 
 			id := &Identity{
-				Email:       user,
+				Email:       email,
 				DisplayName: r.Header.Get(cfg.ProxyAuth.NameHeader),
 				Source:      AuthSourceProxy,
 			}

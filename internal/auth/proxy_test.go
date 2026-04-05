@@ -16,6 +16,7 @@ func proxyCfg(enabled bool, cidrs ...string) *config.Config {
 			Enabled:      enabled,
 			TrustedCIDRs: cidrs,
 			UserHeader:   "Remote-User",
+			EmailHeader:  "Remote-Email",
 			NameHeader:   "Remote-Name",
 			GroupsHeader: "Remote-Groups",
 		},
@@ -79,7 +80,7 @@ func TestProxyAuthMiddleware_NoUserHeader(t *testing.T) {
 	}
 }
 
-func TestProxyAuthMiddleware_BasicUser(t *testing.T) {
+func TestProxyAuthMiddleware_EmailHeaderTakesPrecedence(t *testing.T) {
 	cfg := proxyCfg(true, "127.0.0.0/8")
 	var got *auth.Identity
 	h := auth.ProxyAuthMiddleware(cfg, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -87,7 +88,8 @@ func TestProxyAuthMiddleware_BasicUser(t *testing.T) {
 	}))
 
 	req := trustedReq("127.0.0.1:1234")
-	req.Header.Set("Remote-User", "alice@example.com")
+	req.Header.Set("Remote-User", "alice")              // username, not an email
+	req.Header.Set("Remote-Email", "alice@example.com") // actual email
 	req.Header.Set("Remote-Name", "Alice")
 	h.ServeHTTP(httptest.NewRecorder(), req)
 
@@ -95,7 +97,7 @@ func TestProxyAuthMiddleware_BasicUser(t *testing.T) {
 		t.Fatal("expected identity, got nil")
 	}
 	if got.Email != "alice@example.com" {
-		t.Errorf("email: got %q, want %q", got.Email, "alice@example.com")
+		t.Errorf("email: got %q, want alice@example.com (Remote-Email should take precedence)", got.Email)
 	}
 	if got.DisplayName != "Alice" {
 		t.Errorf("display name: got %q, want %q", got.DisplayName, "Alice")
@@ -105,6 +107,26 @@ func TestProxyAuthMiddleware_BasicUser(t *testing.T) {
 	}
 	if got.IsAdmin {
 		t.Error("expected non-admin")
+	}
+}
+
+func TestProxyAuthMiddleware_FallsBackToUserHeader(t *testing.T) {
+	cfg := proxyCfg(true, "127.0.0.0/8")
+	var got *auth.Identity
+	h := auth.ProxyAuthMiddleware(cfg, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		got = auth.FromContext(r.Context())
+	}))
+
+	req := trustedReq("127.0.0.1:1234")
+	req.Header.Set("Remote-User", "alice@example.com") // proxy sets only Remote-User
+	// No Remote-Email header.
+	h.ServeHTTP(httptest.NewRecorder(), req)
+
+	if got == nil {
+		t.Fatal("expected identity, got nil")
+	}
+	if got.Email != "alice@example.com" {
+		t.Errorf("email: got %q, want alice@example.com", got.Email)
 	}
 }
 

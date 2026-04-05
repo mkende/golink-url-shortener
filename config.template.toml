@@ -96,10 +96,18 @@ enabled = false
 # Example: ["127.0.0.0/8", "::1/128", "10.0.0.0/8"]
 trusted_cidrs = []
 
-# HTTP header containing the authenticated user's identifier (email or
-# username). This value is used as the user's email/login in golink.
+# HTTP header containing the authenticated user's login name or username.
+# Used as the primary identifier when email_header is absent or returns an
+# empty value for the request.
 # Default: "Remote-User"  (Authelia / standard forward-auth convention)
 user_header = "Remote-User"
+
+# HTTP header containing the authenticated user's email address.  When this
+# header is present and non-empty it is used as the primary user identifier
+# (the key stored in the database and used for sharing/admin checks); otherwise
+# the value from user_header is used as a fallback.
+# Default: "Remote-Email"  (Authelia sends both Remote-User and Remote-Email)
+email_header = "Remote-Email"
 
 # HTTP header containing the user's display name.
 # Default: "Remote-Name"

@@ -47,9 +47,15 @@ type ProxyAuthConfig struct {
 	// accepted. Required when enabled; requests from outside these ranges have
 	// their headers silently ignored.
 	TrustedCIDRs []string `toml:"trusted_cidrs"`
-	// UserHeader is the header containing the authenticated user's identifier
-	// (email or username). Defaults to "Remote-User".
+	// UserHeader is the header containing the authenticated user's login name
+	// or username. Used as the primary identifier when EmailHeader is absent
+	// or empty. Defaults to "Remote-User".
 	UserHeader string `toml:"user_header"`
+	// EmailHeader is the header containing the user's email address. When
+	// present it is used as the primary user identifier (Identity.Email);
+	// UserHeader is then treated as a supplementary username. Defaults to
+	// "Remote-Email". Set to "" to disable and always use UserHeader instead.
+	EmailHeader string `toml:"email_header"`
 	// NameHeader is the header containing the user's display name.
 	// Defaults to "Remote-Name".
 	NameHeader string `toml:"name_header"`
@@ -186,6 +192,9 @@ func applyDefaults(c *Config) {
 	}
 	if c.ProxyAuth.UserHeader == "" {
 		c.ProxyAuth.UserHeader = "Remote-User"
+	}
+	if c.ProxyAuth.EmailHeader == "" {
+		c.ProxyAuth.EmailHeader = "Remote-Email"
 	}
 	if c.ProxyAuth.NameHeader == "" {
 		c.ProxyAuth.NameHeader = "Remote-Name"
