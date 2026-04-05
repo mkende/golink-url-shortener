@@ -82,14 +82,19 @@ func (s *Server) buildRouter() chi.Router {
 	r := chi.NewRouter()
 
 	// Standard middleware
+	// PreserveRemoteAddr must run before RealIP so that CIDR-based auth
+	// middlewares can inspect the actual TCP connection address.
+	r.Use(serverMiddleware.PreserveRemoteAddr)
 	r.Use(middleware.RealIP)
 	r.Use(middleware.Recoverer)
 	r.Use(serverMiddleware.RequestLogger(s.logger))
 	r.Use(serverMiddleware.SecurityHeaders)
 
-	// Auth middleware: populate identity context from Tailscale headers, JWT
-	// cookie, or anonymous fallback (in that priority order).
+	// Auth middleware: populate identity context from Tailscale headers,
+	// reverse-proxy forward-auth headers, JWT cookie, or anonymous fallback
+	// (in that priority order).
 	r.Use(auth.TailscaleMiddleware(s.cfg, s.users))
+	r.Use(auth.ProxyAuthMiddleware(s.cfg, s.users))
 	r.Use(auth.OIDCMiddleware(s.cfg))
 	r.Use(auth.AnonymousMiddleware(s.cfg))
 

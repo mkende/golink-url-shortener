@@ -11,6 +11,8 @@ const (
 	AuthSourceOIDC AuthSource = "oidc"
 	// AuthSourceTailscale indicates authentication via Tailscale headers.
 	AuthSourceTailscale AuthSource = "tailscale"
+	// AuthSourceProxy indicates authentication via reverse-proxy forward-auth headers.
+	AuthSourceProxy AuthSource = "proxy"
 	// AuthSourceAnonymous indicates the anonymous fallback identity.
 	AuthSourceAnonymous AuthSource = "anonymous"
 )
