@@ -7,7 +7,7 @@ require (
 	github.com/coreos/go-oidc/v3 v3.11.0
 	github.com/fergusstrange/embedded-postgres v1.34.0
 	github.com/go-chi/chi/v5 v5.2.5
-	github.com/golang-jwt/jwt/v5 v5.2.1
+	github.com/golang-jwt/jwt/v5 v5.2.2
 	github.com/golang-migrate/migrate/v4 v4.18.3
 	github.com/hashicorp/golang-lru/v2 v2.0.7
 	github.com/lib/pq v1.12.0
