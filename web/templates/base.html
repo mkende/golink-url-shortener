@@ -41,7 +41,7 @@
       {{else}}
       <span class="navbar-item">{{.Identity.Email}}</span>
       {{end}}
-      {{else}}
+      {{else if .OIDCEnabled}}
       <a class="navbar-item" href="/auth/login">Login</a>
       {{end}}
     </div>

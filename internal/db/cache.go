@@ -79,8 +79,8 @@ func (r *CachingLinkRepo) Delete(ctx context.Context, id int64) error {
 
 // List delegates to the inner repo without caching (results are paginated and
 // not part of the hot redirect path).
-func (r *CachingLinkRepo) List(ctx context.Context, limit, offset int, sortField SortField, sortDir SortDir) ([]*Link, int, error) {
-	return r.inner.List(ctx, limit, offset, sortField, sortDir)
+func (r *CachingLinkRepo) List(ctx context.Context, limit, offset int, sortField SortField, sortDir SortDir, publicOnly bool) ([]*Link, int, error) {
+	return r.inner.List(ctx, limit, offset, sortField, sortDir, publicOnly)
 }
 
 // ListByOwner delegates to the inner repo without caching.
@@ -89,8 +89,8 @@ func (r *CachingLinkRepo) ListByOwner(ctx context.Context, ownerEmail string, li
 }
 
 // Search delegates to the inner repo without caching.
-func (r *CachingLinkRepo) Search(ctx context.Context, query string, limit, offset int) ([]*Link, int, error) {
-	return r.inner.Search(ctx, query, limit, offset)
+func (r *CachingLinkRepo) Search(ctx context.Context, query string, limit, offset int, publicOnly bool) ([]*Link, int, error) {
+	return r.inner.Search(ctx, query, limit, offset, publicOnly)
 }
 
 // GetShares delegates to the inner repo without caching.

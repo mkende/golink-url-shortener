@@ -1,6 +1,7 @@
 {{template "base.html" .}}
 {{define "content"}}
 <h1 class="title">{{.Title}}</h1>
+{{if .Identity}}
 <div class="columns">
   <div class="column is-half">
     <div class="box">
@@ -47,6 +48,7 @@
     {{end}}
   </div>
 </div>
+{{end}}
 <div class="box">
   <h2 class="subtitle">Search Links
     <a href="/help/search" target="_blank" title="Search syntax help"

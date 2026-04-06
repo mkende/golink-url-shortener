@@ -53,7 +53,7 @@ func (s *Server) handleExport(w http.ResponseWriter, r *http.Request) {
 	first := true
 
 	for {
-		linkPage, _, err := s.links.List(ctx, pageSize, offset, db.SortByName, db.SortAsc)
+		linkPage, _, err := s.links.List(ctx, pageSize, offset, db.SortByName, db.SortAsc, false)
 		if err != nil {
 			// Headers and partial body are already sent; we can only log and stop.
 			s.logger.Error("export: list links", "offset", offset, "error", err)

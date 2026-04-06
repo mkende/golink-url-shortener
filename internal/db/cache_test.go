@@ -33,16 +33,16 @@ func (r *countingLinkRepo) Delete(ctx context.Context, id int64) error {
 	return r.inner.Delete(ctx, id)
 }
 
-func (r *countingLinkRepo) List(ctx context.Context, limit, offset int, sortField SortField, sortDir SortDir) ([]*Link, int, error) {
-	return r.inner.List(ctx, limit, offset, sortField, sortDir)
+func (r *countingLinkRepo) List(ctx context.Context, limit, offset int, sortField SortField, sortDir SortDir, publicOnly bool) ([]*Link, int, error) {
+	return r.inner.List(ctx, limit, offset, sortField, sortDir, publicOnly)
 }
 
 func (r *countingLinkRepo) ListByOwner(ctx context.Context, ownerEmail string, limit, offset int, sortField SortField, sortDir SortDir) ([]*Link, int, error) {
 	return r.inner.ListByOwner(ctx, ownerEmail, limit, offset, sortField, sortDir)
 }
 
-func (r *countingLinkRepo) Search(ctx context.Context, query string, limit, offset int) ([]*Link, int, error) {
-	return r.inner.Search(ctx, query, limit, offset)
+func (r *countingLinkRepo) Search(ctx context.Context, query string, limit, offset int, publicOnly bool) ([]*Link, int, error) {
+	return r.inner.Search(ctx, query, limit, offset, publicOnly)
 }
 
 func (r *countingLinkRepo) GetShares(ctx context.Context, linkID int64) ([]string, error) {

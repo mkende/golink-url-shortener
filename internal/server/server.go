@@ -128,6 +128,7 @@ func (s *Server) buildRouter() chi.Router {
 	// All other routes: apply domain redirect middleware
 	r.Group(func(r chi.Router) {
 		r.Use(serverMiddleware.DomainRedirect(s.cfg))
+		r.Use(auth.RequireUIAccess(s.cfg))
 
 		// Landing page
 		r.Get("/", s.handleIndex)

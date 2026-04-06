@@ -1,0 +1,16 @@
+{{template "base.html" .}}
+{{define "title"}}Link Not Found — {{.Title}}{{end}}
+{{define "content"}}
+<div class="has-text-centered" style="padding: 3rem 0;">
+  <h1 class="title">Link Not Found</h1>
+  <p class="subtitle">No link named <strong>{{.Name}}</strong> exists yet.</p>
+  <div class="buttons is-centered" style="margin-top: 1.5rem;">
+    {{if .Identity}}
+    <a class="button is-primary" href="/new?name={{.Name}}">Create "{{.Name}}"</a>
+    {{else if .OIDCEnabled}}
+    <a class="button is-primary" href="/auth/login">Log in to create this link</a>
+    {{end}}
+    <a class="button" href="/">Go Home</a>
+  </div>
+</div>
+{{end}}

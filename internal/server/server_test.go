@@ -119,6 +119,41 @@ func TestRedirectRequireAuth_Unauthenticated(t *testing.T) {
 	}
 }
 
+func TestUIRequiresAuthByDefault(t *testing.T) {
+	handler, _ := newTestServer(t)
+	// The default config has AllowLoggedOutUIAccess=false and OIDC disabled, so
+	// an unauthenticated request to a UI page should get a 404.
+	req := httptest.NewRequest(http.MethodGet, "/links", nil)
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+	if w.Code != http.StatusNotFound {
+		t.Errorf("expected 404 for unauthenticated UI access, got %d", w.Code)
+	}
+}
+
+func TestUIAllowsLoggedOutAccessWhenEnabled(t *testing.T) {
+	sqlDB, err := db.Open(context.Background(), "sqlite3", ":memory:")
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	t.Cleanup(func() { sqlDB.Close() })
+
+	cfg := &config.Config{
+		ListenAddr: ":8080",
+		Title:      "Test GoLink",
+		UI:         config.UIConfig{AllowLoggedOutUIAccess: true, LinksPerPage: 100},
+	}
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	handler := server.New(cfg, sqlDB, logger, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/links", nil)
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Errorf("expected 200 when AllowLoggedOutUIAccess=true, got %d", w.Code)
+	}
+}
+
 func TestRedirectRequireAuthForRedirects_Unauthenticated(t *testing.T) {
 	sqlDB, err := db.Open(context.Background(), "sqlite3", ":memory:")
 	if err != nil {

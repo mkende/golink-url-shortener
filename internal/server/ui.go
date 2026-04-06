@@ -18,6 +18,28 @@ import (
 // linksPerPage returns the configured page size for link list pages.
 func (s *Server) linksPerPage() int { return s.cfg.UI.LinksPerPage }
 
+// notFoundData is the template data for the link-not-found page.
+type notFoundData struct {
+	baseData
+	// Name is the link name that was not found (first path segment only).
+	Name string
+}
+
+// renderNotFound renders the not_found page for the given link name. It
+// falls back to a plain http.NotFound response if template rendering fails.
+func (s *Server) renderNotFound(w http.ResponseWriter, r *http.Request, name string) {
+	base, err := s.newBaseData(w, r)
+	if err != nil {
+		s.logger.Error("not found: baseData", "error", err)
+		http.NotFound(w, r)
+		return
+	}
+	s.renderer.RenderStatus(w, http.StatusNotFound, "not_found", notFoundData{
+		baseData: base,
+		Name:     name,
+	})
+}
+
 // baseData holds the template data common to all pages.
 type baseData struct {
 	// Title is the site name shown in the navigation bar and browser tab.
@@ -76,8 +98,8 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Show popular links by use count.
-	popular, _, err := s.links.List(r.Context(), 5, 0, db.SortByUseCount, db.SortDesc)
+	// Show popular links by use count; hide auth-required links from anonymous users.
+	popular, _, err := s.links.List(r.Context(), 5, 0, db.SortByUseCount, db.SortDesc, base.Identity == nil)
 	if err != nil {
 		s.logger.Error("index: list popular", "error", err)
 	} else {
@@ -554,10 +576,11 @@ func (s *Server) handleLinks(w http.ResponseWriter, r *http.Request) {
 	var linkList []*db.Link
 	var total int
 
+	publicOnly := base.Identity == nil
 	if query != "" {
-		linkList, total, err = s.links.Search(r.Context(), query, s.linksPerPage(), (page-1)*s.linksPerPage())
+		linkList, total, err = s.links.Search(r.Context(), query, s.linksPerPage(), (page-1)*s.linksPerPage(), publicOnly)
 	} else {
-		linkList, total, err = s.links.List(r.Context(), s.linksPerPage(), (page-1)*s.linksPerPage(), sortField, sortDir)
+		linkList, total, err = s.links.List(r.Context(), s.linksPerPage(), (page-1)*s.linksPerPage(), sortField, sortDir, publicOnly)
 	}
 	if err != nil {
 		s.logger.Error("links: list", "error", err)

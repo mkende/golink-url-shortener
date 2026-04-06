@@ -19,7 +19,7 @@ func (s *Server) handleRedirect(w http.ResponseWriter, r *http.Request) {
 	link, err := s.links.GetByName(r.Context(), name)
 	if err != nil {
 		if errors.Is(err, db.ErrNotFound) {
-			http.NotFound(w, r)
+			s.renderNotFound(w, r, name)
 			return
 		}
 		s.logger.Error("db error looking up link", "name", name, "error", err)

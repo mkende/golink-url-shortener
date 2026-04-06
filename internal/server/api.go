@@ -96,9 +96,9 @@ func (s *Server) handleAPIListLinks(w http.ResponseWriter, r *http.Request) {
 		err      error
 	)
 	if query != "" {
-		linkList, total, err = s.links.Search(r.Context(), query, limit, offset)
+		linkList, total, err = s.links.Search(r.Context(), query, limit, offset, false)
 	} else {
-		linkList, total, err = s.links.List(r.Context(), limit, offset, sortField, sortDir)
+		linkList, total, err = s.links.List(r.Context(), limit, offset, sortField, sortDir, false)
 	}
 	if err != nil {
 		s.logger.Error("api: list links", "error", err)

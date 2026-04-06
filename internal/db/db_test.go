@@ -249,7 +249,7 @@ func TestLinkRepo_List_Pagination(t *testing.T) {
 				}
 			}
 
-			page1, total, err := repo.List(ctx, 3, 0, SortByName, SortAsc)
+			page1, total, err := repo.List(ctx, 3, 0, SortByName, SortAsc, false)
 			if err != nil {
 				t.Fatalf("List page 1: %v", err)
 			}
@@ -260,7 +260,7 @@ func TestLinkRepo_List_Pagination(t *testing.T) {
 				t.Fatalf("page1 len = %d, want 3", len(page1))
 			}
 
-			page2, _, err := repo.List(ctx, 3, 3, SortByName, SortAsc)
+			page2, _, err := repo.List(ctx, 3, 3, SortByName, SortAsc, false)
 			if err != nil {
 				t.Fatalf("List page 2: %v", err)
 			}
@@ -295,7 +295,7 @@ func TestLinkRepo_List_SortFields(t *testing.T) {
 				{SortByLastUsed, SortDesc},
 			}
 			for _, tc := range cases {
-				_, _, err := repo.List(ctx, 10, 0, tc.field, tc.dir)
+				_, _, err := repo.List(ctx, 10, 0, tc.field, tc.dir, false)
 				if err != nil {
 					t.Errorf("List(%s, %s): %v", tc.field, tc.dir, err)
 				}
@@ -308,7 +308,7 @@ func TestLinkRepo_List_InvalidSort(t *testing.T) {
 	for _, b := range allBackends(t) {
 		t.Run(b.name, func(t *testing.T) {
 			repo := NewLinkRepo(b.db)
-			_, _, err := repo.List(context.Background(), 10, 0, "bad_column; DROP TABLE links--", SortAsc)
+			_, _, err := repo.List(context.Background(), 10, 0, "bad_column; DROP TABLE links--", SortAsc, false)
 			if err == nil {
 				t.Error("expected error for invalid sort field")
 			}
@@ -357,7 +357,7 @@ func TestLinkRepo_Search(t *testing.T) {
 				{"t:extra$", 1, func(l *Link) bool { return strings.HasSuffix(strings.ToLower(l.Target), "extra") }},
 			}
 			for _, tc := range cases {
-				results, total, err := repo.Search(ctx, tc.query, 10, 0)
+				results, total, err := repo.Search(ctx, tc.query, 10, 0, false)
 				if err != nil {
 					t.Fatalf("Search(%q): %v", tc.query, err)
 				}

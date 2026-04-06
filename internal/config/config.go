@@ -174,6 +174,14 @@ type UIConfig struct {
 	// LinksPerPage is the number of links shown on each page of the /links and
 	// /mylinks lists. Must be >= 10. Defaults to 100.
 	LinksPerPage int `toml:"links_per_page"`
+
+	// AllowLoggedOutUIAccess controls whether unauthenticated users can browse
+	// the UI (home page, link lists, help pages, etc.). When false (the
+	// default), unauthenticated requests to UI pages are redirected to the OIDC
+	// login page if OIDC is configured, or receive a 404 response otherwise.
+	// Anonymous users are always treated as authenticated regardless of this
+	// setting. Pure link redirects are not affected.
+	AllowLoggedOutUIAccess bool `toml:"allow_logged_out_ui_access"`
 }
 
 // applyDefaults fills in zero-value fields with their documented defaults.

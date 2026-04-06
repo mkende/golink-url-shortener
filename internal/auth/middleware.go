@@ -53,6 +53,40 @@ func RequireAdmin() func(http.Handler) http.Handler {
 	}
 }
 
+// RequireUIAccess returns a middleware that gates access to UI pages based on
+// the AllowLoggedOutUIAccess configuration option (default false).
+//
+// When AllowLoggedOutUIAccess is false, unauthenticated requests are handled as
+// follows:
+//   - OIDC enabled → 302 redirect to /auth/login with the current path as ?rd=
+//   - Otherwise → 404 Not Found
+//
+// Anonymous users, Tailscale users, and proxy-auth users always have a non-nil
+// Identity and pass through unconditionally.
+func RequireUIAccess(cfg *config.Config) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if cfg.UI.AllowLoggedOutUIAccess {
+				next.ServeHTTP(w, r)
+				return
+			}
+			if FromContext(r.Context()) != nil {
+				next.ServeHTTP(w, r)
+				return
+			}
+			if cfg.OIDC.Enabled {
+				loginURL := "/auth/login?rd=" + url.QueryEscape(r.URL.RequestURI())
+				if cfg.CanonicalDomain != "" {
+					loginURL = "https://" + cfg.CanonicalDomain + loginURL
+				}
+				http.Redirect(w, r, loginURL, http.StatusFound)
+				return
+			}
+			http.NotFound(w, r)
+		})
+	}
+}
+
 // RequireWriteScope returns a middleware that blocks read-only API key bearers
 // from accessing endpoints that mutate state. It must run after APIKeyMiddleware
 // so the identity's APIKeyReadOnly field is populated.

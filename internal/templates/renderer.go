@@ -100,15 +100,22 @@ func New() (*Renderer, error) {
 	return &Renderer{templates: templates}, nil
 }
 
-// Render writes the named page template to w with the given data.
-// On template-not-found it writes a 500 response.
+// Render writes the named page template to w with the given data using HTTP
+// 200 OK. On template-not-found it writes a 500 response.
 func (r *Renderer) Render(w http.ResponseWriter, name string, data interface{}) {
+	r.RenderStatus(w, http.StatusOK, name, data)
+}
+
+// RenderStatus writes the named page template to w with the given HTTP status
+// code and data. On template-not-found it writes a 500 response.
+func (r *Renderer) RenderStatus(w http.ResponseWriter, status int, name string, data interface{}) {
 	t, ok := r.templates[name]
 	if !ok {
 		http.Error(w, "template not found: "+name, http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(status)
 	if err := t.Execute(w, data); err != nil {
 		// Headers already sent; nothing useful we can do but log.
 		_ = err

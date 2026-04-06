@@ -30,12 +30,14 @@ type LinkRepo interface {
 	// Delete removes a link by ID.
 	Delete(ctx context.Context, id int64) error
 	// List returns a paginated, sorted slice of all links plus the total count.
-	List(ctx context.Context, limit, offset int, sortField SortField, sortDir SortDir) ([]*Link, int, error)
+	// When publicOnly is true, links with require_auth set are excluded.
+	List(ctx context.Context, limit, offset int, sortField SortField, sortDir SortDir, publicOnly bool) ([]*Link, int, error)
 	// ListByOwner returns a paginated, sorted slice of links owned by ownerEmail
 	// plus the total count for that owner.
 	ListByOwner(ctx context.Context, ownerEmail string, limit, offset int, sortField SortField, sortDir SortDir) ([]*Link, int, error)
 	// Search returns links whose lower-cased name contains query, paginated.
-	Search(ctx context.Context, query string, limit, offset int) ([]*Link, int, error)
+	// When publicOnly is true, links with require_auth set are excluded.
+	Search(ctx context.Context, query string, limit, offset int, publicOnly bool) ([]*Link, int, error)
 	// SearchOwnedOrSharedWith is like Search but restricted to links that are
 	// owned by ownerEmail or shared with any of the given identifiers.
 	SearchOwnedOrSharedWith(ctx context.Context, ownerEmail string, identifiers []string, query string, limit, offset int) ([]*Link, int, error)
@@ -213,8 +215,9 @@ func (r *SQLLinkRepo) Delete(ctx context.Context, id int64) error {
 }
 
 // List returns all links, paginated and sorted.  sort field and direction are
-// validated against an allow-list to prevent SQL injection.
-func (r *SQLLinkRepo) List(ctx context.Context, limit, offset int, sortField SortField, sortDir SortDir) ([]*Link, int, error) {
+// validated against an allow-list to prevent SQL injection. When publicOnly is
+// true, links with require_auth set are excluded.
+func (r *SQLLinkRepo) List(ctx context.Context, limit, offset int, sortField SortField, sortDir SortDir, publicOnly bool) ([]*Link, int, error) {
 	if !validSortFields[sortField] {
 		return nil, 0, fmt.Errorf("invalid sort field: %q", sortField)
 	}
@@ -222,15 +225,20 @@ func (r *SQLLinkRepo) List(ctx context.Context, limit, offset int, sortField Sor
 		return nil, 0, fmt.Errorf("invalid sort direction: %q", sortDir)
 	}
 
+	authFilter := ""
+	if publicOnly {
+		authFilter = " WHERE require_auth = 0"
+	}
+
 	var total int
-	if err := r.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM links").Scan(&total); err != nil {
+	if err := r.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM links"+authFilter).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("count links: %w", err)
 	}
 
 	// Safe to interpolate: values were validated against an allow-list above.
 	query := r.db.q(fmt.Sprintf(`
 		SELECT `+selectCols+`
-		FROM links ORDER BY %s %s LIMIT ? OFFSET ?`, sortField, sortDir))
+		FROM links`+authFilter+` ORDER BY %s %s LIMIT ? OFFSET ?`, sortField, sortDir))
 
 	rows, err := r.db.QueryContext(ctx, query, limit, offset)
 	if err != nil {
@@ -322,23 +330,29 @@ func parseSearchQuery(query string) (searchField, string) {
 // An optional prefix selects the field: "name:" or "n:" restricts to the link
 // name, "target:" or "t:" restricts to the target URL. Without a prefix both
 // fields are searched. The remainder supports ^ and $ anchors.
-func (r *SQLLinkRepo) Search(ctx context.Context, query string, limit, offset int) ([]*Link, int, error) {
+// When publicOnly is true, links with require_auth set are excluded.
+func (r *SQLLinkRepo) Search(ctx context.Context, query string, limit, offset int, publicOnly bool) ([]*Link, int, error) {
 	field, pattern := parseSearchQuery(query)
+
+	authCond := ""
+	if publicOnly {
+		authCond = " AND require_auth = 0"
+	}
 
 	var countSQL, listSQL string
 	var baseArgs []any
 	switch field {
 	case searchName:
-		countSQL = r.db.q("SELECT COUNT(*) FROM links WHERE name_lower LIKE ?")
-		listSQL = r.db.q("SELECT " + selectCols + " FROM links WHERE name_lower LIKE ? ORDER BY name_lower ASC LIMIT ? OFFSET ?")
+		countSQL = r.db.q("SELECT COUNT(*) FROM links WHERE name_lower LIKE ?" + authCond)
+		listSQL = r.db.q("SELECT " + selectCols + " FROM links WHERE name_lower LIKE ?" + authCond + " ORDER BY name_lower ASC LIMIT ? OFFSET ?")
 		baseArgs = []any{pattern}
 	case searchTarget:
-		countSQL = r.db.q("SELECT COUNT(*) FROM links WHERE LOWER(target) LIKE ?")
-		listSQL = r.db.q("SELECT " + selectCols + " FROM links WHERE LOWER(target) LIKE ? ORDER BY name_lower ASC LIMIT ? OFFSET ?")
+		countSQL = r.db.q("SELECT COUNT(*) FROM links WHERE LOWER(target) LIKE ?" + authCond)
+		listSQL = r.db.q("SELECT " + selectCols + " FROM links WHERE LOWER(target) LIKE ?" + authCond + " ORDER BY name_lower ASC LIMIT ? OFFSET ?")
 		baseArgs = []any{pattern}
 	default:
-		countSQL = r.db.q("SELECT COUNT(*) FROM links WHERE name_lower LIKE ? OR LOWER(target) LIKE ?")
-		listSQL = r.db.q("SELECT " + selectCols + " FROM links WHERE name_lower LIKE ? OR LOWER(target) LIKE ? ORDER BY name_lower ASC LIMIT ? OFFSET ?")
+		countSQL = r.db.q("SELECT COUNT(*) FROM links WHERE (name_lower LIKE ? OR LOWER(target) LIKE ?)" + authCond)
+		listSQL = r.db.q("SELECT " + selectCols + " FROM links WHERE (name_lower LIKE ? OR LOWER(target) LIKE ?)" + authCond + " ORDER BY name_lower ASC LIMIT ? OFFSET ?")
 		baseArgs = []any{pattern, pattern}
 	}
 

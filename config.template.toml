@@ -226,6 +226,14 @@ max_aliases_per_link = 100
 # Default: 100
 links_per_page = 100
 
+# Whether unauthenticated users may browse the web UI (home page, link lists,
+# help pages, etc.). When false (the default), unauthenticated requests are
+# redirected to the OIDC login page if OIDC is enabled, or receive a 404
+# response otherwise. Pure link redirects are not affected by this setting.
+# Anonymous users are always treated as authenticated.
+# Default: false
+allow_logged_out_ui_access = false
+
 # ─── Admin ────────────────────────────────────────────────────────────────────
 
 # Email addresses of users who have full admin privileges.

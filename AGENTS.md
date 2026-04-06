@@ -169,3 +169,11 @@ Mark each checkbox as done when the phase is committed.
 - Each implementation phase ends with the phase number and name in the commit
   subject, e.g. `phase 3: database layer`.
 - Never force-push to `main`.
+
+## TODO
+
+When asked to implement TODO, check the TODO.md file for list of tasks. You can
+do several at the same time if they are not too large, otherwise one by one.
+Move each entry to the `DONE` section (but no the `VERIFIED` one) once it’s
+implemented or fixed. Do not delete the `TODO` section or its sub-sections, even
+if they are empty. Just write `nothing` in them.
