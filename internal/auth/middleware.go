@@ -59,11 +59,11 @@ func RequireAdmin() func(http.Handler) http.Handler {
 // When AllowLoggedOutUIAccess is false, unauthenticated requests are handled as
 // follows:
 //   - OIDC enabled → 302 redirect to /auth/login with the current path as ?rd=
-//   - Otherwise → 404 Not Found
+//   - Otherwise → deniedHandler is invoked (caller controls the response)
 //
 // Anonymous users, Tailscale users, and proxy-auth users always have a non-nil
 // Identity and pass through unconditionally.
-func RequireUIAccess(cfg *config.Config) func(http.Handler) http.Handler {
+func RequireUIAccess(cfg *config.Config, deniedHandler http.Handler) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if cfg.UI.AllowLoggedOutUIAccess {
@@ -82,7 +82,7 @@ func RequireUIAccess(cfg *config.Config) func(http.Handler) http.Handler {
 				http.Redirect(w, r, loginURL, http.StatusFound)
 				return
 			}
-			http.NotFound(w, r)
+			deniedHandler.ServeHTTP(w, r)
 		})
 	}
 }

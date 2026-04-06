@@ -30,7 +30,7 @@ type notFoundData struct {
 func (s *Server) renderNotFound(w http.ResponseWriter, r *http.Request, name string) {
 	base, err := s.newBaseData(w, r)
 	if err != nil {
-		s.logger.Error("not found: baseData", "error", err)
+		s.logr(r.Context()).Error("not found: baseData", "error", err)
 		http.NotFound(w, r)
 		return
 	}
@@ -38,6 +38,20 @@ func (s *Server) renderNotFound(w http.ResponseWriter, r *http.Request, name str
 		baseData: base,
 		Name:     name,
 	})
+}
+
+// handleUIAccessDenied is invoked by RequireUIAccess when the user is not
+// authenticated and OIDC is not configured. It renders a styled 404 page so
+// the user gets a clear, branded error rather than the browser's plain-text
+// default.
+func (s *Server) handleUIAccessDenied(w http.ResponseWriter, r *http.Request) {
+	base, err := s.newBaseData(w, r)
+	if err != nil {
+		s.logr(r.Context()).Error("access denied: baseData", "error", err)
+		http.NotFound(w, r)
+		return
+	}
+	s.renderer.RenderStatus(w, http.StatusNotFound, "not_authorized", base)
 }
 
 // baseData holds the template data common to all pages.
@@ -82,7 +96,7 @@ type indexData struct {
 func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	base, err := s.newBaseData(w, r)
 	if err != nil {
-		s.logger.Error("index: baseData", "error", err)
+		s.logr(r.Context()).Error("index: baseData", "error", err)
 		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
@@ -92,7 +106,7 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	if base.Identity != nil {
 		recent, _, err := s.links.ListByOwner(r.Context(), base.Identity.Email, 5, 0, db.SortByCreated, db.SortDesc)
 		if err != nil {
-			s.logger.Error("index: list by owner", "error", err)
+			s.logr(r.Context()).Error("index: list by owner", "error", err)
 		} else {
 			data.RecentLinks = recent
 		}
@@ -101,7 +115,7 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	// Show popular links by use count; hide auth-required links from anonymous users.
 	popular, _, err := s.links.List(r.Context(), 5, 0, db.SortByUseCount, db.SortDesc, base.Identity == nil)
 	if err != nil {
-		s.logger.Error("index: list popular", "error", err)
+		s.logr(r.Context()).Error("index: list popular", "error", err)
 	} else {
 		data.PopularLinks = popular
 	}
@@ -128,7 +142,7 @@ type newPageData struct {
 func (s *Server) handleNew(w http.ResponseWriter, r *http.Request) {
 	base, err := s.newBaseData(w, r)
 	if err != nil {
-		s.logger.Error("new: baseData", "error", err)
+		s.logr(r.Context()).Error("new: baseData", "error", err)
 		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
@@ -187,7 +201,7 @@ func (s *Server) handleNew(w http.ResponseWriter, r *http.Request) {
 		case createErrConflict:
 			renderError("A link with that name already exists.")
 		case createErrInternal:
-			s.logger.Error("new: create link", "name", form.Name, "error", cerr.Message)
+			s.logr(r.Context()).Error("new: create link", "name", form.Name, "error", cerr.Message)
 			renderError("Could not create link. Please try again.")
 		default:
 			renderError(cerr.Message)
@@ -218,7 +232,7 @@ func (s *Server) handleDetails(w http.ResponseWriter, r *http.Request) {
 
 	base, err := s.newBaseData(w, r)
 	if err != nil {
-		s.logger.Error("details: baseData", "error", err)
+		s.logr(r.Context()).Error("details: baseData", "error", err)
 		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
@@ -235,7 +249,7 @@ func (s *Server) handleDetails(w http.ResponseWriter, r *http.Request) {
 			http.NotFound(w, r)
 			return
 		}
-		s.logger.Error("details: get link", "name", name, "error", err)
+		s.logr(r.Context()).Error("details: get link", "name", name, "error", err)
 		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
@@ -245,7 +259,7 @@ func (s *Server) handleDetails(w http.ResponseWriter, r *http.Request) {
 	if !canEdit {
 		sharedWith, checkErr := s.isSharedWith(r.Context(), link.ID, base.Identity)
 		if checkErr != nil {
-			s.logger.Error("details: check shares", "name", name, "error", checkErr)
+			s.logr(r.Context()).Error("details: check shares", "name", name, "error", checkErr)
 			http.Error(w, "internal server error", http.StatusInternalServerError)
 			return
 		}
@@ -255,7 +269,7 @@ func (s *Server) handleDetails(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodGet {
 		data, err := s.buildDetailsPageData(r, base, link, canEdit)
 		if err != nil {
-			s.logger.Error("details: build page data", "error", err)
+			s.logr(r.Context()).Error("details: build page data", "error", err)
 			http.Error(w, "internal server error", http.StatusInternalServerError)
 			return
 		}
@@ -304,13 +318,13 @@ func (s *Server) handleDetails(w http.ResponseWriter, r *http.Request) {
 				renderError(fmt.Sprintf("Alias limit reached: a link may have at most %d aliases.", s.cfg.MaxAliasesPerLink))
 				return
 			}
-			s.logger.Error("details: set alias", "id", link.ID, "error", setErr)
+			s.logr(r.Context()).Error("details: set alias", "id", link.ID, "error", setErr)
 			renderError("Could not save changes. Please try again.")
 			return
 		}
 		data, buildErr := s.buildDetailsPageData(r, base, updated, canEdit)
 		if buildErr != nil {
-			s.logger.Error("details: build page data after set alias", "error", buildErr)
+			s.logr(r.Context()).Error("details: build page data after set alias", "error", buildErr)
 			http.Error(w, "internal server error", http.StatusInternalServerError)
 			return
 		}
@@ -330,13 +344,13 @@ func (s *Server) handleDetails(w http.ResponseWriter, r *http.Request) {
 		}
 		updated, updateErr := s.links.Update(r.Context(), link.ID, link.Name, target, lt, requireAuth)
 		if updateErr != nil {
-			s.logger.Error("details: update link", "id", link.ID, "error", updateErr)
+			s.logr(r.Context()).Error("details: update link", "id", link.ID, "error", updateErr)
 			renderError("Could not save changes. Please try again.")
 			return
 		}
 		data, buildErr := s.buildDetailsPageData(r, base, updated, canEdit)
 		if buildErr != nil {
-			s.logger.Error("details: build page data after update", "error", buildErr)
+			s.logr(r.Context()).Error("details: build page data after update", "error", buildErr)
 			http.Error(w, "internal server error", http.StatusInternalServerError)
 			return
 		}
@@ -379,7 +393,7 @@ func (s *Server) buildDetailsPageData(r *http.Request, base baseData, link *db.L
 		knownUsers, err := s.users.List(r.Context(), 200, 0)
 		if err != nil {
 			// Non-fatal: autocomplete just won't be populated.
-			s.logger.Error("details: list users for autocomplete", "error", err)
+			s.logr(r.Context()).Error("details: list users for autocomplete", "error", err)
 		}
 		data.KnownUsers = knownUsers
 	}
@@ -420,7 +434,7 @@ func (s *Server) handleDetailsShare(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := s.links.AddShare(r.Context(), link.ID, email); err != nil {
-		s.logger.Error("share: add share", "link", name, "email", email, "error", err)
+		s.logr(r.Context()).Error("share: add share", "link", name, "email", email, "error", err)
 		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
@@ -445,7 +459,7 @@ func (s *Server) handleDetailsUnshare(w http.ResponseWriter, r *http.Request) {
 
 	email := strings.TrimSpace(r.FormValue("email"))
 	if err := s.links.RemoveShare(r.Context(), link.ID, email); err != nil {
-		s.logger.Error("unshare: remove share", "link", name, "email", email, "error", err)
+		s.logr(r.Context()).Error("unshare: remove share", "link", name, "email", email, "error", err)
 		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
@@ -469,7 +483,7 @@ func (s *Server) handleDetailsDelete(w http.ResponseWriter, r *http.Request) {
 	_ = id
 
 	if err := s.links.Delete(r.Context(), link.ID); err != nil {
-		s.logger.Error("delete: delete link", "name", name, "error", err)
+		s.logr(r.Context()).Error("delete: delete link", "name", name, "error", err)
 		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
@@ -500,7 +514,7 @@ func (s *Server) handleCreateAlias(w http.ResponseWriter, r *http.Request) {
 			http.NotFound(w, r)
 			return
 		}
-		s.logger.Error("create alias: get canonical", "name", canonicalName, "error", err)
+		s.logr(r.Context()).Error("create alias: get canonical", "name", canonicalName, "error", err)
 		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
@@ -518,7 +532,7 @@ func (s *Server) handleCreateAlias(w http.ResponseWriter, r *http.Request) {
 	// Check alias limit before inserting (slight race, but acceptable).
 	count, err := s.links.CountAliases(r.Context(), canonicalName)
 	if err != nil {
-		s.logger.Error("create alias: count aliases", "name", canonicalName, "error", err)
+		s.logr(r.Context()).Error("create alias: count aliases", "name", canonicalName, "error", err)
 		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
@@ -533,7 +547,7 @@ func (s *Server) handleCreateAlias(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "A link with that name already exists.", http.StatusConflict)
 			return
 		}
-		s.logger.Error("create alias: create", "alias", aliasName, "canonical", canonicalName, "error", err)
+		s.logr(r.Context()).Error("create alias: create", "alias", aliasName, "canonical", canonicalName, "error", err)
 		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
@@ -564,7 +578,7 @@ type linksPageData struct {
 func (s *Server) handleLinks(w http.ResponseWriter, r *http.Request) {
 	base, err := s.newBaseData(w, r)
 	if err != nil {
-		s.logger.Error("links: baseData", "error", err)
+		s.logr(r.Context()).Error("links: baseData", "error", err)
 		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
@@ -583,7 +597,7 @@ func (s *Server) handleLinks(w http.ResponseWriter, r *http.Request) {
 		linkList, total, err = s.links.List(r.Context(), s.linksPerPage(), (page-1)*s.linksPerPage(), sortField, sortDir, publicOnly)
 	}
 	if err != nil {
-		s.logger.Error("links: list", "error", err)
+		s.logr(r.Context()).Error("links: list", "error", err)
 		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
@@ -617,7 +631,7 @@ func (s *Server) handleLinks(w http.ResponseWriter, r *http.Request) {
 		identifiers := append([]string{base.Identity.Email}, base.Identity.Groups...)
 		sharedIDs, sharedErr := s.links.SharedLinkIDs(r.Context(), identifiers)
 		if sharedErr != nil {
-			s.logger.Error("links: shared link IDs", "error", sharedErr)
+			s.logr(r.Context()).Error("links: shared link IDs", "error", sharedErr)
 		} else {
 			data.SharedIDs = sharedIDs
 		}
@@ -630,7 +644,7 @@ func (s *Server) handleLinks(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleMyLinks(w http.ResponseWriter, r *http.Request) {
 	base, err := s.newBaseData(w, r)
 	if err != nil {
-		s.logger.Error("mylinks: baseData", "error", err)
+		s.logr(r.Context()).Error("mylinks: baseData", "error", err)
 		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
@@ -654,7 +668,7 @@ func (s *Server) handleMyLinks(w http.ResponseWriter, r *http.Request) {
 		linkList, total, err = s.links.ListOwnedOrSharedWith(r.Context(), id.Email, identifiers, s.linksPerPage(), (page-1)*s.linksPerPage(), sortField, sortDir)
 	}
 	if err != nil {
-		s.logger.Error("mylinks: list owned or shared", "error", err)
+		s.logr(r.Context()).Error("mylinks: list owned or shared", "error", err)
 		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
@@ -686,7 +700,7 @@ func (s *Server) handleMyLinks(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleHelp(w http.ResponseWriter, r *http.Request) {
 	base, err := s.newBaseData(w, r)
 	if err != nil {
-		s.logger.Error("help: baseData", "error", err)
+		s.logr(r.Context()).Error("help: baseData", "error", err)
 		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
@@ -697,7 +711,7 @@ func (s *Server) handleHelp(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleHelpAdvanced(w http.ResponseWriter, r *http.Request) {
 	base, err := s.newBaseData(w, r)
 	if err != nil {
-		s.logger.Error("help/advanced: baseData", "error", err)
+		s.logr(r.Context()).Error("help/advanced: baseData", "error", err)
 		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
@@ -708,7 +722,7 @@ func (s *Server) handleHelpAdvanced(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleHelpSearch(w http.ResponseWriter, r *http.Request) {
 	base, err := s.newBaseData(w, r)
 	if err != nil {
-		s.logger.Error("help/search: baseData", "error", err)
+		s.logr(r.Context()).Error("help/search: baseData", "error", err)
 		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
@@ -720,7 +734,7 @@ func (s *Server) handleHelpSearch(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleQuickName(w http.ResponseWriter, r *http.Request) {
 	name, err := links.GenerateQuickName(s.cfg.QuickLinkLength)
 	if err != nil {
-		s.logger.Error("quickname: generate", "error", err)
+		s.logr(r.Context()).Error("quickname: generate", "error", err)
 		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
@@ -738,7 +752,7 @@ func (s *Server) requireEditAccess(w http.ResponseWriter, r *http.Request, nameL
 			http.NotFound(w, r)
 			return nil, nil, false
 		}
-		s.logger.Error("edit access: get link", "name", nameLower, "error", err)
+		s.logr(r.Context()).Error("edit access: get link", "name", nameLower, "error", err)
 		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return nil, nil, false
 	}
@@ -747,7 +761,7 @@ func (s *Server) requireEditAccess(w http.ResponseWriter, r *http.Request, nameL
 		// Check whether the user is in the share list.
 		ok, checkErr := s.isSharedWith(r.Context(), link.ID, id)
 		if checkErr != nil {
-			s.logger.Error("edit access: check shares", "link", nameLower, "error", checkErr)
+			s.logr(r.Context()).Error("edit access: check shares", "link", nameLower, "error", checkErr)
 			http.Error(w, "internal server error", http.StatusInternalServerError)
 			return nil, nil, false
 		}

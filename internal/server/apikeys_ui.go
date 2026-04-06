@@ -23,14 +23,14 @@ type apiKeysPageData struct {
 func (s *Server) handleAPIKeysPage(w http.ResponseWriter, r *http.Request) {
 	base, err := s.newBaseData(w, r)
 	if err != nil {
-		s.logger.Error("apikeys: baseData", "error", err)
+		s.logr(r.Context()).Error("apikeys: baseData", "error", err)
 		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
 
 	keys, err := s.apiKeys.List(r.Context())
 	if err != nil {
-		s.logger.Error("apikeys: list", "error", err)
+		s.logr(r.Context()).Error("apikeys: list", "error", err)
 		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
@@ -46,7 +46,7 @@ func (s *Server) handleAPIKeysPage(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleCreateAPIKey(w http.ResponseWriter, r *http.Request) {
 	base, err := s.newBaseData(w, r)
 	if err != nil {
-		s.logger.Error("apikeys create: baseData", "error", err)
+		s.logr(r.Context()).Error("apikeys create: baseData", "error", err)
 		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
@@ -82,20 +82,20 @@ func (s *Server) handleCreateAPIKey(w http.ResponseWriter, r *http.Request) {
 
 	rawKey, err := generateAPIKey()
 	if err != nil {
-		s.logger.Error("apikeys create: generate key", "error", err)
+		s.logr(r.Context()).Error("apikeys create: generate key", "error", err)
 		renderError("Could not generate API key.")
 		return
 	}
 
 	if _, err := s.apiKeys.Create(r.Context(), name, HashAPIKey(rawKey), id.Email, readOnly); err != nil {
-		s.logger.Error("apikeys create: db create", "error", err)
+		s.logr(r.Context()).Error("apikeys create: db create", "error", err)
 		renderError("Could not create API key. Please try again.")
 		return
 	}
 
 	keys, err := s.apiKeys.List(r.Context())
 	if err != nil {
-		s.logger.Error("apikeys create: list after create", "error", err)
+		s.logr(r.Context()).Error("apikeys create: list after create", "error", err)
 	}
 
 	s.renderer.Render(w, "apikeys", apiKeysPageData{
@@ -124,7 +124,7 @@ func (s *Server) handleDeleteAPIKey(w http.ResponseWriter, r *http.Request) {
 			http.NotFound(w, r)
 			return
 		}
-		s.logger.Error("apikeys delete: db delete", "id", keyID, "error", err)
+		s.logr(r.Context()).Error("apikeys delete: db delete", "id", keyID, "error", err)
 		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
 	}

@@ -16,7 +16,7 @@ type importExportPageData struct {
 func (s *Server) handleImportExportPage(w http.ResponseWriter, r *http.Request) {
 	base, err := s.newBaseData(w, r)
 	if err != nil {
-		s.logger.Error("importexport: baseData", "error", err)
+		s.logr(r.Context()).Error("importexport: baseData", "error", err)
 		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
@@ -29,7 +29,7 @@ func (s *Server) handleImportExportPage(w http.ResponseWriter, r *http.Request) 
 func (s *Server) handleImportUpload(w http.ResponseWriter, r *http.Request) {
 	base, err := s.newBaseData(w, r)
 	if err != nil {
-		s.logger.Error("importexport: baseData", "error", err)
+		s.logr(r.Context()).Error("importexport: baseData", "error", err)
 		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
 	}

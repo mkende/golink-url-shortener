@@ -105,7 +105,7 @@ func (s *Server) doImport(ctx context.Context, data ExportData) importResult {
 			// Restore shares.
 			for _, email := range el.Shares {
 				if shareErr := s.links.AddShare(ctx, newLink.ID, email); shareErr != nil {
-					s.logger.Error("import: add share", "link", el.Name, "email", email, "error", shareErr)
+					s.logr(ctx).Error("import: add share", "link", el.Name, "email", email, "error", shareErr)
 				}
 			}
 

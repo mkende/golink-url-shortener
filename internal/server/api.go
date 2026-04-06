@@ -101,7 +101,7 @@ func (s *Server) handleAPIListLinks(w http.ResponseWriter, r *http.Request) {
 		linkList, total, err = s.links.List(r.Context(), limit, offset, sortField, sortDir, false)
 	}
 	if err != nil {
-		s.logger.Error("api: list links", "error", err)
+		s.logr(r.Context()).Error("api: list links", "error", err)
 		writeJSONError(w, http.StatusInternalServerError, "internal server error")
 		return
 	}
@@ -151,7 +151,7 @@ func (s *Server) handleAPICreateLink(w http.ResponseWriter, r *http.Request) {
 		case createErrValidation:
 			writeJSONError(w, http.StatusBadRequest, cerr.Message)
 		default:
-			s.logger.Error("api: create link", "name", req.Name, "error", cerr.Message)
+			s.logr(r.Context()).Error("api: create link", "name", req.Name, "error", cerr.Message)
 			writeJSONError(w, http.StatusInternalServerError, "internal server error")
 		}
 		return
@@ -169,7 +169,7 @@ func (s *Server) handleAPIGetLink(w http.ResponseWriter, r *http.Request) {
 			writeJSONError(w, http.StatusNotFound, "link not found")
 			return
 		}
-		s.logger.Error("api: get link", "name", name, "error", err)
+		s.logr(r.Context()).Error("api: get link", "name", name, "error", err)
 		writeJSONError(w, http.StatusInternalServerError, "internal server error")
 		return
 	}
@@ -189,7 +189,7 @@ func (s *Server) handleAPIUpdateLink(w http.ResponseWriter, r *http.Request) {
 			writeJSONError(w, http.StatusNotFound, "link not found")
 			return
 		}
-		s.logger.Error("api: update link get", "name", name, "error", err)
+		s.logr(r.Context()).Error("api: update link get", "name", name, "error", err)
 		writeJSONError(w, http.StatusInternalServerError, "internal server error")
 		return
 	}
@@ -198,7 +198,7 @@ func (s *Server) handleAPIUpdateLink(w http.ResponseWriter, r *http.Request) {
 		// Check the share list before denying access.
 		ok, checkErr := s.isSharedWith(r.Context(), link.ID, id)
 		if checkErr != nil {
-			s.logger.Error("api: update link check shares", "name", name, "error", checkErr)
+			s.logr(r.Context()).Error("api: update link check shares", "name", name, "error", checkErr)
 			writeJSONError(w, http.StatusInternalServerError, "internal server error")
 			return
 		}
@@ -251,7 +251,7 @@ func (s *Server) handleAPIUpdateLink(w http.ResponseWriter, r *http.Request) {
 				writeJSONError(w, http.StatusUnprocessableEntity, "alias limit reached for this link")
 				return
 			}
-			s.logger.Error("api: set alias", "id", link.ID, "error", err)
+			s.logr(r.Context()).Error("api: set alias", "id", link.ID, "error", err)
 			writeJSONError(w, http.StatusInternalServerError, "internal server error")
 			return
 		}
@@ -271,7 +271,7 @@ func (s *Server) handleAPIUpdateLink(w http.ResponseWriter, r *http.Request) {
 
 	updated, err := s.links.Update(r.Context(), link.ID, link.Name, newTarget, newLinkType, newRequireAuth)
 	if err != nil {
-		s.logger.Error("api: update link", "id", link.ID, "error", err)
+		s.logr(r.Context()).Error("api: update link", "id", link.ID, "error", err)
 		writeJSONError(w, http.StatusInternalServerError, "internal server error")
 		return
 	}
@@ -290,7 +290,7 @@ func (s *Server) handleAPIDeleteLink(w http.ResponseWriter, r *http.Request) {
 			writeJSONError(w, http.StatusNotFound, "link not found")
 			return
 		}
-		s.logger.Error("api: delete link get", "name", name, "error", err)
+		s.logr(r.Context()).Error("api: delete link get", "name", name, "error", err)
 		writeJSONError(w, http.StatusInternalServerError, "internal server error")
 		return
 	}
@@ -302,7 +302,7 @@ func (s *Server) handleAPIDeleteLink(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := s.links.Delete(r.Context(), link.ID); err != nil {
-		s.logger.Error("api: delete link", "id", link.ID, "error", err)
+		s.logr(r.Context()).Error("api: delete link", "id", link.ID, "error", err)
 		writeJSONError(w, http.StatusInternalServerError, "internal server error")
 		return
 	}
@@ -350,7 +350,7 @@ func (s *Server) resolveAliasTarget(r *http.Request, aliasTargetLower, selfNameL
 func (s *Server) handleAPIListAPIKeys(w http.ResponseWriter, r *http.Request) {
 	keys, err := s.apiKeys.List(r.Context())
 	if err != nil {
-		s.logger.Error("api: list api keys", "error", err)
+		s.logr(r.Context()).Error("api: list api keys", "error", err)
 		writeJSONError(w, http.StatusInternalServerError, "internal server error")
 		return
 	}
@@ -394,14 +394,14 @@ func (s *Server) handleAPICreateAPIKey(w http.ResponseWriter, r *http.Request) {
 
 	rawKey, err := generateAPIKey()
 	if err != nil {
-		s.logger.Error("api: generate api key", "error", err)
+		s.logr(r.Context()).Error("api: generate api key", "error", err)
 		writeJSONError(w, http.StatusInternalServerError, "internal server error")
 		return
 	}
 
 	key, err := s.apiKeys.Create(r.Context(), body.Name, HashAPIKey(rawKey), id.Email, readOnly)
 	if err != nil {
-		s.logger.Error("api: create api key", "error", err)
+		s.logr(r.Context()).Error("api: create api key", "error", err)
 		writeJSONError(w, http.StatusInternalServerError, "internal server error")
 		return
 	}
@@ -425,7 +425,7 @@ func (s *Server) handleAPIDeleteAPIKey(w http.ResponseWriter, r *http.Request) {
 			writeJSONError(w, http.StatusNotFound, "api key not found")
 			return
 		}
-		s.logger.Error("api: delete api key", "id", keyID, "error", err)
+		s.logr(r.Context()).Error("api: delete api key", "id", keyID, "error", err)
 		writeJSONError(w, http.StatusInternalServerError, "internal server error")
 		return
 	}

@@ -1,0 +1,11 @@
+{{template "base.html" .}}
+{{define "title"}}Not Found — {{.Title}}{{end}}
+{{define "content"}}
+<div class="has-text-centered" style="padding: 3rem 0;">
+  <h1 class="title">Not Found</h1>
+  <p class="subtitle">This page does not exist or requires authentication.</p>
+  <div class="buttons is-centered" style="margin-top: 1.5rem;">
+    <a class="button" href="/">Go Home</a>
+  </div>
+</div>
+{{end}}

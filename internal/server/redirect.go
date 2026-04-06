@@ -22,7 +22,7 @@ func (s *Server) handleRedirect(w http.ResponseWriter, r *http.Request) {
 			s.renderNotFound(w, r, name)
 			return
 		}
-		s.logger.Error("db error looking up link", "name", name, "error", err)
+		s.logr(r.Context()).Error("db error looking up link", "name", name, "error", err)
 		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
@@ -61,11 +61,11 @@ func (s *Server) handleRedirect(w http.ResponseWriter, r *http.Request) {
 		canonical, err := s.links.GetByName(r.Context(), link.AliasTarget)
 		if err != nil {
 			if errors.Is(err, db.ErrNotFound) {
-				s.logger.Error("alias target not found", "alias", name, "target", link.AliasTarget)
+				s.logr(r.Context()).Error("alias target not found", "alias", name, "target", link.AliasTarget)
 				http.Error(w, "alias target not found", http.StatusNotFound)
 				return
 			}
-			s.logger.Error("db error resolving alias target", "alias", name, "target", link.AliasTarget, "error", err)
+			s.logr(r.Context()).Error("db error resolving alias target", "alias", name, "target", link.AliasTarget, "error", err)
 			http.Error(w, "internal server error", http.StatusInternalServerError)
 			return
 		}
@@ -91,7 +91,7 @@ func (s *Server) handleRedirect(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err != nil {
-		s.logger.Error("redirect resolution failed", "name", name, "error", err)
+		s.logr(r.Context()).Error("redirect resolution failed", "name", name, "error", err)
 		http.Error(w, "bad redirect target", http.StatusInternalServerError)
 		return
 	}

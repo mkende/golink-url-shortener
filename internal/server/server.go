@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/mkende/golink-url-shortener/internal/auth"
@@ -78,6 +79,14 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	return s.useCounter.Shutdown(ctx)
 }
 
+// logr returns the request-scoped logger if the LogEnricher middleware has
+// populated one in ctx, otherwise falls back to the server-level logger.
+// All handler-level log calls should use this instead of s.logger directly so
+// that auth_source and domain are included automatically.
+func (s *Server) logr(ctx context.Context) *slog.Logger {
+	return serverMiddleware.LoggerFromContext(ctx, s.logger)
+}
+
 func (s *Server) buildRouter() chi.Router {
 	r := chi.NewRouter()
 
@@ -97,6 +106,11 @@ func (s *Server) buildRouter() chi.Router {
 	r.Use(auth.ProxyAuthMiddleware(s.cfg, s.users))
 	r.Use(auth.OIDCMiddleware(s.cfg))
 	r.Use(auth.AnonymousMiddleware(s.cfg))
+
+	// Log enrichment: runs after all auth middleware so that the auth source
+	// and request domain are available for both the request log line and any
+	// handler-level log calls retrieved via s.logr(r.Context()).
+	r.Use(serverMiddleware.LogEnricher(s.logger))
 
 	// Favicon — served before domain redirect so browsers always get it.
 	r.Get("/favicon.ico", s.handleFavicon)
@@ -128,7 +142,7 @@ func (s *Server) buildRouter() chi.Router {
 	// All other routes: apply domain redirect middleware
 	r.Group(func(r chi.Router) {
 		r.Use(serverMiddleware.DomainRedirect(s.cfg))
-		r.Use(auth.RequireUIAccess(s.cfg))
+		r.Use(auth.RequireUIAccess(s.cfg, http.HandlerFunc(s.handleUIAccessDenied)))
 
 		// Landing page
 		r.Get("/", s.handleIndex)
@@ -231,7 +245,7 @@ func (s *Server) handleFavicon(w http.ResponseWriter, r *http.Request) {
 	if s.cfg.FaviconPath != "" {
 		fileData, err := os.ReadFile(s.cfg.FaviconPath)
 		if err != nil {
-			s.logger.Error("favicon: read custom file", "path", s.cfg.FaviconPath, "error", err)
+			s.logr(r.Context()).Error("favicon: read custom file", "path", s.cfg.FaviconPath, "error", err)
 			http.NotFound(w, r)
 			return
 		}
@@ -248,7 +262,7 @@ func (s *Server) handleFavicon(w http.ResponseWriter, r *http.Request) {
 	} else {
 		fileData, err := static.FS.ReadFile("favicon.svg")
 		if err != nil {
-			s.logger.Error("favicon: read embedded file", "error", err)
+			s.logr(r.Context()).Error("favicon: read embedded file", "error", err)
 			http.NotFound(w, r)
 			return
 		}

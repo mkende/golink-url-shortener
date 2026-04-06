@@ -56,7 +56,7 @@ func (s *Server) handleExport(w http.ResponseWriter, r *http.Request) {
 		linkPage, _, err := s.links.List(ctx, pageSize, offset, db.SortByName, db.SortAsc, false)
 		if err != nil {
 			// Headers and partial body are already sent; we can only log and stop.
-			s.logger.Error("export: list links", "offset", offset, "error", err)
+			s.logr(r.Context()).Error("export: list links", "offset", offset, "error", err)
 			return
 		}
 		if len(linkPage) == 0 {
@@ -66,7 +66,7 @@ func (s *Server) handleExport(w http.ResponseWriter, r *http.Request) {
 		for _, link := range linkPage {
 			shares, err := s.links.GetShares(ctx, link.ID)
 			if err != nil {
-				s.logger.Error("export: get shares", "link_id", link.ID, "error", err)
+				s.logr(r.Context()).Error("export: get shares", "link_id", link.ID, "error", err)
 				shares = nil
 			}
 
