@@ -13,7 +13,7 @@ require (
 	github.com/lib/pq v1.12.0
 	github.com/mattn/go-sqlite3 v1.14.37
 	github.com/oauth2-proxy/mockoidc v0.0.0-20240214162133-caebfff84d25
-	golang.org/x/oauth2 v0.24.0
+	golang.org/x/oauth2 v0.27.0
 )
 
 require (
