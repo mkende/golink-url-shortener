@@ -93,6 +93,36 @@ func TestRedirectNotFound(t *testing.T) {
 	}
 }
 
+func TestRedirectNotFoundRedirectsToCanonicalDomain(t *testing.T) {
+	sqlDB, err := db.Open(context.Background(), "sqlite3", ":memory:")
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	t.Cleanup(func() { sqlDB.Close() })
+
+	cfg := &config.Config{
+		ListenAddr:      ":8080",
+		Title:           "Test GoLink",
+		CanonicalDomain: "go.example.com",
+	}
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	handler := server.New(cfg, sqlDB, logger, nil)
+
+	// http://go/missing — link doesn't exist, non-canonical host
+	req := httptest.NewRequest(http.MethodGet, "/missing", nil)
+	req.Host = "go"
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusMovedPermanently {
+		t.Errorf("expected 301 redirect to canonical domain, got %d", w.Code)
+	}
+	const want = "https://go.example.com/missing"
+	if loc := w.Header().Get("Location"); loc != want {
+		t.Errorf("expected Location %q, got %q", want, loc)
+	}
+}
+
 func TestRedirectRequireAuth_Unauthenticated(t *testing.T) {
 	handler, links := newTestServer(t)
 

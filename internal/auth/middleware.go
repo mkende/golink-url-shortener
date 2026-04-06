@@ -53,61 +53,6 @@ func RequireAdmin() func(http.Handler) http.Handler {
 	}
 }
 
-// RequireUIAccess returns a middleware that gates access to UI pages based on
-// the AllowLoggedOutUIAccess configuration option (default false).
-//
-// When AllowLoggedOutUIAccess is false, unauthenticated requests are handled in
-// priority order:
-//  1. OIDC enabled → 302 redirect to /auth/login (via canonical domain if set).
-//  2. Canonical domain set and request not already on it over HTTPS → 301
-//     redirect to the canonical HTTPS URL. This ensures that accessing via an
-//     internal hostname (e.g. http://go/) still triggers the canonical redirect
-//     even when AllowHTTP is true and DomainRedirect is a no-op.
-//  3. Otherwise → deniedHandler is invoked (caller controls the response).
-//
-// Anonymous users, Tailscale users, and proxy-auth users always have a non-nil
-// Identity and pass through unconditionally.
-func RequireUIAccess(cfg *config.Config, deniedHandler http.Handler) func(http.Handler) http.Handler {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if cfg.UI.AllowLoggedOutUIAccess {
-				next.ServeHTTP(w, r)
-				return
-			}
-			if FromContext(r.Context()) != nil {
-				next.ServeHTTP(w, r)
-				return
-			}
-			if cfg.OIDC.Enabled {
-				loginURL := "/auth/login?rd=" + url.QueryEscape(r.URL.RequestURI())
-				if cfg.CanonicalDomain != "" {
-					loginURL = "https://" + cfg.CanonicalDomain + loginURL
-				}
-				http.Redirect(w, r, loginURL, http.StatusFound)
-				return
-			}
-			// No OIDC. If the request is not already on the canonical HTTPS
-			// domain, redirect there so the user ends up at the right place
-			// (e.g. http://go/ → https://go.example.com/). This covers the
-			// AllowHTTP=true case where DomainRedirect is disabled.
-			if cfg.CanonicalDomain != "" {
-				isHTTPS := r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https"
-				if !isHTTPS || r.Host != cfg.CanonicalDomain {
-					target := &url.URL{
-						Scheme:   "https",
-						Host:     cfg.CanonicalDomain,
-						Path:     r.URL.Path,
-						RawQuery: r.URL.RawQuery,
-					}
-					http.Redirect(w, r, target.String(), http.StatusMovedPermanently)
-					return
-				}
-			}
-			deniedHandler.ServeHTTP(w, r)
-		})
-	}
-}
-
 // RequireWriteScope returns a middleware that blocks read-only API key bearers
 // from accessing endpoints that mutate state. It must run after APIKeyMiddleware
 // so the identity's APIKeyReadOnly field is populated.

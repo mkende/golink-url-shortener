@@ -13,6 +13,7 @@ import (
 	"github.com/mkende/golink-url-shortener/internal/auth"
 	"github.com/mkende/golink-url-shortener/internal/db"
 	"github.com/mkende/golink-url-shortener/internal/links"
+	serverMiddleware "github.com/mkende/golink-url-shortener/internal/server/middleware"
 )
 
 // linksPerPage returns the configured page size for link list pages.
@@ -25,9 +26,14 @@ type notFoundData struct {
 	Name string
 }
 
-// renderNotFound renders the not_found page for the given link name. It
-// falls back to a plain http.NotFound response if template rendering fails.
+// renderNotFound renders the not_found page for the given link name.
+// If the request is not already on the canonical HTTPS domain it redirects
+// there first (301), so that e.g. http://go/missing lands on
+// https://go.example.com/missing rather than showing a 404 on the wrong host.
 func (s *Server) renderNotFound(w http.ResponseWriter, r *http.Request, name string) {
+	if serverMiddleware.RedirectToCanonical(s.cfg, w, r) {
+		return
+	}
 	base, err := s.newBaseData(w, r)
 	if err != nil {
 		s.logr(r.Context()).Error("not found: baseData", "error", err)
