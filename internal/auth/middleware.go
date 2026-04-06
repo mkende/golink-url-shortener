@@ -56,10 +56,14 @@ func RequireAdmin() func(http.Handler) http.Handler {
 // RequireUIAccess returns a middleware that gates access to UI pages based on
 // the AllowLoggedOutUIAccess configuration option (default false).
 //
-// When AllowLoggedOutUIAccess is false, unauthenticated requests are handled as
-// follows:
-//   - OIDC enabled → 302 redirect to /auth/login with the current path as ?rd=
-//   - Otherwise → deniedHandler is invoked (caller controls the response)
+// When AllowLoggedOutUIAccess is false, unauthenticated requests are handled in
+// priority order:
+//  1. OIDC enabled → 302 redirect to /auth/login (via canonical domain if set).
+//  2. Canonical domain set and request not already on it over HTTPS → 301
+//     redirect to the canonical HTTPS URL. This ensures that accessing via an
+//     internal hostname (e.g. http://go/) still triggers the canonical redirect
+//     even when AllowHTTP is true and DomainRedirect is a no-op.
+//  3. Otherwise → deniedHandler is invoked (caller controls the response).
 //
 // Anonymous users, Tailscale users, and proxy-auth users always have a non-nil
 // Identity and pass through unconditionally.
@@ -81,6 +85,23 @@ func RequireUIAccess(cfg *config.Config, deniedHandler http.Handler) func(http.H
 				}
 				http.Redirect(w, r, loginURL, http.StatusFound)
 				return
+			}
+			// No OIDC. If the request is not already on the canonical HTTPS
+			// domain, redirect there so the user ends up at the right place
+			// (e.g. http://go/ → https://go.example.com/). This covers the
+			// AllowHTTP=true case where DomainRedirect is disabled.
+			if cfg.CanonicalDomain != "" {
+				isHTTPS := r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https"
+				if !isHTTPS || r.Host != cfg.CanonicalDomain {
+					target := &url.URL{
+						Scheme:   "https",
+						Host:     cfg.CanonicalDomain,
+						Path:     r.URL.Path,
+						RawQuery: r.URL.RawQuery,
+					}
+					http.Redirect(w, r, target.String(), http.StatusMovedPermanently)
+					return
+				}
 			}
 			deniedHandler.ServeHTTP(w, r)
 		})
