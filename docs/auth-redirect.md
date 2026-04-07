@@ -1,79 +1,53 @@
-# Canonical Domain, HTTPS Enforcement and auth support
+# Authentication and Redirect Flow
 
-## Configuration options
+This document describes how golink-url-shortener handles authentication,
+canonical domain enforcement, and HTTPS redirection.
 
-- `canonical_address`: string, empty by default, otherwise a scheme + domain.
-   Example: http://go, https://go.example.com
-- `trusted_proxy`: list of strings, empty by default (replace the current
-   trusted_cidrs options of the auth providers, that should be replaced by that
-   single option).
--  `require_auth_for_redirects`: boolean, false by default.
+## Configuration
 
-None of these are required, except that `canonical_address` is required if and
-only if the `oidc` provider is specified (see below), as we need it to build the
-correct callback URL.
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `canonical_address` | string | `""` | Canonical scheme + host, e.g. `"https://go.example.com"` or `"http://go"`. Required when `oidc` is enabled. When set, non-public requests on a different scheme or host are redirected here with a 301. |
+| `trusted_proxy` | []string | `[]` | CIDR ranges of trusted reverse proxies. When the peer IP matches, `X-Forwarded-Proto` is trusted for scheme detection and provider-injected headers (`Tailscale-User-*`, `Remote-*`) are accepted. Required when `proxy_auth` is enabled. |
+| `require_auth_for_redirects` | bool | `false` | When true, unauthenticated users cannot follow any redirect. |
 
-The current `allow_logged_out_ui_access` option should be removed, we will
-consider that it’s always false. Same for `allow_http` that no longer exist.
-Instead we just rely on the `canonical_address` and its included scheme.
+## Authentication providers
 
-## Request state
+At least one provider must be enabled; the server refuses to start otherwise.
 
-On incoming request, we extract from the request data the following information:
+| Provider | Description |
+|----------|-------------|
+| `tailscale` | Trusts `Tailscale-User-*` headers. Requires `trusted_proxy` to include the Tailscale CGNAT range or `127.0.0.0/8`. |
+| `proxy_auth` | Trusts `Remote-*` headers (Authelia convention) from IPs in `trusted_proxy`. Requires `trusted_proxy` to be set. |
+| `oidc` | Full OIDC login flow. Requires `canonical_address`. |
+| `anonymous` | Treats every request as a single shared anonymous user. For local/private instances only. |
 
-- `is_https`
-- `requested_domain`
+## Request state extraction
 
-If and only if `trusted_proxy` is non-empty and the peer IP matches one of the
-specified range. Then we trust the `X-Forwarded-Proto` headers and such to
-override that information.
+On each incoming request the server determines:
 
-## Authentication provider
+- `is_https` — whether the request arrived over HTTPS.
+- `requested_domain` — the host the client used.
 
-We have the following 4 authentication providers that can be individually
-enabled.
-
-- `tailscale`: trust the `Tailscale-User-Xxx` headers. You need to pass the
-  `localhost` IP in the `trusted_proxy` configuration.
-- `oidc`: connects to an OIDC provider.
-- `proxy_auth`: trust specified headers, typically `Remote-Xxx`, from host that
-  are specified with the `trusted_proxy` config.
-- `anonymous`: authenticate all incoming traffic as a single anonymous user.
-
-At least one authentication provider is required (the server fails to start if
-none are specified).
+`X-Forwarded-Proto` is only trusted to override `is_https` when `trusted_proxy`
+is non-empty and the peer IP falls within one of the configured ranges.
 
 ## Request flow
 
-When a request arrive to the server, the following flow is applied:
+1. **Authenticate** — run all enabled providers; attach identity to the request
+   context if any succeeds.
+2. **Public link fast-path** — if the request targets an existing link that does
+   not require authentication and `require_auth_for_redirects` is `false`,
+   redirect immediately to the link target (skip steps 3–8).
+3. **Canonical redirect** — if `canonical_address` is set and the request does
+   not match its scheme and host, redirect to the canonical URL (301), preserving
+   the path.
+4. **Auth check** — if the user is not authenticated:
+   - If OIDC is enabled, redirect to the OIDC login flow.
+   - Otherwise, render a styled "Unauthorized" page (no login button).
+5. **Admin check** — if the request targets an admin page and the authenticated
+   user is not an admin, render a styled "Forbidden" page.
+6. **Serve** — serve the requested UI page or perform the link redirect.
 
-1. Try to authenticate the user with our active plugins.
-2. If the current request is for an existing link which does not require auth
-   and the global `require_auth_for_redirects` is not set, then redirect the
-   user to the link target.
-3. Otherwise, if `canonical_address` is set and the current request does not
-   match it (protocol + domain as read in the request state described above),
-   then we redirect the user to the canonical_address, keeping the same path.
-4. At this point, we are either authenticated or not (as we have the right
-   cookie for our domain).
-5. If we are not authenticated and the request is for a link that requires auth,
-   or it’s for a link redirect and the global `require_auth_for_redirects` is
-   set, or it’s for any other UI page, then we show a (nice, following our site
-   template) "unauthorized" page. If the OIDC provider is set, then we redirect
-   the user to the login flow instead.
-6. At this point, we only have authenticated users (other users have either been
-   redirected or been shown a permission denied page).
-7. If the request is for an admin page and the user is not an admin, we show
-   another unauthorized page.
-8. Otherwise we show the page requested by the user, or redirect it to the
-   link destination.
-
-Let me know if I forgot an option in this flow.
-
-This document explains how golink-url-shortener enforces the use of a single
-canonical domain and HTTPS scheme, and under which conditions a user is
-redirected.
-
-Note: a small subset of route are exempted from that logic and always available.
-These are the `/healthz` and `/favicon.ico` one, as well as all those required
-for OIDC to function.
+> **Exemptions:** `/healthz`, `/favicon.ico`, and all OIDC endpoints
+> (`/auth/login`, `/auth/callback`, `/auth/logout`) bypass this flow entirely.
