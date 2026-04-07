@@ -257,6 +257,18 @@ groups_claim = "roles"
 			errContains: "trusted_proxy must be set when proxy_auth is enabled",
 		},
 		{
+			name:        "unknown top-level key returns error",
+			toml:        minimalValid + "typo_key = true\n",
+			wantErr:     true,
+			errContains: "unknown configuration key(s)",
+		},
+		{
+			name:        "unknown nested key returns error",
+			toml:        minimalValid + "[oidc]\ntypo_field = true\n",
+			wantErr:     true,
+			errContains: "unknown configuration key(s)",
+		},
+		{
 			name:        "non-existent file returns error",
 			toml:        "", // not used — we pass a bad path instead
 			wantErr:     true,

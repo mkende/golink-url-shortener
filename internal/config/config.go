@@ -307,8 +307,12 @@ func Load(path string) (*Config, error) {
 	}
 
 	var cfg Config
-	if err := toml.Unmarshal(data, &cfg); err != nil {
+	meta, err := toml.Decode(string(data), &cfg)
+	if err != nil {
 		return nil, fmt.Errorf("parsing config file %q: %w", path, err)
+	}
+	if unknown := meta.Undecoded(); len(unknown) > 0 {
+		return nil, fmt.Errorf("parsing config file %q: unknown configuration key(s): %v", path, unknown)
 	}
 
 	applyDefaults(&cfg)
