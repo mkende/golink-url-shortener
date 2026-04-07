@@ -28,11 +28,11 @@ import (
 func ProxyAuthMiddleware(cfg *config.Config, users db.UserRepo) func(http.Handler) http.Handler {
 	// Pre-parse CIDRs once at construction time.
 	var trustedNets []*net.IPNet
-	if len(cfg.ProxyAuth.TrustedCIDRs) > 0 {
-		nets, err := parseCIDRs(cfg.ProxyAuth.TrustedCIDRs)
+	if len(cfg.TrustedProxy) > 0 {
+		nets, err := ParseCIDRs(cfg.TrustedProxy)
 		if err != nil {
 			// Config validation should have caught this.
-			panic("proxy_auth: invalid trusted_cidrs in config: " + err.Error())
+			panic("proxy_auth: invalid trusted_proxy in config: " + err.Error())
 		}
 		trustedNets = nets
 	}
@@ -47,7 +47,7 @@ func ProxyAuthMiddleware(cfg *config.Config, users db.UserRepo) func(http.Handle
 
 			// Only accept headers from trusted IP ranges.
 			ip := remoteIP(r)
-			if ip == nil || !ipInRanges(ip, trustedNets) {
+			if ip == nil || !IPInRanges(ip, trustedNets) {
 				next.ServeHTTP(w, r)
 				return
 			}

@@ -31,13 +31,15 @@ go install github.com/mkende/golink-url-shortener/cmd/golink@latest
 Copy and edit the config template:
 
 ```bash
-cp config.template.toml /etc/golink/simple.conf
+cp config.template.toml /etc/golink/golink.conf
 ```
 
-At minimum set `canonical_domain`:
+At minimum set `canonical_address` and an authentication provider:
 
 ```toml
-canonical_domain = "go.example.com"
+canonical_address = "https://go.example.com"
+[anonymous]
+enabled = true  # or configure tailscale/proxy_auth/oidc
 ```
 
 See [configuration.md](configuration.md) for all available options.
@@ -45,7 +47,7 @@ See [configuration.md](configuration.md) for all available options.
 ### Run
 
 ```bash
-golink -config /etc/golink/simple.conf
+golink -config /etc/golink/golink.conf
 ```
 
 The server listens on `0.0.0.0:8080` by default. Adjust `listen_addr` in the config to change the bind address or port.
@@ -63,7 +65,7 @@ After=network.target
 Type=simple
 User=golink
 Group=golink
-ExecStart=/usr/local/bin/golink -config /etc/golink/simple.conf
+ExecStart=/usr/local/bin/golink -config /etc/golink/golink.conf
 Restart=on-failure
 RestartSec=5s
 
@@ -127,11 +129,11 @@ docker run -d \
   --name golink \
   -p 8080:8080 \
   -v /data/golink:/data \
-  -e GOLINK_CONFIG=/data/simple.conf \
+  -e GOLINK_CONFIG=/data/golink.conf \
   ghcr.io/mkende/golink-url-shortener:latest
 ```
 
-Mount a directory to `/data` and place your `simple.conf` there. The SQLite database file is also stored there by default (set `db.dsn = "/data/golink.db"` in your config).
+Mount a directory to `/data` and place your `golink.conf` there. The SQLite database file is also stored there by default (set `db.dsn = "/data/golink.db"` in your config).
 
 ### Config via environment
 
@@ -159,7 +161,7 @@ services:
     volumes:
       - golink_data:/data
     environment:
-      GOLINK_CONFIG: /data/simple.conf
+      GOLINK_CONFIG: /data/golink.conf
 
 volumes:
   golink_data:
@@ -175,9 +177,9 @@ services:
     ports:
       - "8080:8080"
     volumes:
-      - ./simple.conf:/etc/golink/simple.conf:ro
+      - ./golink.conf:/etc/golink/golink.conf:ro
     environment:
-      GOLINK_CONFIG: /etc/golink/simple.conf
+      GOLINK_CONFIG: /etc/golink/golink.conf
     depends_on:
       postgres:
         condition: service_healthy
@@ -201,7 +203,7 @@ volumes:
   pg_data:
 ```
 
-Set the DSN in `simple.conf`:
+Set the DSN in `golink.conf`:
 
 ```toml
 [db]
@@ -228,9 +230,9 @@ metadata:
   name: golink-config
   namespace: golink
 data:
-  simple.conf: |
+  golink.conf: |
     listen_addr = "0.0.0.0:8080"
-    canonical_domain = "go.example.com"
+    canonical_address = "https://go.example.com"
     title = "GoLink"
 
     [db]
@@ -284,7 +286,7 @@ spec:
       containers:
         - name: golink
           image: ghcr.io/mkende/golink-url-shortener:latest
-          args: ["-config", "/etc/golink/simple.conf"]
+          args: ["-config", "/etc/golink/golink.conf"]
           ports:
             - containerPort: 8080
           volumeMounts:

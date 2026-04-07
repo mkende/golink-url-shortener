@@ -1,27 +1,48 @@
 package middleware
 
 import (
+	"net"
 	"net/http"
 	"net/url"
 
+	"github.com/mkende/golink-url-shortener/internal/auth"
 	"github.com/mkende/golink-url-shortener/internal/config"
 )
 
-// RedirectToCanonical checks whether r is already on the canonical HTTPS
-// domain configured in cfg. If not, it writes a 301 redirect and returns
-// true. If no canonical domain is configured, or the request is already
-// on it, it returns false and leaves w untouched.
-func RedirectToCanonical(cfg *config.Config, w http.ResponseWriter, r *http.Request) bool {
-	if cfg.CanonicalDomain == "" {
+// RedirectToCanonical checks whether r is already on the canonical address
+// configured in cfg. If not, it writes a 301 redirect and returns true. If no
+// canonical address is configured, or the request already matches it, it
+// returns false and leaves w untouched.
+//
+// trustedNets is used to determine whether to trust X-Forwarded-Proto: the
+// header is only honoured when the peer IP falls within one of those ranges.
+func RedirectToCanonical(cfg *config.Config, trustedNets []*net.IPNet, w http.ResponseWriter, r *http.Request) bool {
+	canonicalScheme := cfg.CanonicalScheme()
+	canonicalHost := cfg.CanonicalHost()
+	if canonicalScheme == "" || canonicalHost == "" {
 		return false
 	}
-	isHTTPS := r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https"
-	if isHTTPS && r.Host == cfg.CanonicalDomain {
+
+	// Determine the effective scheme of the incoming request. Trust
+	// X-Forwarded-Proto only when the peer IP is in trusted_proxy.
+	reqScheme := "http"
+	if r.TLS != nil {
+		reqScheme = "https"
+	} else if len(trustedNets) > 0 {
+		if ip := auth.PeerIP(r); ip != nil && auth.IPInRanges(ip, trustedNets) {
+			if proto := r.Header.Get("X-Forwarded-Proto"); proto != "" {
+				reqScheme = proto
+			}
+		}
+	}
+
+	if reqScheme == canonicalScheme && r.Host == canonicalHost {
 		return false
 	}
+
 	target := &url.URL{
-		Scheme:   "https",
-		Host:     cfg.CanonicalDomain,
+		Scheme:   canonicalScheme,
+		Host:     canonicalHost,
 		Path:     r.URL.Path,
 		RawQuery: r.URL.RawQuery,
 	}
@@ -30,17 +51,24 @@ func RedirectToCanonical(cfg *config.Config, w http.ResponseWriter, r *http.Requ
 }
 
 // DomainRedirect returns middleware that redirects requests to the canonical
-// HTTPS domain if they are not already on it. This applies to all UI and API
-// routes regardless of auth source; link redirects are routed separately and
-// bypass this middleware entirely.
+// address if they are not already on it. This applies to all UI and API routes;
+// link redirects for unauthenticated public links are routed separately and
+// bypass this middleware.
 func DomainRedirect(cfg *config.Config) func(http.Handler) http.Handler {
+	// Pre-parse trusted proxy CIDRs at construction time.
+	var trustedNets []*net.IPNet
+	if len(cfg.TrustedProxy) > 0 {
+		nets, err := auth.ParseCIDRs(cfg.TrustedProxy)
+		if err != nil {
+			// Config validation should have caught this.
+			panic("domain: invalid trusted_proxy in config: " + err.Error())
+		}
+		trustedNets = nets
+	}
+
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if cfg.AllowHTTP {
-				next.ServeHTTP(w, r)
-				return
-			}
-			if !RedirectToCanonical(cfg, w, r) {
+			if !RedirectToCanonical(cfg, trustedNets, w, r) {
 				next.ServeHTTP(w, r)
 			}
 		})

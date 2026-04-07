@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/url"
 	"os"
 
 	"github.com/BurntSushi/toml"
@@ -28,12 +29,6 @@ type AnonymousConfig struct {
 type TailscaleConfig struct {
 	// Enabled controls whether Tailscale header-based auth is active.
 	Enabled bool `toml:"enabled"`
-	// TrustedCIDRs is an optional list of IP ranges (IPv4 or IPv6 CIDR notation)
-	// from which Tailscale-User-* headers are accepted. When the list is non-empty,
-	// requests arriving from IPs outside these ranges have their Tailscale headers
-	// silently ignored. An empty list preserves the original behaviour: headers
-	// are trusted regardless of origin.
-	TrustedCIDRs []string `toml:"trusted_cidrs"`
 }
 
 // ProxyAuthConfig holds settings for reverse-proxy header-based authentication.
@@ -43,10 +38,6 @@ type TailscaleConfig struct {
 type ProxyAuthConfig struct {
 	// Enabled controls whether proxy header-based auth is active.
 	Enabled bool `toml:"enabled"`
-	// TrustedCIDRs is the list of IP ranges from which proxy auth headers are
-	// accepted. Required when enabled; requests from outside these ranges have
-	// their headers silently ignored.
-	TrustedCIDRs []string `toml:"trusted_cidrs"`
 	// UserHeader is the header containing the authenticated user's login name
 	// or username. Used as the primary identifier when EmailHeader is absent
 	// or empty. Defaults to "Remote-User".
@@ -102,9 +93,18 @@ type Config struct {
 	// Defaults to "0.0.0.0:8080".
 	ListenAddr string `toml:"listen_addr"`
 
-	// CanonicalDomain is the public hostname used for HTTPS redirects and OIDC
-	// callbacks (e.g. "go.example.com"). Required.
-	CanonicalDomain string `toml:"canonical_domain"`
+	// CanonicalAddress is the public base URL for this instance, including
+	// scheme. Example: "https://go.example.com" or "http://go".
+	// Required when OIDC is enabled (needed to build the callback URL).
+	// When set, all non-redirect requests that arrive on a different scheme or
+	// host are redirected here with a 301.
+	CanonicalAddress string `toml:"canonical_address"`
+
+	// TrustedProxy is the list of IP ranges (CIDR notation) from which
+	// proxy-forwarding headers are trusted: X-Forwarded-Proto for scheme
+	// detection, Tailscale-User-* for Tailscale auth, and Remote-* for
+	// proxy_auth. Required when proxy_auth is enabled.
+	TrustedProxy []string `toml:"trusted_proxy"`
 
 	// Title is the human-readable name shown in the UI.
 	// Defaults to "GoLink".
@@ -113,11 +113,6 @@ type Config struct {
 	// FaviconPath is a filesystem path to a custom favicon file.
 	// An empty string means the embedded default favicon is used.
 	FaviconPath string `toml:"favicon_path"`
-
-	// AllowHTTP disables the automatic HTTPS redirect for non-redirect requests.
-	// When true, requests are served on whatever scheme they arrive on.
-	// Defaults to false.
-	AllowHTTP bool `toml:"allow_http"`
 
 	// Anonymous holds settings for anonymous (user-less) authentication.
 	Anonymous AnonymousConfig `toml:"anonymous"`
@@ -153,8 +148,10 @@ type Config struct {
 	// AdminEmails lists the email addresses of users with admin privileges.
 	AdminEmails []string `toml:"admin_emails"`
 
-	// AdminGroup is the OIDC group name whose members are treated as admins.
-	AdminGroup string `toml:"admin_group"`
+	// AdminGroups is a list of OIDC group names whose members are treated as
+	// admins. Requires OIDC (or proxy_auth with groups) to be enabled and the
+	// groups_claim to be correctly configured.
+	AdminGroups []string `toml:"admin_groups"`
 
 	// CacheSize is the maximum number of links kept in the in-process LRU
 	// redirect cache. Increasing this reduces database reads on the hot path.
@@ -174,14 +171,30 @@ type UIConfig struct {
 	// LinksPerPage is the number of links shown on each page of the /links and
 	// /mylinks lists. Must be >= 10. Defaults to 100.
 	LinksPerPage int `toml:"links_per_page"`
+}
 
-	// AllowLoggedOutUIAccess controls whether unauthenticated users can browse
-	// the UI (home page, link lists, help pages, etc.). When false (the
-	// default), unauthenticated requests to UI pages are redirected to the OIDC
-	// login page if OIDC is configured, or receive a 404 response otherwise.
-	// Anonymous users are always treated as authenticated regardless of this
-	// setting. Pure link redirects are not affected.
-	AllowLoggedOutUIAccess bool `toml:"allow_logged_out_ui_access"`
+// CanonicalHost returns the host component of CanonicalAddress, or "" if not set.
+func (c *Config) CanonicalHost() string {
+	if c.CanonicalAddress == "" {
+		return ""
+	}
+	u, err := url.Parse(c.CanonicalAddress)
+	if err != nil || u.Host == "" {
+		return ""
+	}
+	return u.Host
+}
+
+// CanonicalScheme returns the scheme component of CanonicalAddress, or "" if not set.
+func (c *Config) CanonicalScheme() string {
+	if c.CanonicalAddress == "" {
+		return ""
+	}
+	u, err := url.Parse(c.CanonicalAddress)
+	if err != nil || u.Scheme == "" {
+		return ""
+	}
+	return u.Scheme
 }
 
 // applyDefaults fills in zero-value fields with their documented defaults.
@@ -226,7 +239,7 @@ func applyDefaults(c *Config) {
 		c.MaxAliasesPerLink = 100
 	}
 	if c.UI.LinksPerPage == 0 {
-		c.UI.LinksPerPage = 100
+		c.UI.LinksPerPage = 50
 	}
 }
 
@@ -245,8 +258,20 @@ func validateCIDRList(fieldName string, cidrs []string) error {
 // acceptable ranges. It returns a descriptive error for the first violation
 // found.
 func validate(c *Config) error {
-	if c.CanonicalDomain == "" {
-		return errors.New("canonical_domain is required")
+	if c.CanonicalAddress != "" {
+		u, err := url.Parse(c.CanonicalAddress)
+		if err != nil || u.Host == "" || u.Scheme == "" {
+			return fmt.Errorf("canonical_address must be a valid URL with scheme and host (got %q)", c.CanonicalAddress)
+		}
+		if u.Scheme != "http" && u.Scheme != "https" {
+			return fmt.Errorf("canonical_address scheme must be http or https (got %q)", u.Scheme)
+		}
+	}
+	if c.OIDC.Enabled && c.CanonicalAddress == "" {
+		return errors.New("canonical_address is required when oidc is enabled")
+	}
+	if !c.Anonymous.Enabled && !c.Tailscale.Enabled && !c.ProxyAuth.Enabled && !c.OIDC.Enabled {
+		return errors.New("at least one authentication provider must be enabled (anonymous, tailscale, proxy_auth, or oidc)")
 	}
 	if c.QuickLinkLength < 4 {
 		return fmt.Errorf("quick_link_length must be >= 4, got %d", c.QuickLinkLength)
@@ -260,13 +285,10 @@ func validate(c *Config) error {
 	if c.OIDC.Enabled && c.OIDC.JWTSecret == "" {
 		return errors.New("oidc.jwt_secret is required when OIDC is enabled")
 	}
-	if c.ProxyAuth.Enabled && len(c.ProxyAuth.TrustedCIDRs) == 0 {
-		return errors.New("proxy_auth.trusted_cidrs must be set when proxy auth is enabled")
+	if c.ProxyAuth.Enabled && len(c.TrustedProxy) == 0 {
+		return errors.New("trusted_proxy must be set when proxy_auth is enabled")
 	}
-	if err := validateCIDRList("tailscale.trusted_cidrs", c.Tailscale.TrustedCIDRs); err != nil {
-		return err
-	}
-	if err := validateCIDRList("proxy_auth.trusted_cidrs", c.ProxyAuth.TrustedCIDRs); err != nil {
+	if err := validateCIDRList("trusted_proxy", c.TrustedProxy); err != nil {
 		return err
 	}
 	if c.UI.LinksPerPage < 10 {

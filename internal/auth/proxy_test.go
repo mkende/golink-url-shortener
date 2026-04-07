@@ -12,9 +12,9 @@ import (
 
 func proxyCfg(enabled bool, cidrs ...string) *config.Config {
 	cfg := &config.Config{
+		TrustedProxy: cidrs,
 		ProxyAuth: config.ProxyAuthConfig{
 			Enabled:      enabled,
-			TrustedCIDRs: cidrs,
 			UserHeader:   "Remote-User",
 			EmailHeader:  "Remote-Email",
 			NameHeader:   "Remote-Name",
@@ -175,7 +175,7 @@ func TestProxyAuthMiddleware_AdminEmail(t *testing.T) {
 
 func TestProxyAuthMiddleware_AdminGroup(t *testing.T) {
 	cfg := proxyCfg(true, "127.0.0.0/8")
-	cfg.AdminGroup = "superusers"
+	cfg.AdminGroups = []string{"superusers"}
 	var got *auth.Identity
 	h := auth.ProxyAuthMiddleware(cfg, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		got = auth.FromContext(r.Context())

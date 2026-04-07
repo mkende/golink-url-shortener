@@ -8,44 +8,53 @@ import (
 	"github.com/mkende/golink-url-shortener/internal/config"
 )
 
+// LoginRedirect redirects the user to the OIDC login page, encoding the
+// current request URI as the ?rd= post-login destination.
+func LoginRedirect(w http.ResponseWriter, r *http.Request) {
+	loginURL := "/auth/login?rd=" + url.QueryEscape(r.URL.RequestURI())
+	http.Redirect(w, r, loginURL, http.StatusFound)
+}
+
 // RequireAuth returns a middleware that enforces authentication.
 //
 // For API paths (those starting with "/api/") an unauthenticated request
 // receives a 401 JSON response; REST clients cannot follow HTML redirects.
 //
-// For all other paths the user is redirected to /auth/login with the current
-// path as the ?rd= parameter. For OIDC auth the redirect goes through the
-// canonical domain first so the session cookie is set on the correct domain.
+// For all other paths: if OIDC is enabled the user is redirected to the login
+// page; otherwise a 403 response is written.
+//
+// When DomainRedirect runs before this middleware (as it does for all UI and
+// API routes), the request is already on the canonical domain so the login
+// redirect will set the session cookie on the correct domain.
 func RequireAuth(cfg *config.Config) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			id := FromContext(r.Context())
-			if id == nil {
-				if strings.HasPrefix(r.URL.Path, "/api/") {
-					w.Header().Set("Content-Type", "application/json")
-					http.Error(w, `{"error":"authentication required"}`, http.StatusUnauthorized)
-					return
-				}
-				loginURL := "/auth/login?rd=" + url.QueryEscape(r.URL.RequestURI())
-				if cfg.OIDC.Enabled && cfg.CanonicalDomain != "" {
-					loginURL = "https://" + cfg.CanonicalDomain + loginURL
-				}
-				http.Redirect(w, r, loginURL, http.StatusFound)
+			if FromContext(r.Context()) != nil {
+				next.ServeHTTP(w, r)
 				return
 			}
-			next.ServeHTTP(w, r)
+			if strings.HasPrefix(r.URL.Path, "/api/") {
+				w.Header().Set("Content-Type", "application/json")
+				http.Error(w, `{"error":"authentication required"}`, http.StatusUnauthorized)
+				return
+			}
+			if cfg.OIDC.Enabled {
+				LoginRedirect(w, r)
+			} else {
+				http.Error(w, "forbidden", http.StatusForbidden)
+			}
 		})
 	}
 }
 
 // RequireAdmin returns a middleware that enforces admin access. Non-admin
-// requests receive a 403 Forbidden response.
-func RequireAdmin() func(http.Handler) http.Handler {
+// requests are passed to deniedHandler.
+func RequireAdmin(deniedHandler http.Handler) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			id := FromContext(r.Context())
 			if id == nil || !id.IsAdmin {
-				http.Error(w, "forbidden", http.StatusForbidden)
+				deniedHandler.ServeHTTP(w, r)
 				return
 			}
 			next.ServeHTTP(w, r)

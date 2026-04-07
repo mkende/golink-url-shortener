@@ -22,7 +22,7 @@ func TestParseCIDRs(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			_, err := parseCIDRs(tc.cidrs)
+			_, err := ParseCIDRs(tc.cidrs)
 			if (err != nil) != tc.wantErr {
 				t.Errorf("parseCIDRs(%v) error = %v, wantErr %v", tc.cidrs, err, tc.wantErr)
 			}
@@ -31,7 +31,7 @@ func TestParseCIDRs(t *testing.T) {
 }
 
 func TestIPInRanges(t *testing.T) {
-	nets, err := parseCIDRs([]string{"192.168.0.0/16", "10.0.0.0/8", "::1/128"})
+	nets, err := ParseCIDRs([]string{"192.168.0.0/16", "10.0.0.0/8", "::1/128"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -50,8 +50,8 @@ func TestIPInRanges(t *testing.T) {
 	}
 	for _, tc := range tests {
 		ip := net.ParseIP(tc.ip)
-		if got := ipInRanges(ip, nets); got != tc.want {
-			t.Errorf("ipInRanges(%q) = %v, want %v", tc.ip, got, tc.want)
+		if got := IPInRanges(ip, nets); got != tc.want {
+			t.Errorf("IPInRanges(%q) = %v, want %v", tc.ip, got, tc.want)
 		}
 	}
 }

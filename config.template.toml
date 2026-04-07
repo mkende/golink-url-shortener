@@ -1,12 +1,12 @@
 # golink-url-shortener configuration template
 #
-# Copy this file to simple.conf (or any path you prefer) and adjust the values
+# Copy this file to golink.conf (or any path you prefer) and adjust the values
 # below. Lines beginning with '#' are comments. All keys are optional unless
 # marked REQUIRED.
 #
 # Pass the path to your config file via the -config flag when starting the
 # server, e.g.:
-#   golink -config /etc/golink/simple.conf
+#   golink -config /etc/golink/golink.conf
 
 # ─── Server ──────────────────────────────────────────────────────────────────
 
@@ -14,10 +14,25 @@
 # Default: "0.0.0.0:8080"
 listen_addr = "0.0.0.0:8080"
 
-# REQUIRED. Public hostname for this instance (without scheme), e.g.
-# "go.example.com". Used to build redirect URLs, enforce HTTPS redirects, and
-# construct OIDC callback URLs.
-canonical_domain = "go.example.com"
+# Public base URL for this instance, including scheme. Examples:
+#   "https://go.example.com"   — canonical HTTPS deployment
+#   "http://go"                — internal HTTP-only deployment (e.g. Tailscale)
+# Required when oidc.enabled = true (needed to build the OIDC callback URL).
+# When set, all non-redirect requests that arrive on a different scheme or host
+# are redirected here with a 301.
+# Default: "" (disabled)
+canonical_address = "https://go.example.com"
+
+# IP ranges (CIDR notation) of trusted reverse proxies or load balancers.
+# When non-empty and the connecting IP matches one of these ranges:
+#   - X-Forwarded-Proto is trusted for scheme detection (used by canonical
+#     redirect and HTTPS enforcement).
+#   - Tailscale-User-* headers are accepted (when tailscale.enabled = true).
+#   - Remote-* headers are accepted (when proxy_auth.enabled = true).
+# Required when proxy_auth.enabled = true.
+# Example: ["127.0.0.0/8", "::1/128", "10.0.0.0/8"]
+# Default: [] (no trusted proxies)
+trusted_proxy = []
 
 # Human-readable product name shown in the browser title and navigation.
 # Default: "GoLink"
@@ -28,164 +43,15 @@ title = "GoLink"
 # Default: "" (use embedded favicon)
 favicon_path = ""
 
-# When true, disable the automatic HTTPS redirect for non-redirect requests.
-# Useful for local development or deployments behind a TLS-terminating proxy
-# that does not set X-Forwarded-Proto.
-# Default: false
-allow_http = false
-
 # ─── Authentication ───────────────────────────────────────────────────────────
+#
+# REQUIRED: at least one of the following four providers must be enabled.
+# Providers are tried in this order: tailscale → proxy_auth → oidc → anonymous.
 
-# When true, unauthenticated users cannot follow any redirect; they are
-# redirected to the login page instead.
+# When true, unauthenticated users cannot follow any redirect; they are shown
+# an "unauthorized" page (or redirected to login if OIDC is enabled) instead.
 # Default: false
 require_auth_for_redirects = false
-
-# ── Anonymous (user-less) auth ────────────────────────────────────────────────
-# In anonymous mode every request is automatically treated as a single shared
-# user ("anonymous@localhost"). No login flow is required.
-#
-# Use this for local development, testing, or isolated private instances where
-# real user management is unnecessary.
-#
-# WARNING: Do not enable this on a publicly reachable server. Any visitor will
-# be able to create, edit, and delete links as the anonymous user.
-[anonymous]
-# Default: false
-enabled = false
-
-# Grant the anonymous user full admin privileges (API key management,
-# import/export). Useful when you also need admin features in a private
-# instance.
-# Default: false
-is_admin = false
-
-# ── Tailscale header-based auth ───────────────────────────────────────────────
-# When your server sits behind a Tailscale node that injects Tailscale-User-*
-# headers, enable this to use those headers for authentication. No additional
-# credentials are needed.
-[tailscale]
-# Default: false
-enabled = false
-
-# Optional: restrict which source IPs may supply Tailscale-User-* headers.
-# When non-empty, requests arriving from IPs outside these CIDR ranges have
-# their Tailscale headers silently ignored. Supports both IPv4 and IPv6 CIDR
-# notation. When empty (the default), headers are accepted from any source —
-# this is safe only when your host is fully inside a Tailnet.
-# Example (Tailscale CGNAT range): ["100.64.0.0/10"]
-# Default: [] (accept from any source)
-trusted_cidrs = []
-
-# ── Reverse-proxy forward-auth ────────────────────────────────────────────────
-# When your server sits behind a reverse proxy (nginx, Caddy, Traefik, …) that
-# performs authentication and injects the authenticated user's identity into
-# HTTP headers, enable this to use those headers.  The header names default to
-# the de-facto standard used by Authelia's forward-auth integration.
-#
-# SECURITY: trusted_cidrs is REQUIRED when this mode is enabled.  Only requests
-# from the configured IP ranges will have their headers trusted; all others are
-# treated as unauthenticated.  Never expose this service directly to the
-# internet with proxy_auth enabled.
-[proxy_auth]
-# Default: false
-enabled = false
-
-# REQUIRED when enabled. IP ranges of the reverse proxy / load balancer.
-# Supports both IPv4 and IPv6 CIDR notation.
-# Example: ["127.0.0.0/8", "::1/128", "10.0.0.0/8"]
-trusted_cidrs = []
-
-# HTTP header containing the authenticated user's login name or username.
-# Used as the primary identifier when email_header is absent or returns an
-# empty value for the request.
-# Default: "Remote-User"  (Authelia / standard forward-auth convention)
-user_header = "Remote-User"
-
-# HTTP header containing the authenticated user's email address.  When this
-# header is present and non-empty it is used as the primary user identifier
-# (the key stored in the database and used for sharing/admin checks); otherwise
-# the value from user_header is used as a fallback.
-# Default: "Remote-Email"  (Authelia sends both Remote-User and Remote-Email)
-email_header = "Remote-Email"
-
-# HTTP header containing the user's display name.
-# Default: "Remote-Name"
-name_header = "Remote-Name"
-
-# HTTP header containing a comma-separated list of the user's group
-# memberships.  Used for group-based sharing and the admin_group setting.
-# Default: "Remote-Groups"
-groups_header = "Remote-Groups"
-
-# ── OpenID Connect auth ───────────────────────────────────────────────────────
-[oidc]
-# Default: false
-enabled = false
-
-# OIDC provider issuer URL (must match the "iss" claim in tokens).
-# Example: "https://accounts.google.com"
-issuer = ""
-
-# OAuth2 client identifier issued by the provider.
-client_id = ""
-
-# OAuth2 client secret issued by the provider. Keep this confidential.
-client_secret = ""
-
-# OAuth2 scopes to request from the provider.
-# Add "groups" to receive group membership claims (required for admin_group and
-# group-based sharing). Authelia and Keycloak both support this scope.
-# Default: ["openid", "email", "profile"]
-scopes = ["openid", "email", "profile"]
-
-# Name of the JWT/userinfo claim that contains the user's group memberships.
-# Used for group-based sharing and the admin_group setting below.
-# Default: "groups" (correct for Authelia, Keycloak, Dex, and most providers)
-groups_claim = "groups"
-
-# ── Authelia provider notes ───────────────────────────────────────────────────
-# When using Authelia as your OIDC provider, register a client with these
-# settings in your Authelia configuration (authelia/configuration.yml):
-#
-#   identity_providers:
-#     oidc:
-#       clients:
-#         - client_id: "golink"
-#           client_secret: "<bcrypt-hashed-secret>"
-#           authorization_policy: one_factor   # or two_factor
-#           redirect_uris:
-#             - "https://go.example.com/auth/callback"
-#           scopes: ["openid", "email", "profile", "groups"]
-#           token_endpoint_auth_method: client_secret_basic
-#           userinfo_signed_response_alg: none
-#
-# In this file, set:
-#   issuer = "https://authelia.example.com"   # Authelia root URL
-#   scopes = ["openid", "email", "profile", "groups"]
-#
-# The redirect URL (https://<canonical_domain>/auth/callback) is constructed
-# automatically from canonical_domain — no redirect_url setting is needed.
-
-# REQUIRED when oidc.enabled = true.
-# HMAC secret used to sign session JWT cookies. Use a long random string
-# (at least 32 bytes). Generate one with: openssl rand -base64 32
-jwt_secret = ""
-
-# ─── Database ─────────────────────────────────────────────────────────────────
-[db]
-# Database backend to use.
-# Valid values: "sqlite", "postgres"
-# Default: "sqlite"
-driver = "sqlite"
-
-# Data source name (DSN) / connection string.
-# For SQLite: a file path (relative or absolute). The file is created if it
-# does not exist.
-# For PostgreSQL: a standard libpq connection string, e.g.
-#   "host=localhost port=5432 dbname=golink user=golink password=secret sslmode=require"
-# Default: "golink.db"
-dsn = "golink.db"
 
 # ─── Links ────────────────────────────────────────────────────────────────────
 
@@ -218,22 +84,6 @@ cache_size = 1000
 # Default: 100
 max_aliases_per_link = 100
 
-# ─── UI Behaviour ────────────────────────────────────────────────────────────
-[ui]
-
-# Number of links displayed per page on the /links and /mylinks list pages.
-# Must be >= 10.
-# Default: 100
-links_per_page = 100
-
-# Whether unauthenticated users may browse the web UI (home page, link lists,
-# help pages, etc.). When false (the default), unauthenticated requests are
-# redirected to the OIDC login page if OIDC is enabled, or receive a 404
-# response otherwise. Pure link redirects are not affected by this setting.
-# Anonymous users are always treated as authenticated.
-# Default: false
-allow_logged_out_ui_access = false
-
 # ─── Admin ────────────────────────────────────────────────────────────────────
 
 # Email addresses of users who have full admin privileges.
@@ -242,7 +92,153 @@ allow_logged_out_ui_access = false
 # Default: [] (no admins)
 admin_emails = []
 
-# OIDC group name whose members are treated as admins. Requires OIDC to be
-# enabled and the groups_claim to be correctly configured.
-# Default: "" (disabled)
-admin_group = ""
+# OIDC/proxy-auth group names whose members are treated as admins. Requires
+# OIDC (or proxy_auth with groups) to be enabled and the groups_claim to be
+# correctly configured.
+# Example: ["sre", "platform-team"]
+# Default: [] (disabled)
+admin_groups = []
+
+# ── Anonymous (user-less) auth ────────────────────────────────────────────────
+# In anonymous mode every request is automatically treated as a single shared
+# user ("anonymous@localhost"). No login flow is required.
+#
+# Use this for local development, testing, or isolated private instances where
+# real user management is unnecessary.
+#
+# WARNING: Do not enable this on a publicly reachable server. Any visitor will
+# be able to create, edit, and delete links as the anonymous user.
+[anonymous]
+# Default: false
+enabled = false
+
+# Grant the anonymous user full admin privileges (API key management,
+# import/export). Useful when you also need admin features in a private
+# instance.
+# Default: false
+is_admin = false
+
+# ── Tailscale header-based auth ───────────────────────────────────────────────
+# When your server sits behind a Tailscale node that injects Tailscale-User-*
+# headers, enable this to use those headers for authentication. No additional
+# credentials are needed.
+#
+# Set trusted_proxy to the Tailscale CGNAT range (100.64.0.0/10) or to
+# 127.0.0.0/8 when running as a local service reachable only via localhost.
+[tailscale]
+# Default: false
+enabled = false
+
+# ── Reverse-proxy forward-auth ────────────────────────────────────────────────
+# When your server sits behind a reverse proxy (nginx, Caddy, Traefik, …) that
+# performs authentication and injects the authenticated user's identity into
+# HTTP headers, enable this to use those headers.  The header names default to
+# the de-facto standard used by Authelia's forward-auth integration.
+#
+# SECURITY: trusted_proxy is REQUIRED when this mode is enabled.  Only requests
+# from the configured IP ranges will have their headers trusted; all others are
+# treated as unauthenticated.  Never expose this service directly to the
+# internet with proxy_auth enabled.
+[proxy_auth]
+# Default: false
+enabled = false
+
+# HTTP header containing the authenticated user's login name or username.
+# Used as the primary identifier when email_header is absent or returns an
+# empty value for the request.
+# Default: "Remote-User"  (Authelia / standard forward-auth convention)
+user_header = "Remote-User"
+
+# HTTP header containing the authenticated user's email address.  When this
+# header is present and non-empty it is used as the primary user identifier
+# (the key stored in the database and used for sharing/admin checks); otherwise
+# the value from user_header is used as a fallback.
+# Default: "Remote-Email"  (Authelia sends both Remote-User and Remote-Email)
+email_header = "Remote-Email"
+
+# HTTP header containing the user's display name.
+# Default: "Remote-Name"
+name_header = "Remote-Name"
+
+# HTTP header containing a comma-separated list of the user's group
+# memberships.  Used for group-based sharing and the admin_groups setting.
+# Default: "Remote-Groups"
+groups_header = "Remote-Groups"
+
+# ── OpenID Connect auth ───────────────────────────────────────────────────────
+[oidc]
+# Default: false
+enabled = false
+
+# OIDC provider issuer URL (must match the "iss" claim in tokens).
+# Example: "https://accounts.google.com"
+issuer = ""
+
+# OAuth2 client identifier issued by the provider.
+client_id = ""
+
+# OAuth2 client secret issued by the provider. Keep this confidential.
+client_secret = ""
+
+# OAuth2 scopes to request from the provider.
+# Add "groups" to receive group membership claims (required for admin_groups and
+# group-based sharing). Authelia and Keycloak both support this scope.
+# Default: ["openid", "email", "profile"]
+scopes = ["openid", "email", "profile"]
+
+# Name of the JWT/userinfo claim that contains the user's group memberships.
+# Used for group-based sharing and the admin_groups setting.
+# Default: "groups" (correct for Authelia, Keycloak, Dex, and most providers)
+groups_claim = "groups"
+
+# ── Authelia provider notes ───────────────────────────────────────────────────
+# When using Authelia as your OIDC provider, register a client with these
+# settings in your Authelia configuration (authelia/configuration.yml):
+#
+#   identity_providers:
+#     oidc:
+#       clients:
+#         - client_id: "golink"
+#           client_secret: "<bcrypt-hashed-secret>"
+#           authorization_policy: one_factor   # or two_factor
+#           redirect_uris:
+#             - "https://go.example.com/auth/callback"
+#           scopes: ["openid", "email", "profile", "groups"]
+#           token_endpoint_auth_method: client_secret_basic
+#           userinfo_signed_response_alg: none
+#
+# In this file, set:
+#   canonical_address = "https://go.example.com"
+#   issuer = "https://authelia.example.com"   # Authelia root URL
+#   scopes = ["openid", "email", "profile", "groups"]
+#
+# The redirect URL (<canonical_address>/auth/callback) is constructed
+# automatically from canonical_address — no redirect_url setting is needed.
+
+# REQUIRED when oidc.enabled = true.
+# HMAC secret used to sign session JWT cookies. Use a long random string
+# (at least 32 bytes). Generate one with: openssl rand -base64 32
+jwt_secret = ""
+
+# ─── Database ─────────────────────────────────────────────────────────────────
+[db]
+# Database backend to use.
+# Valid values: "sqlite", "postgres"
+# Default: "sqlite"
+driver = "sqlite"
+
+# Data source name (DSN) / connection string.
+# For SQLite: a file path (relative or absolute). The file is created if it
+# does not exist.
+# For PostgreSQL: a standard libpq connection string, e.g.
+#   "host=localhost port=5432 dbname=golink user=golink password=secret sslmode=require"
+# Default: "golink.db"
+dsn = "golink.db"
+
+# ─── UI Behaviour ────────────────────────────────────────────────────────────
+[ui]
+
+# Number of links displayed per page on the /links and /mylinks list pages.
+# Must be >= 10.
+# Default: 50
+links_per_page = 50

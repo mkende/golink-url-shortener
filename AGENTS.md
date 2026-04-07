@@ -28,7 +28,7 @@ redirects, a REST API, import/export, and full deployment documentation.
 - **Sessions**: stateless JWT via `golang-jwt/jwt` v5; stored in a `Secure`,
   `HttpOnly`, `SameSite=Lax` cookie.
 - **OIDC**: `coreos/go-oidc` v3 + `golang.org/x/oauth2`.
-- **Configuration**: single `simple.conf` file in TOML format. A fully
+- **Configuration**: single `golink.conf` file in TOML format. A fully
   documented template file must exist at `config.template.toml`.
 - **Auth**: two independent optional modes — Tailscale header-based and OIDC.
   Unauthenticated users may always follow redirects unless the config forbids

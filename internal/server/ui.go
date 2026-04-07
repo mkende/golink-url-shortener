@@ -27,11 +27,11 @@ type notFoundData struct {
 }
 
 // renderNotFound renders the not_found page for the given link name.
-// If the request is not already on the canonical HTTPS domain it redirects
-// there first (301), so that e.g. http://go/missing lands on
-// https://go.example.com/missing rather than showing a 404 on the wrong host.
+// If the request is not already on the canonical address it redirects there
+// first (301), so that e.g. http://go/missing lands on the canonical domain
+// rather than showing a 404 on the wrong host.
 func (s *Server) renderNotFound(w http.ResponseWriter, r *http.Request, name string) {
-	if serverMiddleware.RedirectToCanonical(s.cfg, w, r) {
+	if serverMiddleware.RedirectToCanonical(s.cfg, s.trustedNets, w, r) {
 		return
 	}
 	base, err := s.newBaseData(w, r)
@@ -47,17 +47,32 @@ func (s *Server) renderNotFound(w http.ResponseWriter, r *http.Request, name str
 }
 
 // handleUIAccessDenied is invoked by RequireUIAccess when the user is not
-// authenticated and OIDC is not configured. It renders a styled 404 page so
-// the user gets a clear, branded error rather than the browser's plain-text
-// default.
+// authenticated and OIDC is not configured.
 func (s *Server) handleUIAccessDenied(w http.ResponseWriter, r *http.Request) {
+	s.renderUnauthorized(w, r)
+}
+
+// handleForbidden is passed to RequireAdmin and is invoked when the
+// authenticated user does not have admin privileges.
+func (s *Server) handleForbidden(w http.ResponseWriter, r *http.Request) {
 	base, err := s.newBaseData(w, r)
 	if err != nil {
-		s.logr(r.Context()).Error("access denied: baseData", "error", err)
-		http.NotFound(w, r)
+		s.logr(r.Context()).Error("forbidden: baseData", "error", err)
+		http.Error(w, "forbidden", http.StatusForbidden)
 		return
 	}
-	s.renderer.RenderStatus(w, http.StatusNotFound, "not_authorized", base)
+	s.renderer.RenderStatus(w, http.StatusForbidden, "not_authorized", base)
+}
+
+// renderUnauthorized renders the not_authorized page with HTTP 401.
+func (s *Server) renderUnauthorized(w http.ResponseWriter, r *http.Request) {
+	base, err := s.newBaseData(w, r)
+	if err != nil {
+		s.logr(r.Context()).Error("unauthorized: baseData", "error", err)
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	s.renderer.RenderStatus(w, http.StatusUnauthorized, "not_authorized", base)
 }
 
 // baseData holds the template data common to all pages.
@@ -170,7 +185,8 @@ func (s *Server) handleNew(w http.ResponseWriter, r *http.Request) {
 
 	id := auth.FromContext(r.Context())
 	if id == nil {
-		http.Redirect(w, r, "/auth/login?rd=/new", http.StatusFound)
+		// RequireUIAccess should have caught this; guard defensively.
+		s.renderUnauthorized(w, r)
 		return
 	}
 
@@ -245,7 +261,8 @@ func (s *Server) handleDetails(w http.ResponseWriter, r *http.Request) {
 
 	// Authentication required to view the details page.
 	if base.Identity == nil {
-		http.Redirect(w, r, "/auth/login?rd=/details/"+name, http.StatusFound)
+		// RequireUIAccess should have caught this; guard defensively.
+		s.renderUnauthorized(w, r)
 		return
 	}
 
@@ -509,7 +526,8 @@ func (s *Server) handleCreateAlias(w http.ResponseWriter, r *http.Request) {
 
 	id := auth.FromContext(r.Context())
 	if id == nil {
-		http.Redirect(w, r, "/auth/login?rd=/details/"+canonicalName, http.StatusFound)
+		// RequireUIAccess should have caught this; guard defensively.
+		s.renderUnauthorized(w, r)
 		return
 	}
 
@@ -657,7 +675,8 @@ func (s *Server) handleMyLinks(w http.ResponseWriter, r *http.Request) {
 
 	id := auth.FromContext(r.Context())
 	if id == nil {
-		http.Redirect(w, r, "/auth/login?rd=/mylinks", http.StatusFound)
+		// RequireUIAccess should have caught this; guard defensively.
+		s.renderUnauthorized(w, r)
 		return
 	}
 

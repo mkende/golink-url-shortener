@@ -4,11 +4,11 @@ package server
 import (
 	"context"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"strings"
 	"time"
-
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -22,15 +22,16 @@ import (
 
 // Server is the root HTTP handler. It implements http.Handler via ServeHTTP.
 type Server struct {
-	router     chi.Router
-	cfg        *config.Config
-	links      db.LinkRepo
-	users      db.UserRepo
-	apiKeys    db.APIKeyRepo
-	logger     *slog.Logger
-	oidcH      *auth.OIDCHandler
-	renderer   *templates.Renderer
-	useCounter *db.UseCounter
+	router      chi.Router
+	cfg         *config.Config
+	links       db.LinkRepo
+	users       db.UserRepo
+	apiKeys     db.APIKeyRepo
+	logger      *slog.Logger
+	oidcH       *auth.OIDCHandler
+	renderer    *templates.Renderer
+	useCounter  *db.UseCounter
+	trustedNets []*net.IPNet // parsed from cfg.TrustedProxy at construction time
 }
 
 // New creates a new Server, wires up all routes, and starts background
@@ -54,15 +55,25 @@ func New(cfg *config.Config, sqlDB *db.DB, logger *slog.Logger, oidcHandler *aut
 		panic("failed to create link cache: " + err.Error())
 	}
 
+	var trustedNets []*net.IPNet
+	if len(cfg.TrustedProxy) > 0 {
+		nets, err := auth.ParseCIDRs(cfg.TrustedProxy)
+		if err != nil {
+			panic("server: invalid trusted_proxy in config: " + err.Error())
+		}
+		trustedNets = nets
+	}
+
 	s := &Server{
-		cfg:        cfg,
-		links:      cachingRepo,
-		users:      db.NewUserRepo(sqlDB),
-		apiKeys:    db.NewAPIKeyRepo(sqlDB),
-		logger:     logger,
-		oidcH:      oidcHandler,
-		renderer:   renderer,
-		useCounter: db.NewUseCounter(sqlDB, 2*time.Second),
+		cfg:         cfg,
+		links:       cachingRepo,
+		users:       db.NewUserRepo(sqlDB),
+		apiKeys:     db.NewAPIKeyRepo(sqlDB),
+		logger:      logger,
+		oidcH:       oidcHandler,
+		renderer:    renderer,
+		useCounter:  db.NewUseCounter(sqlDB, 2*time.Second),
+		trustedNets: trustedNets,
 	}
 	s.router = s.buildRouter()
 	return s
@@ -174,7 +185,7 @@ func (s *Server) buildRouter() chi.Router {
 		// Admin: API key management UI
 		r.Route("/apikeys", func(r chi.Router) {
 			r.Use(auth.RequireAuth(s.cfg))
-			r.Use(auth.RequireAdmin())
+			r.Use(auth.RequireAdmin(http.HandlerFunc(s.handleForbidden)))
 			r.Get("/", s.handleAPIKeysPage)
 			r.Post("/", s.handleCreateAPIKey)
 			r.Post("/{id}/delete", s.handleDeleteAPIKey)
@@ -183,7 +194,7 @@ func (s *Server) buildRouter() chi.Router {
 		// Admin: import / export UI
 		r.Route("/importexport", func(r chi.Router) {
 			r.Use(auth.RequireAuth(s.cfg))
-			r.Use(auth.RequireAdmin())
+			r.Use(auth.RequireAdmin(http.HandlerFunc(s.handleForbidden)))
 			r.Get("/", s.handleImportExportPage)
 			r.Post("/", s.handleImportUpload)
 		})
@@ -212,7 +223,7 @@ func (s *Server) buildRouter() chi.Router {
 
 			// API key management — admin only, always requires write scope.
 			r.Route("/apikeys", func(r chi.Router) {
-				r.Use(auth.RequireAdmin())
+				r.Use(auth.RequireAdmin(http.HandlerFunc(s.handleForbidden)))
 				r.Use(auth.RequireWriteScope())
 				r.Get("/", s.handleAPIListAPIKeys)
 				r.Post("/", s.handleAPICreateAPIKey)
@@ -221,8 +232,8 @@ func (s *Server) buildRouter() chi.Router {
 
 			// Export (read): admin only; read-only API keys may export.
 			// Import (write): admin only, additionally requires write scope.
-			r.With(auth.RequireAdmin()).Get("/export", s.handleExport)
-			r.With(auth.RequireAdmin(), auth.RequireWriteScope()).Post("/import", s.handleImport)
+			r.With(auth.RequireAdmin(http.HandlerFunc(s.handleForbidden))).Get("/export", s.handleExport)
+			r.With(auth.RequireAdmin(http.HandlerFunc(s.handleForbidden)), auth.RequireWriteScope()).Post("/import", s.handleImport)
 		})
 	})
 

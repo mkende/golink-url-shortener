@@ -25,6 +25,14 @@ func writeTemp(t *testing.T, content string) string {
 	return f.Name()
 }
 
+// minimalValid is a base TOML that satisfies all required fields.
+// When appending additional top-level keys, insert them before anonSection.
+const (
+	minimalHeader = `canonical_address = "https://go.example.com"` + "\n"
+	anonSection   = "[anonymous]\nenabled = true\n"
+	minimalValid  = minimalHeader + anonSection
+)
+
 func TestLoad(t *testing.T) {
 	t.Parallel()
 
@@ -37,17 +45,56 @@ func TestLoad(t *testing.T) {
 	}{
 		{
 			name: "valid minimal config",
-			toml: `canonical_domain = "go.example.com"`,
+			toml: minimalValid,
 			check: func(t *testing.T, cfg *config.Config) {
 				t.Helper()
-				if cfg.CanonicalDomain != "go.example.com" {
-					t.Errorf("CanonicalDomain = %q, want %q", cfg.CanonicalDomain, "go.example.com")
+				if cfg.CanonicalAddress != "https://go.example.com" {
+					t.Errorf("CanonicalAddress = %q, want %q", cfg.CanonicalAddress, "https://go.example.com")
+				}
+				if cfg.CanonicalHost() != "go.example.com" {
+					t.Errorf("CanonicalHost() = %q, want %q", cfg.CanonicalHost(), "go.example.com")
+				}
+				if cfg.CanonicalScheme() != "https" {
+					t.Errorf("CanonicalScheme() = %q, want %q", cfg.CanonicalScheme(), "https")
+				}
+			},
+		},
+		{
+			name: "http scheme in canonical_address is valid",
+			toml: `
+canonical_address = "http://go"
+[anonymous]
+enabled = true
+`,
+			check: func(t *testing.T, cfg *config.Config) {
+				t.Helper()
+				if cfg.CanonicalScheme() != "http" {
+					t.Errorf("CanonicalScheme() = %q, want %q", cfg.CanonicalScheme(), "http")
+				}
+				if cfg.CanonicalHost() != "go" {
+					t.Errorf("CanonicalHost() = %q, want %q", cfg.CanonicalHost(), "go")
+				}
+			},
+		},
+		{
+			name: "canonical_address optional when oidc disabled",
+			toml: `
+[anonymous]
+enabled = true
+`,
+			check: func(t *testing.T, cfg *config.Config) {
+				t.Helper()
+				if cfg.CanonicalAddress != "" {
+					t.Errorf("CanonicalAddress = %q, want empty", cfg.CanonicalAddress)
+				}
+				if cfg.CanonicalHost() != "" {
+					t.Errorf("CanonicalHost() = %q, want empty", cfg.CanonicalHost())
 				}
 			},
 		},
 		{
 			name: "defaults applied when fields omitted",
-			toml: `canonical_domain = "go.example.com"`,
+			toml: minimalValid,
 			check: func(t *testing.T, cfg *config.Config) {
 				t.Helper()
 				if cfg.ListenAddr != "0.0.0.0:8080" {
@@ -83,10 +130,13 @@ func TestLoad(t *testing.T) {
 		{
 			name: "explicit values override defaults",
 			toml: `
-canonical_domain  = "go.corp.example.com"
+canonical_address = "https://go.corp.example.com"
 listen_addr       = "127.0.0.1:9090"
 title             = "Corp Links"
 quick_link_length = 8
+
+[anonymous]
+enabled = true
 
 [db]
 driver = "postgres"
@@ -119,23 +169,38 @@ groups_claim = "roles"
 			},
 		},
 		{
-			name:        "missing canonical_domain returns error",
-			toml:        `listen_addr = "0.0.0.0:8080"`,
+			name:        "canonical_address required when oidc enabled",
+			toml:        "[oidc]\nenabled = true\njwt_secret = \"secret\"",
 			wantErr:     true,
-			errContains: "canonical_domain is required",
+			errContains: "canonical_address is required when oidc is enabled",
+		},
+		{
+			name:        "invalid canonical_address scheme returns error",
+			toml:        "canonical_address = \"ftp://go.example.com\"\n[anonymous]\nenabled = true",
+			wantErr:     true,
+			errContains: "canonical_address scheme must be http or https",
+		},
+		{
+			name:        "canonical_address without scheme returns error",
+			toml:        "canonical_address = \"go.example.com\"\n[anonymous]\nenabled = true",
+			wantErr:     true,
+			errContains: "canonical_address must be a valid URL",
+		},
+		{
+			name:        "no auth provider returns error",
+			toml:        minimalHeader, // no auth section
+			wantErr:     true,
+			errContains: "at least one authentication provider",
 		},
 		{
 			name:        "bad TOML syntax returns error",
-			toml:        `canonical_domain = [[[`,
+			toml:        `canonical_address = [[[`,
 			wantErr:     true,
 			errContains: "parsing config file",
 		},
 		{
 			name: "quick_link_length exactly 4 is valid",
-			toml: `
-canonical_domain  = "go.example.com"
-quick_link_length = 4
-`,
+			toml: minimalHeader + "quick_link_length = 4\n" + anonSection,
 			check: func(t *testing.T, cfg *config.Config) {
 				t.Helper()
 				if cfg.QuickLinkLength != 4 {
@@ -145,38 +210,51 @@ quick_link_length = 4
 		},
 		{
 			name:        "quick_link_length less than 4 returns error",
-			toml:        `canonical_domain = "go.example.com"` + "\nquick_link_length = 3",
-			wantErr:     true,
-			errContains: "quick_link_length must be >= 4",
-		},
-		{
-			name:        "quick_link_length of 1 returns error",
-			toml:        `canonical_domain = "go.example.com"` + "\nquick_link_length = 1",
+			toml:        minimalHeader + "quick_link_length = 3\n" + anonSection,
 			wantErr:     true,
 			errContains: "quick_link_length must be >= 4",
 		},
 		{
 			name:        "invalid db driver returns error",
-			toml:        "canonical_domain = \"go.example.com\"\n[db]\ndriver = \"mysql\"",
+			toml:        minimalValid + "[db]\ndriver = \"mysql\"\n",
 			wantErr:     true,
 			errContains: "db.driver must be",
 		},
 		{
 			name: "admin fields parsed correctly",
-			toml: `
-canonical_domain = "go.example.com"
-admin_emails     = ["alice@example.com", "bob@example.com"]
-admin_group      = "sre"
-`,
+			toml: minimalHeader + `admin_emails = ["alice@example.com", "bob@example.com"]` + "\n" +
+				`admin_groups = ["sre", "ops"]` + "\n" + anonSection,
 			check: func(t *testing.T, cfg *config.Config) {
 				t.Helper()
 				if len(cfg.AdminEmails) != 2 {
 					t.Errorf("len(AdminEmails) = %d, want 2", len(cfg.AdminEmails))
 				}
-				if cfg.AdminGroup != "sre" {
-					t.Errorf("AdminGroup = %q, want %q", cfg.AdminGroup, "sre")
+				if len(cfg.AdminGroups) != 2 || cfg.AdminGroups[0] != "sre" {
+					t.Errorf("AdminGroups = %v, want [sre ops]", cfg.AdminGroups)
 				}
 			},
+		},
+		{
+			name: "trusted_proxy parsed and validated",
+			toml: minimalHeader + `trusted_proxy = ["127.0.0.0/8", "10.0.0.0/8"]` + "\n" + anonSection,
+			check: func(t *testing.T, cfg *config.Config) {
+				t.Helper()
+				if len(cfg.TrustedProxy) != 2 {
+					t.Errorf("len(TrustedProxy) = %d, want 2", len(cfg.TrustedProxy))
+				}
+			},
+		},
+		{
+			name:        "invalid trusted_proxy CIDR returns error",
+			toml:        minimalHeader + `trusted_proxy = ["not-a-cidr"]` + "\n" + anonSection,
+			wantErr:     true,
+			errContains: "trusted_proxy",
+		},
+		{
+			name:        "proxy_auth without trusted_proxy returns error",
+			toml:        minimalValid + "[proxy_auth]\nenabled = true\n", // proxy_auth needs trusted_proxy
+			wantErr:     true,
+			errContains: "trusted_proxy must be set when proxy_auth is enabled",
 		},
 		{
 			name:        "non-existent file returns error",

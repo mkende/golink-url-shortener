@@ -3,13 +3,13 @@ package server
 import (
 	"errors"
 	"net/http"
-	"net/url"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/mkende/golink-url-shortener/internal/auth"
 	"github.com/mkende/golink-url-shortener/internal/db"
 	"github.com/mkende/golink-url-shortener/internal/redirect"
+	serverMiddleware "github.com/mkende/golink-url-shortener/internal/server/middleware"
 )
 
 func (s *Server) handleRedirect(w http.ResponseWriter, r *http.Request) {
@@ -27,34 +27,45 @@ func (s *Server) handleRedirect(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Per-link auth enforcement
 	id := auth.FromContext(r.Context())
-	if link.RequireAuth && id == nil {
-		loginURL := "/auth/login?rd=" + url.QueryEscape(r.URL.RequestURI())
-		if s.cfg.OIDC.Enabled && s.cfg.CanonicalDomain != "" {
-			loginURL = "https://" + s.cfg.CanonicalDomain + loginURL
-		}
-		http.Redirect(w, r, loginURL, http.StatusFound)
+	needsAuth := link.RequireAuth || s.cfg.RequireAuthForRedirects
+
+	// Step 2: public link with no global auth requirement — redirect immediately,
+	// skipping canonical-domain and auth checks entirely.
+	if !needsAuth {
+		s.doRedirect(w, r, link, name, suffix, id)
 		return
 	}
 
-	// Global require_auth_for_redirects enforcement
-	if s.cfg.RequireAuthForRedirects && id == nil {
-		loginURL := "/auth/login?rd=" + url.QueryEscape(r.URL.RequestURI())
-		if s.cfg.OIDC.Enabled && s.cfg.CanonicalDomain != "" {
-			loginURL = "https://" + s.cfg.CanonicalDomain + loginURL
-		}
-		http.Redirect(w, r, loginURL, http.StatusFound)
+	// Step 3: for auth-required links, redirect to canonical domain first so
+	// the session cookie is valid when the user returns after logging in.
+	if serverMiddleware.RedirectToCanonical(s.cfg, s.trustedNets, w, r) {
 		return
 	}
 
+	// Step 5: enforce authentication.
+	if id == nil {
+		if s.cfg.OIDC.Enabled {
+			auth.LoginRedirect(w, r)
+		} else {
+			s.renderUnauthorized(w, r)
+		}
+		return
+	}
+
+	s.doRedirect(w, r, link, name, suffix, id)
+}
+
+// doRedirect resolves the link and writes the redirect response. id may be nil
+// for public links.
+func (s *Server) doRedirect(w http.ResponseWriter, r *http.Request, link *db.Link, name, suffix string, id *auth.Identity) {
 	email := ""
 	if id != nil {
 		email = id.Email
 	}
 
 	// For alias links, resolve to the canonical link and apply its redirect
-	// logic.  The alias name is passed as the Alias template variable.
+	// logic. The alias name is passed as the Alias template variable.
 	aliasName := ""
 	if link.IsAlias() {
 		aliasName = name
@@ -76,6 +87,7 @@ func (s *Server) handleRedirect(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var targetURL string
+	var err error
 	if link.IsAdvanced() {
 		vars := redirect.TemplateVars{
 			Path:  suffix,

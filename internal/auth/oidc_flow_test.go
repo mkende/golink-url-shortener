@@ -14,12 +14,12 @@ import (
 )
 
 // newOIDCHandlerForTest creates an OIDCHandler backed by the given mock
-// OIDC server. CanonicalDomain is set to a placeholder; the mock token
+// OIDC server. CanonicalAddress is set to a placeholder; the mock token
 // endpoint does not validate redirect_uri so this is fine in tests.
 func newOIDCHandlerForTest(t *testing.T, m *mockoidc.MockOIDC) *auth.OIDCHandler {
 	t.Helper()
 	cfg := &config.Config{
-		CanonicalDomain: "go.example.com",
+		CanonicalAddress: "https://go.example.com",
 		OIDC: config.OIDCConfig{
 			Enabled:      true,
 			Issuer:       m.Issuer(),

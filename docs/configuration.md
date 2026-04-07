@@ -6,7 +6,7 @@ copy-pasteable template with inline comments.
 Pass the config file path to the server with the `-config` flag:
 
 ```bash
-golink -config /etc/golink/simple.conf
+golink -config /etc/golink/golink.conf
 ```
 
 All keys are optional unless marked **required**.
@@ -18,7 +18,8 @@ All keys are optional unless marked **required**.
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `listen_addr` | string | `"0.0.0.0:8080"` | TCP address the HTTP server binds to (host:port). |
-| `canonical_domain` | string | — | **Required.** Public hostname for this instance (no scheme), e.g. `"go.example.com"`. Used to build redirect URLs, enforce HTTPS redirects, and construct OIDC callback URLs. |
+| `canonical_address` | string | `""` | Public base URL including scheme, e.g. `"https://go.example.com"` or `"http://go"`. Required when OIDC is enabled. When set, non-redirect requests on a different scheme or host are redirected here with 301. |
+| `trusted_proxy` | list of strings | `[]` | CIDR ranges of trusted reverse proxies. When a request arrives from one of these IPs, `X-Forwarded-Proto` is trusted for scheme detection, and Tailscale/proxy-auth headers are accepted. Required when `proxy_auth.enabled = true`. |
 | `title` | string | `"GoLink"` | Human-readable product name shown in the browser title and navigation bar. |
 | `favicon_path` | string | `""` | Filesystem path to a custom favicon file (ICO, PNG, or SVG). Empty string uses the built-in default. |
 
@@ -40,9 +41,9 @@ Enable this when golink-url-shortener sits behind a Tailscale node that injects 
 
 ### `[oidc]` — OpenID Connect auth
 
-The OAuth2 callback URL is always `https://<canonical_domain>/auth/callback` and
-is derived automatically — you do not set it in the config file. Register this
-URL with your OIDC provider.
+The OAuth2 callback URL is always `<canonical_address>/auth/callback` and is
+derived automatically — you do not set it in the config file. Register this URL
+with your OIDC provider.
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
@@ -72,7 +73,7 @@ identity_providers:
         userinfo_signed_response_alg: none
 ```
 
-Then in `simple.conf`:
+Then in `golink.conf`:
 
 ```toml
 [oidc]
@@ -122,14 +123,14 @@ jwt_secret   = "replace-with-a-32-byte-random-string"
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `admin_emails` | []string | `[]` | Email addresses of users who have full admin privileges. Admins can manage API keys and run import/export operations. Example: `["alice@example.com", "bob@example.com"]`. |
-| `admin_group` | string | `""` | OIDC group name whose members are treated as admins. Requires `oidc.enabled = true` and a correctly configured `oidc.groups_claim`. |
+| `admin_groups` | []string | `[]` | OIDC/proxy-auth group names whose members are treated as admins. Requires OIDC (or proxy_auth with groups) to be enabled and the groups_claim to be correctly configured. Example: `["sre", "platform-team"]`. |
 
 ---
 
 ## Minimal example
 
 ```toml
-canonical_domain = "go.example.com"
+canonical_address = "https://go.example.com"
 
 [oidc]
 enabled      = true

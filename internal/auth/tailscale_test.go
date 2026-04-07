@@ -90,10 +90,8 @@ func TestTailscaleMiddleware_AdminEmail(t *testing.T) {
 
 func TestTailscaleMiddleware_TrustedCIDR_Accepted(t *testing.T) {
 	cfg := &config.Config{
-		Tailscale: config.TailscaleConfig{
-			Enabled:      true,
-			TrustedCIDRs: []string{"100.64.0.0/10"},
-		},
+		TrustedProxy: []string{"100.64.0.0/10"},
+		Tailscale:    config.TailscaleConfig{Enabled: true},
 	}
 	var got *auth.Identity
 	handler := auth.TailscaleMiddleware(cfg, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -114,10 +112,8 @@ func TestTailscaleMiddleware_TrustedCIDR_Accepted(t *testing.T) {
 
 func TestTailscaleMiddleware_TrustedCIDR_Rejected(t *testing.T) {
 	cfg := &config.Config{
-		Tailscale: config.TailscaleConfig{
-			Enabled:      true,
-			TrustedCIDRs: []string{"100.64.0.0/10"},
-		},
+		TrustedProxy: []string{"100.64.0.0/10"},
+		Tailscale:    config.TailscaleConfig{Enabled: true},
 	}
 	var got *auth.Identity
 	handler := auth.TailscaleMiddleware(cfg, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

@@ -14,18 +14,18 @@ import (
 // through unchanged. When a UserRepo is provided, the user record is upserted
 // asynchronously on each authenticated request.
 //
-// When cfg.Tailscale.TrustedCIDRs is non-empty the headers are only accepted
-// from requests whose original TCP remote address falls within one of those
-// ranges; headers from other IPs are silently ignored.
+// When cfg.TrustedProxy is non-empty the headers are only accepted from
+// requests whose original TCP remote address falls within one of those ranges;
+// headers from other IPs are silently ignored.
 func TailscaleMiddleware(cfg *config.Config, users db.UserRepo) func(http.Handler) http.Handler {
 	// Pre-parse CIDRs once at construction time so the hot path is allocation-free.
 	var trustedNets []*net.IPNet
-	if len(cfg.Tailscale.TrustedCIDRs) > 0 {
-		nets, err := parseCIDRs(cfg.Tailscale.TrustedCIDRs)
+	if len(cfg.TrustedProxy) > 0 {
+		nets, err := ParseCIDRs(cfg.TrustedProxy)
 		if err != nil {
 			// Config validation should have caught this; panic loudly in case it
 			// slips through (programmer error, not a runtime error).
-			panic("tailscale: invalid trusted_cidrs in config: " + err.Error())
+			panic("tailscale: invalid trusted_proxy in config: " + err.Error())
 		}
 		trustedNets = nets
 	}
@@ -44,7 +44,7 @@ func TailscaleMiddleware(cfg *config.Config, users db.UserRepo) func(http.Handle
 			// If trusted CIDRs are configured, reject headers from untrusted IPs.
 			if len(trustedNets) > 0 {
 				ip := remoteIP(r)
-				if ip == nil || !ipInRanges(ip, trustedNets) {
+				if ip == nil || !IPInRanges(ip, trustedNets) {
 					next.ServeHTTP(w, r)
 					return
 				}
@@ -73,16 +73,16 @@ func TailscaleMiddleware(cfg *config.Config, users db.UserRepo) func(http.Handle
 }
 
 // isAdmin reports whether the given identity has admin privileges according to
-// the config's admin_emails list and admin_group setting.
+// the config's admin_emails list and admin_groups setting.
 func isAdmin(cfg *config.Config, id *Identity) bool {
 	for _, email := range cfg.AdminEmails {
 		if email == id.Email {
 			return true
 		}
 	}
-	if cfg.AdminGroup != "" {
+	for _, adminGroup := range cfg.AdminGroups {
 		for _, g := range id.Groups {
-			if g == cfg.AdminGroup {
+			if g == adminGroup {
 				return true
 			}
 		}

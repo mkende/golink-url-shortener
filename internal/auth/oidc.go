@@ -44,7 +44,7 @@ func NewOIDCHandler(ctx context.Context, cfg *config.Config, users db.UserRepo) 
 	oauth2Cfg := oauth2.Config{
 		ClientID:     cfg.OIDC.ClientID,
 		ClientSecret: cfg.OIDC.ClientSecret,
-		RedirectURL:  "https://" + cfg.CanonicalDomain + "/auth/callback",
+		RedirectURL:  cfg.CanonicalAddress + "/auth/callback",
 		Endpoint:     provider.Endpoint(),
 		Scopes:       cfg.OIDC.Scopes,
 	}

@@ -25,9 +25,9 @@ func OriginalRemoteAddr(ctx context.Context) string {
 	return v
 }
 
-// parseCIDRs parses a slice of CIDR strings and returns the corresponding
+// ParseCIDRs parses a slice of CIDR strings and returns the corresponding
 // network list. It returns an error if any entry is not a valid CIDR.
-func parseCIDRs(cidrs []string) ([]*net.IPNet, error) {
+func ParseCIDRs(cidrs []string) ([]*net.IPNet, error) {
 	nets := make([]*net.IPNet, 0, len(cidrs))
 	for _, cidr := range cidrs {
 		_, ipnet, err := net.ParseCIDR(cidr)
@@ -39,8 +39,8 @@ func parseCIDRs(cidrs []string) ([]*net.IPNet, error) {
 	return nets, nil
 }
 
-// ipInRanges reports whether ip falls within any of the provided networks.
-func ipInRanges(ip net.IP, nets []*net.IPNet) bool {
+// IPInRanges reports whether ip falls within any of the provided networks.
+func IPInRanges(ip net.IP, nets []*net.IPNet) bool {
 	for _, n := range nets {
 		if n.Contains(ip) {
 			return true
@@ -49,11 +49,11 @@ func ipInRanges(ip net.IP, nets []*net.IPNet) bool {
 	return false
 }
 
-// remoteIP extracts the connecting IP address from the request. It prefers the
+// PeerIP extracts the connecting IP address from the request. It prefers the
 // original TCP address saved in context (before RealIP overrides r.RemoteAddr),
 // falling back to r.RemoteAddr when the context value is not present (e.g. in
 // unit tests). The port suffix is stripped.
-func remoteIP(r *http.Request) net.IP {
+func PeerIP(r *http.Request) net.IP {
 	addr := OriginalRemoteAddr(r.Context())
 	if addr == "" {
 		addr = r.RemoteAddr
@@ -65,3 +65,6 @@ func remoteIP(r *http.Request) net.IP {
 	}
 	return net.ParseIP(host)
 }
+
+// remoteIP is an unexported alias kept for use within the auth package only.
+func remoteIP(r *http.Request) net.IP { return PeerIP(r) }
