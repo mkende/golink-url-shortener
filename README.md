@@ -1,21 +1,23 @@
-# golink url shortener
+# GoLink URL shortener
 
-A production-grade URL shortener in the *go/* link style.
+High performance URL shortener, with support for Go templates, OIDC, tailscale,
+etc.
 
 ## Features
 
-- **Redirection syntax**: supports a simple syntax or advanced Go template with
-  regexp functions (`match`, `extract`, `replace`) and variables (`path`,
-  `parts`, `args`, `ua`, `email`)
-- **Authentication**: Tailscale header-based, OIDC (Authelia, Keycloak, etc.),
-  reverse proxy autorization header, etc.
-- **Link sharing**: Share links with other users by email or group
-- **REST API**: Full API support to create/edit/resolve links and perform
-  administrative duties (DB dump and restore).
-- **Easy to deploy**: Just one SQLite DB (or optionnaly Postgres), documentation
-  for Docker, Docker compose, Kubernetes, etc.
+- **Redirection syntax**: supports a simple syntax or an
+  [advanced syntax](docs/links.md) based on Go templates with regex functions
+  and variables extracted from context (for example, include the current user
+  email address in the destination URL).
+- **Authentication**: Tailscale header-based, OIDC (Authelia, Keycloak, etc.) or
+  reverse proxy autorization header.
+- **Link sharing**: Share links ownership with other users by email or group.
+- **Easy to deploy**: Just one SQLite DB (or, optionnaly, Postgres), follow our
+  [guides](docs/deployment.md) for Docker, Docker compose, Kubernetes, etc.
 - **High performance**: LRU cache and async use-count writes. Designed for 
   hundred of thousands of users and short links.
+- **REST API**: Full API support to create/edit/resolve links and perform
+  administrative duties (DB dump and restore).
 
 ## Quick start
 
@@ -50,14 +52,21 @@ golink -config golink.conf
 
 The server starts on `0.0.0.0:8080` by default.
 
+## AI Usage disclosure
+
+While the code itself of this server has been heavily written by Claude, the
+interface, the code structure, the authentication flow, the feature set, etc.
+have all been carefully designed and reviewed by a human. In addition,
+exhaustive testing of the various deployment options took place.
+
 ## Documentation
 
-| Doc | Description |
-|-----|-------------|
-| [docs/deployment.md](docs/deployment.md) | Self-host, Docker, Compose, Kubernetes |
-| [docs/configuration.md](docs/configuration.md) | All configuration options |
-| [docs/api.md](docs/api.md) | REST API reference |
-| [docs/links.md](docs/links.md) | Redirect pattern help |
+- **[docs/deployment.md](docs/deployment.md)** — Self-host, Docker, Compose, Kubernetes
+- **[docs/configuration.md](docs/configuration.md)** — All configuration options
+- **[docs/api.md](docs/api.md)** — REST API reference
+- **[docs/links.md](docs/links.md)** — Redirect pattern help
+- **[docs/auth-redirect](docs/auth-redirect.md)** — Implementation details on
+  the authentication patterns
 
 ## License
 

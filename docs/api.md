@@ -44,17 +44,15 @@ validated automatically on every request.
 
 ## Common Response Codes
 
-| Code | Meaning |
-|------|---------|
-| 200 | Success |
-| 201 | Resource created |
-| 204 | Success, no content |
-| 400 | Bad request — invalid input |
-| 401 | Not authenticated |
-| 403 | Forbidden — authenticated but not allowed |
-| 404 | Resource not found |
-| 409 | Conflict — e.g. duplicate link name |
-| 500 | Internal server error |
+- **200** — Success
+- **201** — Resource created
+- **204** — Success, no content
+- **400** — Bad request — invalid input
+- **401** — Not authenticated
+- **403** — Forbidden — authenticated but not allowed
+- **404** — Resource not found
+- **409** — Conflict — e.g. duplicate link name
+- **500** — Internal server error
 
 Error responses have the form:
 
@@ -76,13 +74,12 @@ Returns a paginated list of all links.
 
 **Query parameters**
 
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `page` | integer | 1 | 1-based page number |
-| `limit` | integer | 100 | Results per page (max 100) |
-| `q` | string | | Search substring matched against link names |
-| `sort` | string | `name` | Sort field: `name`, `created`, `last_used`, `use_count` |
-| `dir` | string | `asc` | Sort direction: `asc` or `desc` |
+- **`page`** (integer, default: 1) — 1-based page number.
+- **`limit`** (integer, default: 100) — Results per page (max 100).
+- **`q`** (string) — Search substring matched against link names.
+- **`sort`** (string, default: `name`) — Sort field: `name`, `created`,
+  `last_used`, or `use_count`.
+- **`dir`** (string, default: `asc`) — Sort direction: `asc` or `desc`.
 
 **Response**
 
@@ -153,12 +150,13 @@ Creates a new short link.
 }
 ```
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `name` | string | yes | Link name: ASCII alphanumeric, `-`, `_`, `.`; not a reserved word |
-| `target` | string | yes | Redirect target URL (`http://` or `https://` only) |
-| `is_advanced` | boolean | no | When true, `target` is treated as a Go template |
-| `require_auth` | boolean | no | When true, only authenticated users may follow the redirect |
+- **`name`** (string, required) — Link name: ASCII alphanumeric, `-`, `_`, `.`;
+  not a reserved word.
+- **`target`** (string, required) — Redirect target URL (`http://` or `https://`
+  only).
+- **`is_advanced`** (boolean) — When true, `target` is treated as a Go template.
+- **`require_auth`** (boolean) — When true, only authenticated users may follow
+  the redirect.
 
 **Response** `201 Created` with the created LinkResponse.
 
@@ -270,10 +268,9 @@ is never retrievable again.
 {"name": "CI pipeline", "read_only": true}
 ```
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `name` | string | yes | Human-readable description for the key |
-| `read_only` | boolean | no | `true` (default) for read-only access; `false` for read/write |
+- **`name`** (string, required) — Human-readable description for the key.
+- **`read_only`** (boolean) — `true` (default) for read-only access; `false`
+  for read/write.
 
 **Response** `201 Created`
 
@@ -389,12 +386,11 @@ Upserts all links from an export document. For each link:
 }
 ```
 
-| Field | Description |
-|-------|-------------|
-| `created` | Number of new links created |
-| `updated` | Number of existing links updated |
-| `skipped` | Number of links skipped due to validation or DB errors |
-| `errors` | Human-readable error messages for each skipped link (omitted when empty) |
+- **`created`** — Number of new links created.
+- **`updated`** — Number of existing links updated.
+- **`skipped`** — Number of links skipped due to validation or DB errors.
+- **`errors`** — Human-readable error messages for each skipped link (omitted
+  when empty).
 
 Returns `400` for malformed JSON body, `401` if not authenticated, `403` if
 not admin.
@@ -406,8 +402,8 @@ not admin.
 The admin web interface for managing API keys is available at:
 
 ```
-GET  /apikeys          List all keys; form to create a new key
-POST /apikeys          Create a new key (form submission)
+GET  /apikeys              List all keys; form to create a new key
+POST /apikeys              Create a new key (form submission)
 POST /apikeys/{id}/delete  Revoke a key (form submission)
 ```
 
@@ -418,23 +414,21 @@ These routes require an authenticated admin session (not API key auth).
 ## Advanced Links
 
 When `is_advanced` is `true`, the `target` field is evaluated as a Go template
-before the redirect is issued. The following variables are available:
+before the redirect is issued.
 
-| Variable | Type | Description |
-|----------|------|-------------|
-| `path` | string | Full path suffix after the link name |
-| `parts` | []string | Path suffix split by `/` |
-| `args` | string | Query string portion |
-| `ua` | string | User-Agent header value |
-| `email` | string | Authenticated user's email (empty if anonymous) |
+**Template variables:**
 
-Additional template functions:
+- **`path`** (string) — Full path suffix after the link name.
+- **`parts`** ([]string) — Path suffix split by `/`.
+- **`args`** (string) — Query string portion.
+- **`ua`** (string) — User-Agent header value.
+- **`email`** (string) — Authenticated user's email (empty if anonymous).
 
-| Function | Signature | Description |
-|----------|-----------|-------------|
-| `match` | `match(pattern, s)` | True if `s` contains a match for `pattern` |
-| `extract` | `extract(pattern, s)` | Returns the first submatch group |
-| `replace` | `replace(pattern, repl, s)` | Regexp replace on `s` |
+**Additional template functions:**
+
+- **`match(pattern, s)`** — True if `s` contains a match for `pattern`.
+- **`extract(pattern, s)`** — Returns the first submatch group.
+- **`replace(pattern, repl, s)`** — Regexp replace on `s`.
 
 **Example**: redirect `go/jira/PROJ-123` to
 `https://jira.example.com/browse/PROJ-123`:

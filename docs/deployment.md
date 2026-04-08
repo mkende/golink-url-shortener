@@ -34,12 +34,14 @@ Copy and edit the config template:
 cp config.template.toml /etc/golink/golink.conf
 ```
 
-At minimum set `canonical_address` and an authentication provider:
+At minimum set `canonical_address`, an authentication provider and the DB path:
 
 ```toml
 canonical_address = "https://go.example.com"
 [anonymous]
 enabled = true  # or configure tailscale/proxy_auth/oidc
+[db]
+dsn = "/var/lib/golink/golink.db"
 ```
 
 See [configuration.md](configuration.md) for all available options.
@@ -50,7 +52,8 @@ See [configuration.md](configuration.md) for all available options.
 golink -config /etc/golink/golink.conf
 ```
 
-The server listens on `0.0.0.0:8080` by default. Adjust `listen_addr` in the config to change the bind address or port.
+The server listens on `0.0.0.0:8080` by default. Adjust `listen_addr` in the
+config to change the bind address or port.
 
 ### systemd service
 
@@ -69,7 +72,6 @@ ExecStart=/usr/local/bin/golink -config /etc/golink/golink.conf
 Restart=on-failure
 RestartSec=5s
 
-# Harden the service
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
@@ -89,7 +91,8 @@ sudo journalctl -u golink -f
 
 ### Reverse proxy (nginx)
 
-golink-url-shortener does not terminate TLS itself. Place it behind a reverse proxy. Example nginx config:
+golink-url-shortener does not terminate TLS itself. Place it behind a reverse
+proxy. Example nginx config:
 
 ```nginx
 server {
@@ -108,7 +111,8 @@ server {
 }
 ```
 
-Alternatively, use [Caddy](https://caddyserver.com/) which handles TLS automatically:
+Alternatively, use [Caddy](https://caddyserver.com/) which handles TLS
+automatically:
 
 ```
 go.example.com {
@@ -120,7 +124,7 @@ go.example.com {
 
 ## Docker
 
-A pre-built image is published to `ghcr.io/mkende/golink-url-shortener`.
+A pre-built image is published to `ghcr.io/mkende/golink`.
 
 ### Basic run
 
@@ -130,20 +134,22 @@ docker run -d \
   -p 8080:8080 \
   -v /data/golink:/data \
   -e GOLINK_CONFIG=/data/golink.conf \
-  ghcr.io/mkende/golink-url-shortener:latest
+  ghcr.io/mkende/golink:latest
 ```
 
-Mount a directory to `/data` and place your `golink.conf` there. The SQLite database file is also stored there by default (set `db.dsn = "/data/golink.db"` in your config).
+Mount a directory to `/data` and place your `golink.conf` there. The SQLite
+database file is also stored there by default (set `db.dsn = "/data/golink.db"`
+in your config).
 
 ### Config via environment
 
-The container reads the config file path from the `GOLINK_CONFIG` environment variable (or the `-config` flag). There is no environment-variable substitution for individual config keys; use the TOML file for all settings.
+The container reads the config file path from the `GOLINK_CONFIG` environment
+variable (or the `-config` flag). There is no environment-variable substitution
+for individual config keys; use the TOML file for all settings.
 
 ### Volumes
 
-| Mount path | Purpose |
-|------------|---------|
-| `/data` | Config file and SQLite database (persistent) |
+- **`/data`** — Config file and SQLite database (persistent).
 
 ---
 
@@ -281,15 +287,13 @@ on the http://go domain (and on the http://go.your-tailnet-domain.com).
 }
 ```
 
-### Mounting the config
-
-When using bind mounts instead of named volumes, ensure the config file exists on the host before running `docker compose up`.
-
 ---
 
 ## Kubernetes
 
-The examples below use a single-replica SQLite deployment for simplicity. For multi-replica deployments, switch to PostgreSQL (see the note at the end of this section).
+The examples below use a single-replica SQLite deployment for simplicity. For
+multi-replica deployments, switch to PostgreSQL (see the note at the end of this
+section).
 
 ### ConfigMap
 
@@ -355,7 +359,7 @@ spec:
     spec:
       containers:
         - name: golink
-          image: ghcr.io/mkende/golink-url-shortener:latest
+          image: ghcr.io/mkende/golink:latest
           args: ["-config", "/etc/golink/golink.conf"]
           ports:
             - containerPort: 8080
@@ -429,7 +433,9 @@ spec:
 
 ### Multi-replica note
 
-SQLite uses file-level locking and is not safe for concurrent writes from multiple processes. If you need more than one replica (for high availability or rolling updates), switch to PostgreSQL:
+SQLite uses file-level locking and is not safe for concurrent writes from
+multiple processes. If you need more than one replica (for high availability or
+rolling updates), switch to PostgreSQL:
 
 ```toml
 [db]
@@ -437,4 +443,7 @@ driver = "postgres"
 dsn = "host=postgres.golink.svc.cluster.local dbname=golink user=golink password=changeme sslmode=require"
 ```
 
-With PostgreSQL you can safely run multiple replicas. The in-process LRU cache is per-replica; cache invalidation on edit/delete applies only to the local replica, so there may be a brief window (at most one cache TTL) where a stale entry is served on other replicas.
+With PostgreSQL you can safely run multiple replicas. The in-process LRU cache
+is per-replica; cache invalidation on edit/delete applies only to the local
+replica, so there may be a brief window (at most one cache TTL) where a stale
+entry is served on other replicas.
