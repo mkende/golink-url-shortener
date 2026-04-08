@@ -95,7 +95,7 @@ func TestCachingLinkRepo_HitAndMiss(t *testing.T) {
 			}
 
 			counter := &countingLinkRepo{inner: base}
-			cache, err := NewCachingLinkRepo(counter, 100)
+			cache, err := NewCachingLinkRepo(counter, 100, 0)
 			if err != nil {
 				t.Fatalf("NewCachingLinkRepo: %v", err)
 			}
@@ -138,7 +138,7 @@ func TestCachingLinkRepo_InvalidateOnUpdate(t *testing.T) {
 			}
 
 			counter := &countingLinkRepo{inner: base}
-			cache, err := NewCachingLinkRepo(counter, 100)
+			cache, err := NewCachingLinkRepo(counter, 100, 0)
 			if err != nil {
 				t.Fatalf("NewCachingLinkRepo: %v", err)
 			}
@@ -183,7 +183,7 @@ func TestCachingLinkRepo_InvalidateOnDelete(t *testing.T) {
 			}
 
 			counter := &countingLinkRepo{inner: base}
-			cache, err := NewCachingLinkRepo(counter, 100)
+			cache, err := NewCachingLinkRepo(counter, 100, 0)
 			if err != nil {
 				t.Fatalf("NewCachingLinkRepo: %v", err)
 			}
@@ -216,7 +216,7 @@ func TestCachingLinkRepo_CreatePopulatesCache(t *testing.T) {
 			ctx := context.Background()
 
 			counter := &countingLinkRepo{inner: base}
-			cache, err := NewCachingLinkRepo(counter, 100)
+			cache, err := NewCachingLinkRepo(counter, 100, 0)
 			if err != nil {
 				t.Fatalf("NewCachingLinkRepo: %v", err)
 			}

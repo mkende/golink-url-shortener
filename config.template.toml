@@ -89,6 +89,14 @@ log_level = "info"
 # Default: 1000
 cache_size = 1000
 
+# Maximum time a link stays in the redirect cache before being re-fetched from
+# the database. Use Go duration syntax: "5m", "1h", "30s", etc. An empty string
+# or "0" disables time-based expiry (entries are only evicted by LRU pressure).
+# Setting a TTL ensures that fields updated asynchronously (e.g. use_count) are
+# eventually reflected on link detail pages without requiring a server restart.
+# Default: "" (no TTL)
+# cache_ttl = "5m"
+
 # Maximum number of alias links that may target any single canonical link.
 # Attempts to create aliases beyond this limit are rejected.
 # Default: 100
@@ -132,6 +140,9 @@ is_admin = false
 # When your server sits behind a Tailscale node that injects Tailscale-User-*
 # headers, enable this to use those headers for authentication. No additional
 # credentials are needed.
+#
+# Note that we don't support Tailnet capabilities header. Admin role must be
+# granted through the admin options above.
 #
 # Set trusted_proxy to the Tailscale CGNAT range (100.64.0.0/10) or to
 # 127.0.0.0/8 when running as a local service reachable only via localhost.
@@ -201,6 +212,10 @@ scopes = ["openid", "email", "profile"]
 # Default: "groups" (correct for Authelia, Keycloak, Dex, and most providers)
 groups_claim = "groups"
 
+# HMAC secret used to sign session JWT cookies. Use a long random string
+# (at least 32 bytes). Generate one with: openssl rand -base64 32
+jwt_secret = ""
+
 # ── Authelia provider notes ───────────────────────────────────────────────────
 # When using Authelia as your OIDC provider, register a client with these
 # settings in your Authelia configuration (authelia/configuration.yml):
@@ -221,14 +236,6 @@ groups_claim = "groups"
 #   canonical_address = "https://go.example.com"
 #   issuer = "https://authelia.example.com"   # Authelia root URL
 #   scopes = ["openid", "email", "profile", "groups"]
-#
-# The redirect URL (<canonical_address>/auth/callback) is constructed
-# automatically from canonical_address — no redirect_url setting is needed.
-
-# REQUIRED when oidc.enabled = true.
-# HMAC secret used to sign session JWT cookies. Use a long random string
-# (at least 32 bytes). Generate one with: openssl rand -base64 32
-jwt_secret = ""
 
 # ─── Database ─────────────────────────────────────────────────────────────────
 [db]

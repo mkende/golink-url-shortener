@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/url"
 	"os"
+	"time"
 
 	"github.com/BurntSushi/toml"
 )
@@ -158,6 +159,17 @@ type Config struct {
 	// Defaults to 1000.
 	CacheSize int `toml:"cache_size"`
 
+	// CacheTTL is the maximum time a link is kept in the redirect cache before
+	// being evicted and re-fetched from the database on next access. Use Go
+	// duration syntax, e.g. "5m", "1h", "30s". An empty string or "0" disables
+	// time-based expiry (entries are only evicted by LRU pressure). Defaults to
+	// "" (no TTL).
+	CacheTTL string `toml:"cache_ttl"`
+
+	// CacheTTLDuration is CacheTTL parsed into a time.Duration. It is populated
+	// by Load and must not be set directly in the config file.
+	CacheTTLDuration time.Duration `toml:"-"`
+
 	// MaxAliasesPerLink is the maximum number of alias links that may target
 	// any single canonical link.  Defaults to 100.
 	MaxAliasesPerLink int `toml:"max_aliases_per_link"`
@@ -307,6 +319,16 @@ func validate(c *Config) error {
 		// valid
 	default:
 		return fmt.Errorf("log_level must be one of \"debug\", \"info\", \"warn\", \"error\", got %q", c.LogLevel)
+	}
+	if c.CacheTTL != "" && c.CacheTTL != "0" {
+		d, err := time.ParseDuration(c.CacheTTL)
+		if err != nil {
+			return fmt.Errorf("cache_ttl: %w", err)
+		}
+		if d < 0 {
+			return fmt.Errorf("cache_ttl must be non-negative, got %q", c.CacheTTL)
+		}
+		c.CacheTTLDuration = d
 	}
 	return nil
 }

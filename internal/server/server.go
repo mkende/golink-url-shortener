@@ -50,7 +50,7 @@ func New(cfg *config.Config, sqlDB *db.DB, logger *slog.Logger, oidcHandler *aut
 		cacheSize = 1000
 	}
 	baseRepo := db.NewLinkRepo(sqlDB)
-	cachingRepo, err := db.NewCachingLinkRepo(baseRepo, cacheSize)
+	cachingRepo, err := db.NewCachingLinkRepo(baseRepo, cacheSize, cfg.CacheTTLDuration)
 	if err != nil {
 		panic("failed to create link cache: " + err.Error())
 	}

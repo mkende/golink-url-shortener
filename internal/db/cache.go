@@ -2,24 +2,27 @@ package db
 
 import (
 	"context"
+	"fmt"
+	"time"
 
-	lru "github.com/hashicorp/golang-lru/v2"
+	"github.com/hashicorp/golang-lru/v2/expirable"
 )
 
 // CachingLinkRepo wraps a LinkRepo with an LRU cache for GetByName lookups,
 // dramatically reducing database reads on the hot redirect path.
+// Entries expire after ttl; a ttl of 0 means entries never expire by time.
 type CachingLinkRepo struct {
 	inner LinkRepo
-	cache *lru.Cache[string, *Link] // key: name_lower
+	cache *expirable.LRU[string, *Link] // key: name_lower
 }
 
-// NewCachingLinkRepo creates a CachingLinkRepo with the given LRU cache size.
-// size must be > 0.
-func NewCachingLinkRepo(inner LinkRepo, size int) (*CachingLinkRepo, error) {
-	c, err := lru.New[string, *Link](size)
-	if err != nil {
-		return nil, err
+// NewCachingLinkRepo creates a CachingLinkRepo with the given LRU cache size
+// and optional TTL. size must be > 0. A ttl of 0 disables time-based expiry.
+func NewCachingLinkRepo(inner LinkRepo, size int, ttl time.Duration) (*CachingLinkRepo, error) {
+	if size <= 0 {
+		return nil, fmt.Errorf("cache size must be > 0, got %d", size)
 	}
+	c := expirable.NewLRU[string, *Link](size, nil, ttl)
 	return &CachingLinkRepo{inner: inner, cache: c}, nil
 }
 
