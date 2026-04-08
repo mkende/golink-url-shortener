@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/mkende/golink-url-shortener/internal/auth"
 )
 
 // RequestAttrs is a mutable bag of per-request attributes populated by inner
@@ -55,6 +56,9 @@ func RequestLogger(logger *slog.Logger) func(http.Handler) http.Handler {
 				"bytes", ww.BytesWritten(),
 				"duration_ms", time.Since(start).Milliseconds(),
 				"remote_addr", r.RemoteAddr,
+			}
+			if peer := auth.OriginalRemoteAddr(r.Context()); peer != "" && peer != r.RemoteAddr {
+				args = append(args, "peer_addr", peer)
 			}
 			if attrs.AuthSource != "" {
 				args = append(args, "auth_source", attrs.AuthSource)

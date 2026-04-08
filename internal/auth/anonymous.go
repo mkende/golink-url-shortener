@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"log/slog"
 	"net/http"
 
 	"github.com/mkende/golink-url-shortener/internal/config"
@@ -21,7 +22,12 @@ var anonymousIdentity = &Identity{
 // This mode is intended for local development, testing, or isolated private
 // instances where user management is unnecessary. Do not enable it on a
 // publicly reachable server.
-func AnonymousMiddleware(cfg *config.Config) func(http.Handler) http.Handler {
+//
+// If logger is nil, slog.Default() is used.
+func AnonymousMiddleware(cfg *config.Config, logger *slog.Logger) func(http.Handler) http.Handler {
+	if logger == nil {
+		logger = slog.Default()
+	}
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if !cfg.Anonymous.Enabled {
@@ -39,6 +45,9 @@ func AnonymousMiddleware(cfg *config.Config) func(http.Handler) http.Handler {
 				IsAdmin:     cfg.Anonymous.IsAdmin,
 				Source:      AuthSourceAnonymous,
 			}
+			logger.DebugContext(r.Context(), "anonymous: no prior auth; using anonymous identity",
+				"is_admin", id.IsAdmin,
+			)
 			next.ServeHTTP(w, r.WithContext(WithIdentity(r.Context(), id)))
 		})
 	}

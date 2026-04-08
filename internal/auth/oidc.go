@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -230,7 +231,12 @@ func (h *OIDCHandler) issueSessionCookie(w http.ResponseWriter, id *Identity) er
 // OIDCMiddleware reads the session JWT cookie and populates the identity
 // context. If OIDC is disabled or no valid cookie is present, the request
 // passes through unchanged.
-func OIDCMiddleware(cfg *config.Config) func(http.Handler) http.Handler {
+//
+// If logger is nil, slog.Default() is used.
+func OIDCMiddleware(cfg *config.Config, logger *slog.Logger) func(http.Handler) http.Handler {
+	if logger == nil {
+		logger = slog.Default()
+	}
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if !cfg.OIDC.Enabled {
@@ -239,6 +245,7 @@ func OIDCMiddleware(cfg *config.Config) func(http.Handler) http.Handler {
 			}
 			cookie, err := r.Cookie(sessionCookieName)
 			if err != nil {
+				logger.DebugContext(r.Context(), "oidc: no session cookie present")
 				next.ServeHTTP(w, r)
 				return
 			}
@@ -250,6 +257,7 @@ func OIDCMiddleware(cfg *config.Config) func(http.Handler) http.Handler {
 				return []byte(cfg.OIDC.JWTSecret), nil
 			})
 			if err != nil || !jwtToken.Valid {
+				logger.DebugContext(r.Context(), "oidc: invalid or expired session cookie", "error", err)
 				next.ServeHTTP(w, r)
 				return
 			}
@@ -261,6 +269,10 @@ func OIDCMiddleware(cfg *config.Config) func(http.Handler) http.Handler {
 				IsAdmin:     claims.IsAdmin,
 				Source:      AuthSourceOIDC,
 			}
+			logger.DebugContext(r.Context(), "oidc: identity established",
+				"email", id.Email,
+				"is_admin", id.IsAdmin,
+			)
 			next.ServeHTTP(w, r.WithContext(WithIdentity(r.Context(), id)))
 		})
 	}

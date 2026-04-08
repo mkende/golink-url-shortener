@@ -43,7 +43,7 @@ func makeSessionCookie(t *testing.T, email string, isAdmin bool, expiry time.Tim
 func TestOIDCMiddleware_Disabled(t *testing.T) {
 	cfg := &config.Config{OIDC: config.OIDCConfig{Enabled: false, JWTSecret: testJWTSecret}}
 	called := false
-	handler := auth.OIDCMiddleware(cfg)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := auth.OIDCMiddleware(cfg, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		called = true
 		if id := auth.FromContext(r.Context()); id != nil {
 			t.Error("expected no identity when OIDC disabled")
@@ -60,7 +60,7 @@ func TestOIDCMiddleware_Disabled(t *testing.T) {
 
 func TestOIDCMiddleware_NoCookie(t *testing.T) {
 	cfg := &config.Config{OIDC: config.OIDCConfig{Enabled: true, JWTSecret: testJWTSecret}}
-	handler := auth.OIDCMiddleware(cfg)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := auth.OIDCMiddleware(cfg, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if id := auth.FromContext(r.Context()); id != nil {
 			t.Error("expected no identity without cookie")
 		}
@@ -72,7 +72,7 @@ func TestOIDCMiddleware_NoCookie(t *testing.T) {
 func TestOIDCMiddleware_ValidCookie(t *testing.T) {
 	cfg := &config.Config{OIDC: config.OIDCConfig{Enabled: true, JWTSecret: testJWTSecret}}
 	var got *auth.Identity
-	handler := auth.OIDCMiddleware(cfg)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := auth.OIDCMiddleware(cfg, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		got = auth.FromContext(r.Context())
 	}))
 
@@ -93,7 +93,7 @@ func TestOIDCMiddleware_ValidCookie(t *testing.T) {
 
 func TestOIDCMiddleware_ExpiredCookie(t *testing.T) {
 	cfg := &config.Config{OIDC: config.OIDCConfig{Enabled: true, JWTSecret: testJWTSecret}}
-	handler := auth.OIDCMiddleware(cfg)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := auth.OIDCMiddleware(cfg, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if id := auth.FromContext(r.Context()); id != nil {
 			t.Error("expected no identity for expired token")
 		}
@@ -106,7 +106,7 @@ func TestOIDCMiddleware_ExpiredCookie(t *testing.T) {
 
 func TestOIDCMiddleware_WrongSecret(t *testing.T) {
 	cfg := &config.Config{OIDC: config.OIDCConfig{Enabled: true, JWTSecret: "wrong-secret"}}
-	handler := auth.OIDCMiddleware(cfg)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := auth.OIDCMiddleware(cfg, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if id := auth.FromContext(r.Context()); id != nil {
 			t.Error("expected no identity with wrong secret")
 		}

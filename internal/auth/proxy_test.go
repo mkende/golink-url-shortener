@@ -35,7 +35,7 @@ func trustedReq(remoteAddr string) *http.Request {
 func TestProxyAuthMiddleware_Disabled(t *testing.T) {
 	cfg := proxyCfg(false, "127.0.0.0/8")
 	var got *auth.Identity
-	h := auth.ProxyAuthMiddleware(cfg, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	h := auth.ProxyAuthMiddleware(cfg, nil, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		got = auth.FromContext(r.Context())
 	}))
 
@@ -51,7 +51,7 @@ func TestProxyAuthMiddleware_Disabled(t *testing.T) {
 func TestProxyAuthMiddleware_UntrustedIP(t *testing.T) {
 	cfg := proxyCfg(true, "127.0.0.0/8")
 	var got *auth.Identity
-	h := auth.ProxyAuthMiddleware(cfg, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	h := auth.ProxyAuthMiddleware(cfg, nil, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		got = auth.FromContext(r.Context())
 	}))
 
@@ -67,7 +67,7 @@ func TestProxyAuthMiddleware_UntrustedIP(t *testing.T) {
 func TestProxyAuthMiddleware_NoUserHeader(t *testing.T) {
 	cfg := proxyCfg(true, "127.0.0.0/8")
 	var got *auth.Identity
-	h := auth.ProxyAuthMiddleware(cfg, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	h := auth.ProxyAuthMiddleware(cfg, nil, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		got = auth.FromContext(r.Context())
 	}))
 
@@ -83,7 +83,7 @@ func TestProxyAuthMiddleware_NoUserHeader(t *testing.T) {
 func TestProxyAuthMiddleware_EmailHeaderTakesPrecedence(t *testing.T) {
 	cfg := proxyCfg(true, "127.0.0.0/8")
 	var got *auth.Identity
-	h := auth.ProxyAuthMiddleware(cfg, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	h := auth.ProxyAuthMiddleware(cfg, nil, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		got = auth.FromContext(r.Context())
 	}))
 
@@ -113,7 +113,7 @@ func TestProxyAuthMiddleware_EmailHeaderTakesPrecedence(t *testing.T) {
 func TestProxyAuthMiddleware_FallsBackToUserHeader(t *testing.T) {
 	cfg := proxyCfg(true, "127.0.0.0/8")
 	var got *auth.Identity
-	h := auth.ProxyAuthMiddleware(cfg, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	h := auth.ProxyAuthMiddleware(cfg, nil, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		got = auth.FromContext(r.Context())
 	}))
 
@@ -133,7 +133,7 @@ func TestProxyAuthMiddleware_FallsBackToUserHeader(t *testing.T) {
 func TestProxyAuthMiddleware_Groups(t *testing.T) {
 	cfg := proxyCfg(true, "10.0.0.0/8")
 	var got *auth.Identity
-	h := auth.ProxyAuthMiddleware(cfg, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	h := auth.ProxyAuthMiddleware(cfg, nil, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		got = auth.FromContext(r.Context())
 	}))
 
@@ -160,7 +160,7 @@ func TestProxyAuthMiddleware_AdminEmail(t *testing.T) {
 	cfg := proxyCfg(true, "127.0.0.0/8")
 	cfg.AdminEmails = []string{"admin@example.com"}
 	var got *auth.Identity
-	h := auth.ProxyAuthMiddleware(cfg, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	h := auth.ProxyAuthMiddleware(cfg, nil, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		got = auth.FromContext(r.Context())
 	}))
 
@@ -177,7 +177,7 @@ func TestProxyAuthMiddleware_AdminGroup(t *testing.T) {
 	cfg := proxyCfg(true, "127.0.0.0/8")
 	cfg.AdminGroups = []string{"superusers"}
 	var got *auth.Identity
-	h := auth.ProxyAuthMiddleware(cfg, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	h := auth.ProxyAuthMiddleware(cfg, nil, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		got = auth.FromContext(r.Context())
 	}))
 
@@ -194,7 +194,7 @@ func TestProxyAuthMiddleware_AdminGroup(t *testing.T) {
 func TestProxyAuthMiddleware_IPv6Trusted(t *testing.T) {
 	cfg := proxyCfg(true, "::1/128")
 	var got *auth.Identity
-	h := auth.ProxyAuthMiddleware(cfg, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	h := auth.ProxyAuthMiddleware(cfg, nil, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		got = auth.FromContext(r.Context())
 	}))
 
@@ -212,7 +212,7 @@ func TestProxyAuthMiddleware_SkipsIfAlreadyAuthenticated(t *testing.T) {
 	existing := &auth.Identity{Email: "first@example.com", Source: auth.AuthSourceTailscale}
 
 	var got *auth.Identity
-	h := auth.ProxyAuthMiddleware(cfg, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	h := auth.ProxyAuthMiddleware(cfg, nil, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		got = auth.FromContext(r.Context())
 	}))
 

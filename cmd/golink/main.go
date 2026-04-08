@@ -37,7 +37,18 @@ func main() {
 	}
 
 	// structured logger
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	var logLevel slog.Level
+	switch cfg.LogLevel {
+	case "debug":
+		logLevel = slog.LevelDebug
+	case "warn":
+		logLevel = slog.LevelWarn
+	case "error":
+		logLevel = slog.LevelError
+	default:
+		logLevel = slog.LevelInfo
+	}
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: logLevel}))
 
 	ctx := context.Background()
 	sqlDB, err := db.Open(ctx, cfg.DB.Driver, cfg.DB.DSN)

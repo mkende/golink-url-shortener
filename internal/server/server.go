@@ -113,10 +113,10 @@ func (s *Server) buildRouter() chi.Router {
 	// Auth middleware: populate identity context from Tailscale headers,
 	// reverse-proxy forward-auth headers, JWT cookie, or anonymous fallback
 	// (in that priority order).
-	r.Use(auth.TailscaleMiddleware(s.cfg, s.users))
-	r.Use(auth.ProxyAuthMiddleware(s.cfg, s.users))
-	r.Use(auth.OIDCMiddleware(s.cfg))
-	r.Use(auth.AnonymousMiddleware(s.cfg))
+	r.Use(auth.TailscaleMiddleware(s.cfg, s.users, s.logger))
+	r.Use(auth.ProxyAuthMiddleware(s.cfg, s.users, s.logger))
+	r.Use(auth.OIDCMiddleware(s.cfg, s.logger))
+	r.Use(auth.AnonymousMiddleware(s.cfg, s.logger))
 
 	// Log enrichment: runs after all auth middleware so that the auth source
 	// and request domain are available for both the request log line and any

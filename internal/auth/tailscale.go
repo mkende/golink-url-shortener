@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"log/slog"
 	"net"
 	"net/http"
 
@@ -17,7 +18,16 @@ import (
 // When cfg.TrustedProxy is non-empty the headers are only accepted from
 // requests whose original TCP remote address falls within one of those ranges;
 // headers from other IPs are silently ignored.
-func TailscaleMiddleware(cfg *config.Config, users db.UserRepo) func(http.Handler) http.Handler {
+//
+// Note: Tailscale only injects Tailscale-User-* headers when using
+// `tailscale serve` in HTTP proxy mode (i.e. via Handlers, not TCPForward).
+// Plain TCP forwarding does not inject these headers.
+//
+// If logger is nil, slog.Default() is used.
+func TailscaleMiddleware(cfg *config.Config, users db.UserRepo, logger *slog.Logger) func(http.Handler) http.Handler {
+	if logger == nil {
+		logger = slog.Default()
+	}
 	// Pre-parse CIDRs once at construction time so the hot path is allocation-free.
 	var trustedNets []*net.IPNet
 	if len(cfg.TrustedProxy) > 0 {
@@ -38,6 +48,7 @@ func TailscaleMiddleware(cfg *config.Config, users db.UserRepo) func(http.Handle
 			}
 			login := r.Header.Get("Tailscale-User-Login")
 			if login == "" {
+				logger.DebugContext(r.Context(), "tailscale: no Tailscale-User-Login header; headers are only injected by `tailscale serve` HTTP proxy mode, not TCPForward")
 				next.ServeHTTP(w, r)
 				return
 			}
@@ -45,6 +56,10 @@ func TailscaleMiddleware(cfg *config.Config, users db.UserRepo) func(http.Handle
 			if len(trustedNets) > 0 {
 				ip := remoteIP(r)
 				if ip == nil || !IPInRanges(ip, trustedNets) {
+					logger.DebugContext(r.Context(), "tailscale: request from untrusted IP, ignoring headers",
+						"remote_ip", ip,
+						"trusted_cidrs", cfg.TrustedProxy,
+					)
 					next.ServeHTTP(w, r)
 					return
 				}
@@ -57,6 +72,10 @@ func TailscaleMiddleware(cfg *config.Config, users db.UserRepo) func(http.Handle
 				Source:      AuthSourceTailscale,
 			}
 			id.IsAdmin = isAdmin(cfg, id)
+			logger.DebugContext(r.Context(), "tailscale: identity established",
+				"email", id.Email,
+				"is_admin", id.IsAdmin,
+			)
 
 			if users != nil {
 				go func() {

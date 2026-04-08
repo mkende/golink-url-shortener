@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"log/slog"
 	"net"
 	"net/http"
 	"strings"
@@ -25,7 +26,12 @@ import (
 // Identity.Email is set from EmailHeader when present; otherwise UserHeader is
 // used as the identifier. All four header names are configurable via
 // ProxyAuthConfig.
-func ProxyAuthMiddleware(cfg *config.Config, users db.UserRepo) func(http.Handler) http.Handler {
+//
+// If logger is nil, slog.Default() is used.
+func ProxyAuthMiddleware(cfg *config.Config, users db.UserRepo, logger *slog.Logger) func(http.Handler) http.Handler {
+	if logger == nil {
+		logger = slog.Default()
+	}
 	// Pre-parse CIDRs once at construction time.
 	var trustedNets []*net.IPNet
 	if len(cfg.TrustedProxy) > 0 {
@@ -48,6 +54,10 @@ func ProxyAuthMiddleware(cfg *config.Config, users db.UserRepo) func(http.Handle
 			// Only accept headers from trusted IP ranges.
 			ip := remoteIP(r)
 			if ip == nil || !IPInRanges(ip, trustedNets) {
+				logger.DebugContext(r.Context(), "proxy_auth: request from untrusted IP, ignoring headers",
+					"remote_ip", ip,
+					"trusted_cidrs", cfg.TrustedProxy,
+				)
 				next.ServeHTTP(w, r)
 				return
 			}
@@ -62,6 +72,11 @@ func ProxyAuthMiddleware(cfg *config.Config, users db.UserRepo) func(http.Handle
 			}
 			if email == "" {
 				// Proxy is trusted but sent no identity headers — unauthenticated.
+				logger.DebugContext(r.Context(), "proxy_auth: trusted IP but no identity headers present",
+					"remote_ip", ip,
+					"email_header", cfg.ProxyAuth.EmailHeader,
+					"user_header", cfg.ProxyAuth.UserHeader,
+				)
 				next.ServeHTTP(w, r)
 				return
 			}
@@ -77,6 +92,10 @@ func ProxyAuthMiddleware(cfg *config.Config, users db.UserRepo) func(http.Handle
 			}
 
 			id.IsAdmin = isAdmin(cfg, id)
+			logger.DebugContext(r.Context(), "proxy_auth: identity established",
+				"email", id.Email,
+				"is_admin", id.IsAdmin,
+			)
 
 			if users != nil {
 				go func() {

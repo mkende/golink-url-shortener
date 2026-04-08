@@ -13,7 +13,7 @@ import (
 func TestTailscaleMiddleware_Disabled(t *testing.T) {
 	cfg := &config.Config{Tailscale: config.TailscaleConfig{Enabled: false}}
 	called := false
-	handler := auth.TailscaleMiddleware(cfg, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := auth.TailscaleMiddleware(cfg, nil, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		called = true
 		if id := auth.FromContext(r.Context()); id != nil {
 			t.Error("expected no identity when Tailscale is disabled")
@@ -30,7 +30,7 @@ func TestTailscaleMiddleware_Disabled(t *testing.T) {
 
 func TestTailscaleMiddleware_NoHeader(t *testing.T) {
 	cfg := &config.Config{Tailscale: config.TailscaleConfig{Enabled: true}}
-	handler := auth.TailscaleMiddleware(cfg, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := auth.TailscaleMiddleware(cfg, nil, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if id := auth.FromContext(r.Context()); id != nil {
 			t.Error("expected no identity without headers")
 		}
@@ -42,7 +42,7 @@ func TestTailscaleMiddleware_NoHeader(t *testing.T) {
 func TestTailscaleMiddleware_ParsesHeaders(t *testing.T) {
 	cfg := &config.Config{Tailscale: config.TailscaleConfig{Enabled: true}}
 	var got *auth.Identity
-	handler := auth.TailscaleMiddleware(cfg, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := auth.TailscaleMiddleware(cfg, nil, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		got = auth.FromContext(r.Context())
 	}))
 
@@ -75,7 +75,7 @@ func TestTailscaleMiddleware_AdminEmail(t *testing.T) {
 		AdminEmails: []string{"admin@example.com"},
 	}
 	var got *auth.Identity
-	handler := auth.TailscaleMiddleware(cfg, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := auth.TailscaleMiddleware(cfg, nil, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		got = auth.FromContext(r.Context())
 	}))
 
@@ -94,7 +94,7 @@ func TestTailscaleMiddleware_TrustedCIDR_Accepted(t *testing.T) {
 		Tailscale:    config.TailscaleConfig{Enabled: true},
 	}
 	var got *auth.Identity
-	handler := auth.TailscaleMiddleware(cfg, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := auth.TailscaleMiddleware(cfg, nil, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		got = auth.FromContext(r.Context())
 	}))
 
@@ -116,7 +116,7 @@ func TestTailscaleMiddleware_TrustedCIDR_Rejected(t *testing.T) {
 		Tailscale:    config.TailscaleConfig{Enabled: true},
 	}
 	var got *auth.Identity
-	handler := auth.TailscaleMiddleware(cfg, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := auth.TailscaleMiddleware(cfg, nil, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		got = auth.FromContext(r.Context())
 	}))
 
@@ -129,5 +129,50 @@ func TestTailscaleMiddleware_TrustedCIDR_Rejected(t *testing.T) {
 	handler.ServeHTTP(httptest.NewRecorder(), req)
 	if got != nil {
 		t.Error("expected no identity from untrusted IP")
+	}
+}
+
+func TestTailscaleMiddleware_TrustedCIDR_IPv6Accepted(t *testing.T) {
+	cfg := &config.Config{
+		TrustedProxy: []string{"::1/128"},
+		Tailscale:    config.TailscaleConfig{Enabled: true},
+	}
+	var got *auth.Identity
+	handler := auth.TailscaleMiddleware(cfg, nil, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		got = auth.FromContext(r.Context())
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.Header.Set("Tailscale-User-Login", "alice@example.com")
+	// Simulate original remote addr as IPv6 loopback (typical for Tailscale
+	// serve HTTP proxy mode connecting from localhost).
+	ctx := auth.WithOriginalRemoteAddr(context.Background(), "[::1]:45534")
+	req = req.WithContext(ctx)
+
+	handler.ServeHTTP(httptest.NewRecorder(), req)
+	if got == nil || got.Email != "alice@example.com" {
+		t.Error("expected identity from trusted IPv6 address")
+	}
+}
+
+func TestTailscaleMiddleware_TrustedCIDR_IPv6Rejected(t *testing.T) {
+	cfg := &config.Config{
+		TrustedProxy: []string{"::1/128"},
+		Tailscale:    config.TailscaleConfig{Enabled: true},
+	}
+	var got *auth.Identity
+	handler := auth.TailscaleMiddleware(cfg, nil, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		got = auth.FromContext(r.Context())
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.Header.Set("Tailscale-User-Login", "alice@example.com")
+	// An IPv6 address outside the ::1/128 range.
+	ctx := auth.WithOriginalRemoteAddr(context.Background(), "[2001:db8::1]:9999")
+	req = req.WithContext(ctx)
+
+	handler.ServeHTTP(httptest.NewRecorder(), req)
+	if got != nil {
+		t.Error("expected no identity from untrusted IPv6 address")
 	}
 }

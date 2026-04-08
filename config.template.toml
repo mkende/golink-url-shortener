@@ -71,6 +71,16 @@ default_domain = ""
 # Default: "" (no restriction)
 required_domain = ""
 
+# ─── Logging ─────────────────────────────────────────────────────────────────
+
+# Minimum log severity to emit. Supported levels (most to least verbose):
+#   "debug"  — per-request auth decisions, CIDR checks, header presence
+#   "info"   — server start/stop, one line per HTTP request (default)
+#   "warn"   — recoverable problems that do not affect correctness
+#   "error"  — failures that prevent a request from being served
+# Default: "info"
+log_level = "info"
+
 # ─── Performance ─────────────────────────────────────────────────────────────
 
 # Maximum number of links kept in the in-process LRU redirect cache. Hot links

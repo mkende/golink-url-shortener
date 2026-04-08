@@ -162,6 +162,11 @@ type Config struct {
 	// any single canonical link.  Defaults to 100.
 	MaxAliasesPerLink int `toml:"max_aliases_per_link"`
 
+	// LogLevel controls the minimum severity of log messages emitted by the
+	// server. Supported values (from most to least verbose): "debug", "info",
+	// "warn", "error". Defaults to "info".
+	LogLevel string `toml:"log_level"`
+
 	// UI holds settings that control the behaviour of the web UI.
 	UI UIConfig `toml:"ui"`
 }
@@ -238,6 +243,9 @@ func applyDefaults(c *Config) {
 	if c.MaxAliasesPerLink == 0 {
 		c.MaxAliasesPerLink = 100
 	}
+	if c.LogLevel == "" {
+		c.LogLevel = "info"
+	}
 	if c.UI.LinksPerPage == 0 {
 		c.UI.LinksPerPage = 50
 	}
@@ -293,6 +301,12 @@ func validate(c *Config) error {
 	}
 	if c.UI.LinksPerPage < 10 {
 		return fmt.Errorf("ui.links_per_page must be >= 10, got %d", c.UI.LinksPerPage)
+	}
+	switch c.LogLevel {
+	case "debug", "info", "warn", "error":
+		// valid
+	default:
+		return fmt.Errorf("log_level must be one of \"debug\", \"info\", \"warn\", \"error\", got %q", c.LogLevel)
 	}
 	return nil
 }

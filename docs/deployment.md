@@ -154,7 +154,7 @@ A minimal Compose file with SQLite:
 ```yaml
 services:
   golink:
-    image: ghcr.io/mkende/golink-url-shortener:latest
+    image: ghcr.io/mkende/golink:latest
     restart: unless-stopped
     ports:
       - "8080:8080"
@@ -172,7 +172,7 @@ volumes:
 ```yaml
 services:
   golink:
-    image: ghcr.io/mkende/golink-url-shortener:latest
+    image: ghcr.io/mkende/golink:latest
     restart: unless-stopped
     ports:
       - "8080:8080"
@@ -209,6 +209,76 @@ Set the DSN in `golink.conf`:
 [db]
 driver = "postgres"
 dsn = "host=postgres port=5432 dbname=golink user=golink password=changeme sslmode=disable"
+```
+
+### With Tailscale
+
+```yaml
+services:
+  golink-tailscale:
+    image: tailscale/tailscale:latest
+    container_name: golink-tailscale
+    restart: unless-stopped
+    hostname: go
+    volumes:
+      - ts_state:/var/lib/tailscale:rw
+      - ./tailscale-serve.json:/etc/tailscale/serve.json:ro
+    environment:
+      - TS_STATE_DIR=/var/lib/tailscale
+      - TS_HOSTNAME=go
+      - TS_SERVE_CONFIG=/etc/tailscale/serve.json
+      - TS_AUTHKEY=<tailscale-non-ephemeral-pre-auth-key>
+
+  golink:
+    image: ghcr.io/mkende/golink:latest
+    restart: unless-stopped
+    network_mode: "service:golink-tailscale"
+    depends_on:
+      - golink-tailscale
+    volumes:
+      - golink_data:/data
+    environment:
+      GOLINK_CONFIG: /data/golink.conf
+
+volumes:
+  ts_state:
+  golink_data:
+```
+
+And you need also a tailscale `serve.json` file. Use this if you set the GoLing
+`canonical_address` to `https://go.your-domain.com` and only need Tailscale to
+reach it easily at http://go:
+
+```json
+{
+  "TCP": {
+    "80": {
+      "TCPForward": "localhost:8080"
+    }
+  }
+}
+```
+
+Or use this file if you want to use Tailscale based authentication, directly
+on the http://go domain (and on the http://go.your-tailnet-domain.com).
+
+```json
+{
+  "TCP": {
+    "80": {
+      "HTTP": true
+    }
+  },
+  "Web": {
+    "go.your-tailnet-domain.com:80": {
+      "Handlers": {
+        "/": {
+          "Proxy": "http://127.0.0.1:8080"
+        }
+      }
+    }
+  }
+}
 ```
 
 ### Mounting the config
