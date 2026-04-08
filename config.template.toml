@@ -94,8 +94,8 @@ cache_size = 1000
 # or "0" disables time-based expiry (entries are only evicted by LRU pressure).
 # Setting a TTL ensures that fields updated asynchronously (e.g. use_count) are
 # eventually reflected on link detail pages without requiring a server restart.
-# Default: "" (no TTL)
-# cache_ttl = "5m"
+# Default: "1m"
+# cache_ttl = "1m"
 
 # Maximum number of alias links that may target any single canonical link.
 # Attempts to create aliases beyond this limit are rejected.

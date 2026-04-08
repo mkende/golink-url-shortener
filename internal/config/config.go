@@ -163,7 +163,7 @@ type Config struct {
 	// being evicted and re-fetched from the database on next access. Use Go
 	// duration syntax, e.g. "5m", "1h", "30s". An empty string or "0" disables
 	// time-based expiry (entries are only evicted by LRU pressure). Defaults to
-	// "" (no TTL).
+	// "1m".
 	CacheTTL string `toml:"cache_ttl"`
 
 	// CacheTTLDuration is CacheTTL parsed into a time.Duration. It is populated
@@ -251,6 +251,9 @@ func applyDefaults(c *Config) {
 	}
 	if c.CacheSize == 0 {
 		c.CacheSize = 1000
+	}
+	if c.CacheTTL == "" {
+		c.CacheTTL = "1m"
 	}
 	if c.MaxAliasesPerLink == 0 {
 		c.MaxAliasesPerLink = 100

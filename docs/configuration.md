@@ -139,7 +139,7 @@ jwt_secret   = "replace-with-a-32-byte-random-string"
 - **`cache_size`** (int, default: `1000`) — Maximum number of links kept in the
   in-process LRU redirect cache. Hot links are served from memory without a
   database round-trip. Increase for workloads with many distinct popular links.
-- **`cache_ttl`** (string, default: `""`) — Maximum time a link stays in the
+- **`cache_ttl`** (string, default: `"1m"`) — Maximum time a link stays in the
   redirect cache before being re-fetched from the database. Uses Go duration
   syntax: `"5m"`, `"1h"`, `"30s"`, etc. An empty string or `"0"` disables
   time-based expiry (entries are only evicted by LRU pressure). Setting a TTL
