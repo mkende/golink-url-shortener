@@ -23,7 +23,6 @@ type apiTestEnv struct {
 	handler http.Handler
 	links   db.LinkRepo
 	apiKeys db.APIKeyRepo
-	sqlDB   interface{ Close() error }
 }
 
 func newAPITestEnv(t *testing.T) *apiTestEnv {

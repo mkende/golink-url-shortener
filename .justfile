@@ -1,14 +1,35 @@
 version := `cat VERSION`
 image   := "golink"
 
-# Build the golink binary, stamping the version from the VERSION file.
-build:
-    go build -ldflags="-X github.com/mkende/golink-url-shortener/internal/version.Version=v{{version}}" \
-        -o golink ./cmd/golink
+# Run lint, check-format, and test (default target).
+[default]
+default: lint check-format test
 
 # Run all tests.
 test:
     go test ./...
+
+# Run go vet and staticcheck.
+lint:
+    go vet ./...
+    go tool staticcheck ./...
+
+# Format all Go source files in place.
+format:
+    gofmt -w .
+
+# Check formatting without modifying files; fails if any file is unformatted.
+check-format:
+    @test -z "$(gofmt -l .)" || \
+        (echo "The following files are not formatted (run 'just format' to fix):" && \
+         gofmt -l . && exit 1)
+
+alias all := build
+
+# Build the golink binary, stamping the version from the VERSION file.
+build:
+    go build -ldflags="-X github.com/mkende/golink-url-shortener/internal/version.Version=v{{version}}" \
+        -o golink ./cmd/golink
 
 # Install the binary into $GOBIN (or $GOPATH/bin).
 install:

@@ -64,8 +64,12 @@ type OIDCConfig struct {
 	Issuer string `toml:"issuer"`
 	// ClientID is the OAuth2 client identifier.
 	ClientID string `toml:"client_id"`
-	// ClientSecret is the OAuth2 client secret.
+	// ClientSecret is the OAuth2 client secret. Mutually exclusive with
+	// ClientSecretEnvVar; exactly one must be set when OIDC is enabled.
 	ClientSecret string `toml:"client_secret"`
+	// ClientSecretEnvVar is the name of an environment variable whose value is
+	// used as the OAuth2 client secret. Mutually exclusive with ClientSecret.
+	ClientSecretEnvVar string `toml:"client_secret_env_var"`
 	// Scopes is the list of OAuth2 scopes to request.
 	// Defaults to ["openid", "email", "profile"].
 	Scopes []string `toml:"scopes"`
@@ -114,7 +118,13 @@ type Config struct {
 
 	// JWTSecret is the HMAC secret used to sign and verify session JWT cookies.
 	// Required when OIDC is enabled. Use a long random string (>= 32 bytes).
+	// Mutually exclusive with JWTSecretEnvVar; exactly one must be set when
+	// OIDC is enabled.
 	JWTSecret string `toml:"jwt_secret"`
+
+	// JWTSecretEnvVar is the name of an environment variable whose value is
+	// used as the JWT HMAC secret. Mutually exclusive with JWTSecret.
+	JWTSecretEnvVar string `toml:"jwt_secret_env_var"`
 
 	// Anonymous holds settings for anonymous (user-less) authentication.
 	Anonymous AnonymousConfig `toml:"anonymous"`
@@ -278,6 +288,37 @@ func validateCIDRList(fieldName string, cidrs []string) error {
 	return nil
 }
 
+// resolveSecret resolves a single secret field. It returns the direct value
+// when envVarName is empty, reads the named environment variable when it is
+// set, and returns an error when both are provided or the variable is unset.
+// field and envVarField are used only in error messages.
+func resolveSecret(field, value, envVarField, envVarName string) (string, error) {
+	if value != "" && envVarName != "" {
+		return "", fmt.Errorf("cannot set both %s and %s", field, envVarField)
+	}
+	if envVarName == "" {
+		return value, nil
+	}
+	resolved, ok := os.LookupEnv(envVarName)
+	if !ok {
+		return "", fmt.Errorf("%s: environment variable %q is not set", envVarField, envVarName)
+	}
+	return resolved, nil
+}
+
+// resolveSecrets populates JWTSecret and OIDC.ClientSecret from the
+// corresponding _env_var fields when those are used instead of inline values.
+// It returns an error if both forms are provided for the same secret.
+func resolveSecrets(c *Config) error {
+	var err error
+	c.JWTSecret, err = resolveSecret("jwt_secret", c.JWTSecret, "jwt_secret_env_var", c.JWTSecretEnvVar)
+	if err != nil {
+		return err
+	}
+	c.OIDC.ClientSecret, err = resolveSecret("oidc.client_secret", c.OIDC.ClientSecret, "oidc.client_secret_env_var", c.OIDC.ClientSecretEnvVar)
+	return err
+}
+
 // validate checks that required fields are present and values are within
 // acceptable ranges. It returns a descriptive error for the first violation
 // found.
@@ -356,6 +397,10 @@ func Load(path string) (*Config, error) {
 	}
 
 	applyDefaults(&cfg)
+
+	if err := resolveSecrets(&cfg); err != nil {
+		return nil, fmt.Errorf("invalid configuration: %w", err)
+	}
 
 	if err := validate(&cfg); err != nil {
 		return nil, fmt.Errorf("invalid configuration: %w", err)

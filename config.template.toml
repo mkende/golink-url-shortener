@@ -106,9 +106,17 @@ max_aliases_per_link = 100
 
 # HMAC secret used to sign session JWT cookies. Use a long random string
 # (at least 32 bytes). Generate one with: openssl rand -base64 32
-# REQUIRED when oidc.enabled = true.
+# REQUIRED when oidc.enabled = true (set exactly one of jwt_secret or
+# jwt_secret_env_var).
 # Default: "" (disabled)
 jwt_secret = ""
+
+# Alternative to jwt_secret: name of an environment variable whose value is
+# used as the HMAC secret. Useful for secrets managers and container
+# environments (e.g. Docker secrets mounted as env vars).
+# Setting both jwt_secret and jwt_secret_env_var is an error.
+# Default: "" (disabled)
+# jwt_secret_env_var = "GOLINK_JWT_SECRET"
 
 # ─── Admin ────────────────────────────────────────────────────────────────────
 
@@ -207,7 +215,14 @@ issuer = ""
 client_id = ""
 
 # OAuth2 client secret issued by the provider. Keep this confidential.
+# Set exactly one of client_secret or client_secret_env_var.
 client_secret = ""
+
+# Alternative to client_secret: name of an environment variable whose value is
+# used as the OAuth2 client secret. Setting both client_secret and
+# client_secret_env_var is an error.
+# Default: "" (disabled)
+# client_secret_env_var = "GOLINK_OIDC_CLIENT_SECRET"
 
 # OAuth2 scopes to request from the provider.
 # Add "groups" to receive group membership claims (required for admin_groups and

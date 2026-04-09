@@ -11,11 +11,11 @@ import (
 
 // LinkResponse is the JSON representation of a short link returned by the API.
 type LinkResponse struct {
-	Name        string    `json:"name"`
-	Target      string    `json:"target"`
-	OwnerEmail  string    `json:"owner_email"`
+	Name       string `json:"name"`
+	Target     string `json:"target"`
+	OwnerEmail string `json:"owner_email"`
 	// LinkType is one of "simple", "advanced", or "alias".
-	LinkType    string    `json:"link_type"`
+	LinkType string `json:"link_type"`
 	// AliasTarget is the lower-cased canonical link name; only present for
 	// alias links.
 	AliasTarget string    `json:"alias_target,omitempty"`
@@ -33,15 +33,6 @@ type APIKeyResponse struct {
 	CreatedAt string  `json:"created_at"`
 	LastUsed  *string `json:"last_used,omitempty"`
 	ReadOnly  bool    `json:"read_only"`
-}
-
-// isJSONRequest returns true when the caller prefers a JSON response, i.e.
-// when the Accept or Content-Type header contains "application/json".
-func isJSONRequest(r *http.Request) bool {
-	accept := r.Header.Get("Accept")
-	ct := r.Header.Get("Content-Type")
-	return strings.Contains(accept, "application/json") ||
-		strings.Contains(ct, "application/json")
 }
 
 // writeJSON writes v as a JSON response with the given HTTP status code.

@@ -269,6 +269,18 @@ groups_claim = "roles"
 			errContains: "unknown configuration key(s)",
 		},
 		{
+			name:        "jwt_secret_env_var referencing unset variable returns error",
+			toml:        minimalHeader + "jwt_secret_env_var = \"GOLINK_UNSET_VAR_12345\"\n" + anonSection,
+			wantErr:     true,
+			errContains: "jwt_secret_env_var",
+		},
+		{
+			name:        "client_secret_env_var referencing unset variable returns error",
+			toml:        minimalHeader + "jwt_secret = \"s\"\n[oidc]\nenabled = true\nclient_id = \"id\"\nclient_secret_env_var = \"GOLINK_UNSET_VAR_12345\"\n",
+			wantErr:     true,
+			errContains: "client_secret_env_var",
+		},
+		{
 			name:        "non-existent file returns error",
 			toml:        "", // not used — we pass a bad path instead
 			wantErr:     true,
@@ -288,6 +300,87 @@ groups_claim = "roles"
 				path = writeTemp(t, tc.toml)
 			}
 
+			cfg, err := config.Load(path)
+
+			if tc.wantErr {
+				if err == nil {
+					t.Fatalf("Load() returned nil error, want error containing %q", tc.errContains)
+				}
+				if tc.errContains != "" {
+					if got := err.Error(); !containsString(got, tc.errContains) {
+						t.Errorf("error = %q, want it to contain %q", got, tc.errContains)
+					}
+				}
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("Load() unexpected error: %v", err)
+			}
+			if tc.check != nil {
+				tc.check(t, cfg)
+			}
+		})
+	}
+}
+
+// TestLoadEnvVarSecrets tests secret resolution via _env_var config fields. It
+// is not marked parallel because subtests use t.Setenv, which requires a
+// non-parallel parent.
+func TestLoadEnvVarSecrets(t *testing.T) {
+	tests := []struct {
+		name        string
+		toml        string
+		setup       func(t *testing.T)
+		wantErr     bool
+		errContains string
+		check       func(t *testing.T, cfg *config.Config)
+	}{
+		{
+			name:  "jwt_secret_env_var populates JWTSecret",
+			toml:  minimalHeader + "jwt_secret_env_var = \"TEST_JWT_SECRET\"\n" + anonSection,
+			setup: func(t *testing.T) { t.Helper(); t.Setenv("TEST_JWT_SECRET", "from-env") },
+			check: func(t *testing.T, cfg *config.Config) {
+				t.Helper()
+				if cfg.JWTSecret != "from-env" {
+					t.Errorf("JWTSecret = %q, want %q", cfg.JWTSecret, "from-env")
+				}
+			},
+		},
+		{
+			name:        "both jwt_secret and jwt_secret_env_var returns error",
+			toml:        minimalHeader + "jwt_secret = \"inline\"\njwt_secret_env_var = \"TEST_JWT_SECRET\"\n" + anonSection,
+			setup:       func(t *testing.T) { t.Helper(); t.Setenv("TEST_JWT_SECRET", "from-env") },
+			wantErr:     true,
+			errContains: "cannot set both jwt_secret and jwt_secret_env_var",
+		},
+		{
+			name:  "oidc client_secret_env_var populates ClientSecret",
+			toml:  minimalHeader + "jwt_secret = \"s\"\n[oidc]\nenabled = true\nclient_id = \"id\"\nclient_secret_env_var = \"TEST_OIDC_SECRET\"\n",
+			setup: func(t *testing.T) { t.Helper(); t.Setenv("TEST_OIDC_SECRET", "oidc-from-env") },
+			check: func(t *testing.T, cfg *config.Config) {
+				t.Helper()
+				if cfg.OIDC.ClientSecret != "oidc-from-env" {
+					t.Errorf("OIDC.ClientSecret = %q, want %q", cfg.OIDC.ClientSecret, "oidc-from-env")
+				}
+			},
+		},
+		{
+			name:        "both client_secret and client_secret_env_var returns error",
+			toml:        minimalHeader + "jwt_secret = \"s\"\n[oidc]\nenabled = true\nclient_id = \"id\"\nclient_secret = \"inline\"\nclient_secret_env_var = \"TEST_OIDC_SECRET\"\n",
+			setup:       func(t *testing.T) { t.Helper(); t.Setenv("TEST_OIDC_SECRET", "oidc-from-env") },
+			wantErr:     true,
+			errContains: "cannot set both oidc.client_secret and oidc.client_secret_env_var",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if tc.setup != nil {
+				tc.setup(t)
+			}
+
+			path := writeTemp(t, tc.toml)
 			cfg, err := config.Load(path)
 
 			if tc.wantErr {

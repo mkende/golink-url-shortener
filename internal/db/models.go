@@ -23,14 +23,14 @@ const (
 
 // Link represents a short link stored in the database.
 type Link struct {
-	ID          int64
-	Name        string
-	NameLower   string
+	ID        int64
+	Name      string
+	NameLower string
 	// Target is the redirect destination for simple and advanced links.
 	// It is empty for alias links.
-	Target      string
-	OwnerEmail  string
-	LinkType    LinkType
+	Target     string
+	OwnerEmail string
+	LinkType   LinkType
 	// AliasTarget is the lower-cased name of the canonical link for alias links.
 	// It is empty for simple and advanced links.
 	AliasTarget string
@@ -79,7 +79,7 @@ type APIKey struct {
 	LastUsedAt sql.NullTime
 	// ReadOnly controls whether the key may only perform read operations (list,
 	// get, export). When false the key has full read/write access.
-	ReadOnly   bool
+	ReadOnly bool
 }
 
 // SortField is a column name used to order link list results.

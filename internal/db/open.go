@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"strings"
 
-	_ "github.com/lib/pq"              // registers "postgres" driver
-	_ "github.com/mattn/go-sqlite3"    // registers "sqlite3" driver
+	_ "github.com/lib/pq"           // registers "postgres" driver
+	_ "github.com/mattn/go-sqlite3" // registers "sqlite3" driver
 )
 
 // DB wraps sql.DB with a backend identifier and provides q, a portable

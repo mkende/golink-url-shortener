@@ -9,21 +9,21 @@ import (
 // reservedNames is the set of endpoint path segments that cannot be used as
 // link names because they conflict with server routes.
 var reservedNames = map[string]bool{
-	"new":      true,
-	"edit":     true,
-	"details":  true,
-	"delete":   true,
-	"links":    true,
-	"mylinks":  true,
-	"help":     true,
-	"auth":     true,
-	"api":      true,
-	"healthz":  true,
-	"apikeys":  true,
-	"import":   true,
-	"export":   true,
-	"search":   true,
-	"static":   true,
+	"new":     true,
+	"edit":    true,
+	"details": true,
+	"delete":  true,
+	"links":   true,
+	"mylinks": true,
+	"help":    true,
+	"auth":    true,
+	"api":     true,
+	"healthz": true,
+	"apikeys": true,
+	"import":  true,
+	"export":  true,
+	"search":  true,
+	"static":  true,
 }
 
 var validNameRe = regexp.MustCompile(`^[a-zA-Z0-9\-_.]+$`)

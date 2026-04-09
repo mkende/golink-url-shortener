@@ -20,7 +20,7 @@ func newOIDCHandlerForTest(t *testing.T, m *mockoidc.MockOIDC) *auth.OIDCHandler
 	t.Helper()
 	cfg := &config.Config{
 		CanonicalAddress: "https://go.example.com",
-		JWTSecret: testJWTSecret,
+		JWTSecret:        testJWTSecret,
 		OIDC: config.OIDCConfig{
 			Enabled:      true,
 			Issuer:       m.Issuer(),

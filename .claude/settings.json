@@ -10,7 +10,9 @@
       "Bash(git push:*)",
       "Skill(update-config)",
       "Skill(update-config:*)",
-      "Bash(go work:*)"
+      "Bash(go work:*)",
+      "Bash(go vet:*)",
+      "Bash(gofmt -w .)"
     ]
   }
 }

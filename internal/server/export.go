@@ -11,11 +11,11 @@ import (
 
 // ExportLink is the JSON representation of a link for export/import.
 type ExportLink struct {
-	Name        string    `json:"name"`
-	Target      string    `json:"target"`
-	OwnerEmail  string    `json:"owner_email"`
+	Name       string `json:"name"`
+	Target     string `json:"target"`
+	OwnerEmail string `json:"owner_email"`
 	// LinkType is one of "simple", "advanced", or "alias".
-	LinkType    string    `json:"link_type"`
+	LinkType string `json:"link_type"`
 	// AliasTarget is the canonical link name; only present for alias links.
 	AliasTarget string    `json:"alias_target,omitempty"`
 	RequireAuth bool      `json:"require_auth"`
