@@ -292,16 +292,17 @@ func (r *SQLLinkRepo) ListByOwner(ctx context.Context, ownerEmail string, limit,
 type searchField int
 
 const (
-	searchBoth   searchField = iota // default: name and target
+	searchAll    searchField = iota // default: name, target, and alias target
 	searchName                      // name: or n: prefix
 	searchTarget                    // target: or t: prefix
+	searchAlias                     // alias: or a: prefix — alias_target column only
 )
 
-// parseSearchQuery parses an optional field prefix (name:/n:/target:/t:) and
+// parseSearchQuery parses an optional field prefix (name:/n:/target:/t:/alias:/a:) and
 // ^ / $ anchors from a raw search string, returning the field scope and the
 // LIKE pattern to use.
 func parseSearchQuery(query string) (searchField, string) {
-	field := searchBoth
+	field := searchAll
 	q := query
 	switch {
 	case strings.HasPrefix(q, "name:"):
@@ -312,6 +313,10 @@ func parseSearchQuery(query string) (searchField, string) {
 		field, q = searchTarget, q[len("target:"):]
 	case strings.HasPrefix(q, "t:"):
 		field, q = searchTarget, q[len("t:"):]
+	case strings.HasPrefix(q, "alias:"):
+		field, q = searchAlias, q[len("alias:"):]
+	case strings.HasPrefix(q, "a:"):
+		field, q = searchAlias, q[len("a:"):]
 	}
 	q = strings.ToLower(q)
 	prefix, suffix := "%", "%"
@@ -326,10 +331,11 @@ func parseSearchQuery(query string) (searchField, string) {
 	return field, prefix + q + suffix
 }
 
-// Search returns links whose name or target matches query.
+// Search returns links whose name, target, or alias target matches query.
 // An optional prefix selects the field: "name:" or "n:" restricts to the link
-// name, "target:" or "t:" restricts to the target URL. Without a prefix both
-// fields are searched. The remainder supports ^ and $ anchors.
+// name; "target:" or "t:" restricts to the target URL; "alias:" or "a:"
+// restricts to the alias target name. Without a prefix all three fields are
+// searched. The remainder supports ^ and $ anchors.
 // When publicOnly is true, links with require_auth set are excluded.
 func (r *SQLLinkRepo) Search(ctx context.Context, query string, limit, offset int, publicOnly bool) ([]*Link, int, error) {
 	field, pattern := parseSearchQuery(query)
@@ -350,10 +356,14 @@ func (r *SQLLinkRepo) Search(ctx context.Context, query string, limit, offset in
 		countSQL = r.db.q("SELECT COUNT(*) FROM links WHERE LOWER(target) LIKE ?" + authCond)
 		listSQL = r.db.q("SELECT " + selectCols + " FROM links WHERE LOWER(target) LIKE ?" + authCond + " ORDER BY name_lower ASC LIMIT ? OFFSET ?")
 		baseArgs = []any{pattern}
+	case searchAlias:
+		countSQL = r.db.q("SELECT COUNT(*) FROM links WHERE alias_target LIKE ?" + authCond)
+		listSQL = r.db.q("SELECT " + selectCols + " FROM links WHERE alias_target LIKE ?" + authCond + " ORDER BY name_lower ASC LIMIT ? OFFSET ?")
+		baseArgs = []any{pattern}
 	default:
-		countSQL = r.db.q("SELECT COUNT(*) FROM links WHERE (name_lower LIKE ? OR LOWER(target) LIKE ?)" + authCond)
-		listSQL = r.db.q("SELECT " + selectCols + " FROM links WHERE (name_lower LIKE ? OR LOWER(target) LIKE ?)" + authCond + " ORDER BY name_lower ASC LIMIT ? OFFSET ?")
-		baseArgs = []any{pattern, pattern}
+		countSQL = r.db.q("SELECT COUNT(*) FROM links WHERE (name_lower LIKE ? OR LOWER(target) LIKE ? OR alias_target LIKE ?)" + authCond)
+		listSQL = r.db.q("SELECT " + selectCols + " FROM links WHERE (name_lower LIKE ? OR LOWER(target) LIKE ? OR alias_target LIKE ?)" + authCond + " ORDER BY name_lower ASC LIMIT ? OFFSET ?")
+		baseArgs = []any{pattern, pattern, pattern}
 	}
 
 	var total int
@@ -386,13 +396,15 @@ func (r *SQLLinkRepo) SearchOwnedOrSharedWith(ctx context.Context, ownerEmail st
 		matchExpr = "name_lower LIKE ?"
 	case searchTarget:
 		matchExpr = "LOWER(target) LIKE ?"
+	case searchAlias:
+		matchExpr = "alias_target LIKE ?"
 	default:
-		matchExpr = "(name_lower LIKE ? OR LOWER(target) LIKE ?)"
+		matchExpr = "(name_lower LIKE ? OR LOWER(target) LIKE ? OR alias_target LIKE ?)"
 	}
 	// patternArgs holds the LIKE arguments for one branch of the UNION.
 	patternArgs := []any{pattern}
-	if field == searchBoth {
-		patternArgs = []any{pattern, pattern}
+	if field == searchAll {
+		patternArgs = []any{pattern, pattern, pattern}
 	}
 
 	if len(identifiers) == 0 {

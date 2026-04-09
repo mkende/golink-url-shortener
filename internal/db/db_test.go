@@ -333,28 +333,46 @@ func TestLinkRepo_Search(t *testing.T) {
 					t.Fatalf("Create %s: %v", l.name, err)
 				}
 			}
+			// Create an alias: "docs-alias" → "go-docs"
+			if _, err := repo.Create(ctx, "docs-alias", "", "o@example.com", LinkTypeAlias, "go-docs", false); err != nil {
+				t.Fatalf("Create alias: %v", err)
+			}
 
 			cases := []struct {
-				query  string
-				want   int
+				query   string
+				want    int
 				checkFn func(l *Link) bool
 			}{
-				// Plain substring — name or target
-				{"go-", 4, nil}, // "go-" appears in all 4 names or targets
-				// Anchor on name
-				{"^go-", 3, func(l *Link) bool { return strings.HasPrefix(l.NameLower, "go-") }},
-				{"docs$", 1, func(l *Link) bool { return strings.HasSuffix(l.NameLower, "docs") }},
-				{"^go-docs$", 1, func(l *Link) bool { return l.NameLower == "go-docs" }},
+				// Plain substring — name, target, or alias_target
+				// "go-" appears in: 3 names (go-docs/api/home), 1 target (/go-extra), 1 alias_target (go-docs)
+				{"go-", 5, nil},
+				// Anchor — matches name, target, OR alias_target
+				{"^go-", 4, func(l *Link) bool {
+					return strings.HasPrefix(l.NameLower, "go-") || strings.HasPrefix(l.AliasTarget, "go-")
+				}},
+				// "docs$" matches go-docs (name) and docs-alias (alias_target = "go-docs")
+				{"docs$", 2, func(l *Link) bool {
+					return strings.HasSuffix(l.NameLower, "docs") || strings.HasSuffix(l.AliasTarget, "docs")
+				}},
+				// "^go-docs$" matches go-docs (name) and docs-alias (alias_target = "go-docs")
+				{"^go-docs$", 2, func(l *Link) bool {
+					return l.NameLower == "go-docs" || l.AliasTarget == "go-docs"
+				}},
 				{"^nomatch$", 0, nil},
-				// name: prefix
+				// name: prefix — alias unchanged
 				{"name:go-", 3, func(l *Link) bool { return strings.Contains(l.NameLower, "go-") }},
 				{"n:^go-", 3, func(l *Link) bool { return strings.HasPrefix(l.NameLower, "go-") }},
 				{"n:^other$", 1, func(l *Link) bool { return l.NameLower == "other" }},
-				// target: prefix
+				// target: prefix — alias has empty target, so no extra matches
 				{"target:docs", 1, func(l *Link) bool { return strings.Contains(strings.ToLower(l.Target), "docs") }},
 				{"t:^https://", 4, func(l *Link) bool { return strings.HasPrefix(strings.ToLower(l.Target), "https://") }},
 				{"t:example.com$", 3, func(l *Link) bool { return strings.HasSuffix(strings.ToLower(l.Target), "example.com") }},
 				{"t:extra$", 1, func(l *Link) bool { return strings.HasSuffix(strings.ToLower(l.Target), "extra") }},
+				// alias: prefix — only alias_target column
+				{"alias:go-docs", 1, func(l *Link) bool { return l.AliasTarget == "go-docs" }},
+				{"a:^go-", 1, func(l *Link) bool { return strings.HasPrefix(l.AliasTarget, "go-") }},
+				{"a:^go-docs$", 1, func(l *Link) bool { return l.AliasTarget == "go-docs" }},
+				{"a:nomatch", 0, nil},
 			}
 			for _, tc := range cases {
 				results, total, err := repo.Search(ctx, tc.query, 10, 0, false)
