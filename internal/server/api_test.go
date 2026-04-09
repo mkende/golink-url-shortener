@@ -544,6 +544,27 @@ func TestReadOnlyKey_CannotManageAPIKeys(t *testing.T) {
 	}
 }
 
+func TestAPICreateAPIKey_RawKeyHasGoPrefix(t *testing.T) {
+	env := newAPITestEnv(t)
+	adminKey := createTestAPIKey(t, env, "admin")
+
+	body := map[string]interface{}{"name": "mykey"}
+	w := doJSON(env.handler, http.MethodPost, "/api/apikeys", body, adminKey)
+	if w.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var resp struct {
+		RawKey string `json:"raw_key"`
+	}
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if !strings.HasPrefix(resp.RawKey, "go_") {
+		t.Errorf("expected raw_key to start with \"go_\", got %q", resp.RawKey)
+	}
+}
+
 func TestAPIQuickName(t *testing.T) {
 	env := newAPITestEnv(t)
 	key := createTestAPIKey(t, env, "mykey")

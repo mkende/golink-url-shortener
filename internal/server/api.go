@@ -16,13 +16,14 @@ import (
 )
 
 // generateAPIKey generates a cryptographically random 32-byte URL-safe base64
-// encoded string suitable for use as a raw API key.
+// encoded string suitable for use as a raw API key, prefixed with "go_" for
+// easy identification.
 func generateAPIKey() (string, error) {
 	b := make([]byte, 32)
 	if _, err := rand.Read(b); err != nil {
 		return "", err
 	}
-	return base64.URLEncoding.EncodeToString(b), nil
+	return "go_" + base64.URLEncoding.EncodeToString(b), nil
 }
 
 // createLinkRequest is the JSON body expected by POST /api/links.
