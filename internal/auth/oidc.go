@@ -212,7 +212,7 @@ func (h *OIDCHandler) issueSessionCookie(w http.ResponseWriter, id *Identity) er
 		IsAdmin:     id.IsAdmin,
 	}
 	jwtToken := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	signed, err := jwtToken.SignedString([]byte(h.cfg.OIDC.JWTSecret))
+	signed, err := jwtToken.SignedString([]byte(h.cfg.JWTSecret))
 	if err != nil {
 		return err
 	}
@@ -254,7 +254,7 @@ func OIDCMiddleware(cfg *config.Config, logger *slog.Logger) func(http.Handler) 
 				if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
 					return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
 				}
-				return []byte(cfg.OIDC.JWTSecret), nil
+				return []byte(cfg.JWTSecret), nil
 			})
 			if err != nil || !jwtToken.Valid {
 				logger.DebugContext(r.Context(), "oidc: invalid or expired session cookie", "error", err)

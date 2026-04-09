@@ -102,6 +102,14 @@ cache_size = 1000
 # Default: 100
 max_aliases_per_link = 100
 
+# ─── Sessions ────────────────────────────────────────────────────────────────
+
+# HMAC secret used to sign session JWT cookies. Use a long random string
+# (at least 32 bytes). Generate one with: openssl rand -base64 32
+# REQUIRED when oidc.enabled = true.
+# Default: "" (disabled)
+jwt_secret = ""
+
 # ─── Admin ────────────────────────────────────────────────────────────────────
 
 # Email addresses of users who have full admin privileges.
@@ -212,9 +220,7 @@ scopes = ["openid", "email", "profile"]
 # Default: "groups" (correct for Authelia, Keycloak, Dex, and most providers)
 groups_claim = "groups"
 
-# HMAC secret used to sign session JWT cookies. Use a long random string
-# (at least 32 bytes). Generate one with: openssl rand -base64 32
-jwt_secret = ""
+# See the global jwt_secret setting — it is required when oidc.enabled = true.
 
 # ── Authelia provider notes ───────────────────────────────────────────────────
 # When using Authelia as your OIDC provider, register a client with these

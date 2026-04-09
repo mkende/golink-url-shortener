@@ -72,9 +72,6 @@ type OIDCConfig struct {
 	// GroupsClaim is the JWT claim name that contains group memberships.
 	// Defaults to "groups".
 	GroupsClaim string `toml:"groups_claim"`
-	// JWTSecret is the HMAC secret used to sign and verify session JWT cookies.
-	// Required when OIDC is enabled. Use a long random string (>= 32 bytes).
-	JWTSecret string `toml:"jwt_secret"`
 }
 
 // DBConfig holds database connection settings.
@@ -114,6 +111,10 @@ type Config struct {
 	// FaviconPath is a filesystem path to a custom favicon file.
 	// An empty string means the embedded default favicon is used.
 	FaviconPath string `toml:"favicon_path"`
+
+	// JWTSecret is the HMAC secret used to sign and verify session JWT cookies.
+	// Required when OIDC is enabled. Use a long random string (>= 32 bytes).
+	JWTSecret string `toml:"jwt_secret"`
 
 	// Anonymous holds settings for anonymous (user-less) authentication.
 	Anonymous AnonymousConfig `toml:"anonymous"`
@@ -305,8 +306,8 @@ func validate(c *Config) error {
 	default:
 		return fmt.Errorf("db.driver must be \"sqlite\" or \"postgres\", got %q", c.DB.Driver)
 	}
-	if c.OIDC.Enabled && c.OIDC.JWTSecret == "" {
-		return errors.New("oidc.jwt_secret is required when OIDC is enabled")
+	if c.OIDC.Enabled && c.JWTSecret == "" {
+		return errors.New("jwt_secret is required when OIDC is enabled")
 	}
 	if c.ProxyAuth.Enabled && len(c.TrustedProxy) == 0 {
 		return errors.New("trusted_proxy must be set when proxy_auth is enabled")

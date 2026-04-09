@@ -170,7 +170,7 @@ groups_claim = "roles"
 		},
 		{
 			name:        "canonical_address required when oidc enabled",
-			toml:        "[oidc]\nenabled = true\njwt_secret = \"secret\"",
+			toml:        "jwt_secret = \"secret\"\n[oidc]\nenabled = true",
 			wantErr:     true,
 			errContains: "canonical_address is required when oidc is enabled",
 		},
