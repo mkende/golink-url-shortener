@@ -1,0 +1,180 @@
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.11"
+# dependencies = [
+#   "httpx",
+# ]
+# ///
+"""Smoke-test suite for the golink REST API.
+
+Runs a minimal end-to-end sequence against a live server:
+  1. Create a link.
+  2. Read it back and verify the fields.
+  3. Export the full DB and verify the link is present.
+  4. Delete the link and verify it is gone.
+
+Usage:
+    GOLINK_API_KEY=go_... uv run scripts/api_test.py http://localhost:8080
+
+The API key must have read/write access (not read-only).
+"""
+
+import os
+import sys
+import httpx
+
+# ── helpers ────────────────────────────────────────────────────────────────────
+
+TEST_LINK_NAME = "api-test-smoke"
+TEST_LINK_TARGET = "https://example.com/api-test"
+
+PASS = "\033[32mPASS\033[0m"
+FAIL = "\033[31mFAIL\033[0m"
+
+_failures: list[str] = []
+
+
+def ok(label: str) -> None:
+    print(f"  {PASS}  {label}")
+
+
+def fail(label: str, detail: str) -> None:
+    print(f"  {FAIL}  {label}: {detail}")
+    _failures.append(label)
+
+
+def assert_equal(label: str, got: object, want: object) -> None:
+    if got == want:
+        ok(label)
+    else:
+        fail(label, f"got {got!r}, want {want!r}")
+
+
+def assert_true(label: str, value: bool, detail: str = "") -> None:
+    if value:
+        ok(label)
+    else:
+        fail(label, detail or "condition was False")
+
+
+# ── test steps ─────────────────────────────────────────────────────────────────
+
+
+def step_create(client: httpx.Client) -> dict:
+    """Creates the test link and returns the response body."""
+    print("\n[1] Create link")
+    resp = client.post(
+        "/api/links",
+        json={
+            "name": TEST_LINK_NAME,
+            "target": TEST_LINK_TARGET,
+            "link_type": "simple",
+            "require_auth": False,
+        },
+    )
+    assert_equal("status 201", resp.status_code, 201)
+    body: dict = resp.json()
+    assert_equal("name", body.get("name"), TEST_LINK_NAME)
+    assert_equal("target", body.get("target"), TEST_LINK_TARGET)
+    assert_equal("link_type", body.get("link_type"), "simple")
+    assert_equal("require_auth", body.get("require_auth"), False)
+    return body
+
+
+def step_read(client: httpx.Client) -> None:
+    """Reads the link back and verifies every field."""
+    print("\n[2] Read link")
+    resp = client.get(f"/api/links/{TEST_LINK_NAME}")
+    assert_equal("status 200", resp.status_code, 200)
+    body: dict = resp.json()
+    assert_equal("name", body.get("name"), TEST_LINK_NAME)
+    assert_equal("target", body.get("target"), TEST_LINK_TARGET)
+    assert_equal("link_type", body.get("link_type"), "simple")
+    assert_equal("require_auth", body.get("require_auth"), False)
+    assert_true("owner_email present", bool(body.get("owner_email")), "owner_email is empty")
+    assert_true("created_at present", bool(body.get("created_at")), "created_at is empty")
+
+
+def step_export(client: httpx.Client) -> None:
+    """Exports the full DB and checks that the test link is present."""
+    print("\n[3] Export and verify")
+    resp = client.get("/api/export")
+    assert_equal("status 200", resp.status_code, 200)
+    body: dict = resp.json()
+    assert_true("version field", "version" in body, "missing 'version'")
+    links: list[dict] = body.get("links", [])
+    names = {lnk.get("name") for lnk in links}
+    assert_true(
+        f"link '{TEST_LINK_NAME}' in export",
+        TEST_LINK_NAME in names,
+        f"found names: {sorted(names)}",
+    )
+
+
+def step_delete(client: httpx.Client) -> None:
+    """Deletes the link and confirms it is gone."""
+    print("\n[4] Delete link")
+    resp = client.delete(f"/api/links/{TEST_LINK_NAME}")
+    assert_equal("status 204", resp.status_code, 204)
+
+    resp2 = client.get(f"/api/links/{TEST_LINK_NAME}")
+    assert_equal("404 after delete", resp2.status_code, 404)
+
+
+# ── cleanup on partial failure ─────────────────────────────────────────────────
+
+
+def cleanup(client: httpx.Client) -> None:
+    """Best-effort cleanup: delete the test link if it still exists."""
+    resp = client.delete(f"/api/links/{TEST_LINK_NAME}")
+    if resp.status_code == 204:
+        print(f"\n[cleanup] Deleted leftover link '{TEST_LINK_NAME}'.")
+
+
+# ── main ───────────────────────────────────────────────────────────────────────
+
+
+def main() -> None:
+    if len(sys.argv) != 2:
+        print(f"Usage: GOLINK_API_KEY=<key> uv run {sys.argv[0]} <base-url>", file=sys.stderr)
+        sys.exit(1)
+
+    base_url = sys.argv[1].rstrip("/")
+
+    api_key = os.environ.get("GOLINK_API_KEY")
+    if not api_key:
+        print("Error: GOLINK_API_KEY environment variable is not set.", file=sys.stderr)
+        sys.exit(1)
+
+    print(f"Running API smoke tests against {base_url}")
+
+    with httpx.Client(
+        base_url=base_url,
+        headers={"X-API-Key": api_key},
+        follow_redirects=False,
+        timeout=10.0,
+    ) as client:
+        created = False
+        try:
+            step_create(client)
+            created = True
+            step_read(client)
+            step_export(client)
+            step_delete(client)
+            created = False
+        except Exception as exc:  # noqa: BLE001
+            fail("unexpected exception", str(exc))
+        finally:
+            if created:
+                cleanup(client)
+
+    print()
+    if _failures:
+        print(f"Result: {len(_failures)} failure(s): {', '.join(_failures)}")
+        sys.exit(1)
+    else:
+        print("Result: all tests passed.")
+
+
+if __name__ == "__main__":
+    main()
