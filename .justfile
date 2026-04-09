@@ -45,21 +45,26 @@ uninstall:
     rm -f "$bin/golink"
     echo "Removed $bin/golink"
 
-# Build the Docker image locally.
+# Build the Docker image locally, tagged as dev.
 build-container:
-    docker build --build-arg VERSION=v{{version}} -t {{image}}:v{{version}} .
+    docker build --build-arg VERSION=v{{version}} -t {{image}}:dev .
+
+# Tag the local dev image with the current version and latest.
+tag-container:
+    docker tag {{image}}:dev {{image}}:v{{version}}
+    docker tag {{image}}:dev {{image}}:latest
 
 # Run the local binary with config.toml (builds first).
 run: build check-config
     ./golink -config config.toml
 
-# Run the locally built Docker image with config.toml.
-run-docker: check-config
+# Run the locally built Docker image with config.toml (builds the container first).
+run-docker: build-container check-config
     docker run --rm \
         -v "$(pwd)/config.toml:/config/golink.conf:ro" \
         -e GOLINK_CONFIG=/config/golink.conf \
         -p 8080:8080 \
-        {{image}}:v{{version}}
+        {{image}}:dev
 
 # Fail with a clear message if config.toml is missing.
 [private]
