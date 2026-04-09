@@ -12,7 +12,10 @@ COPY go.mod go.sum ./
 RUN go mod download
 
 COPY . .
-RUN CGO_ENABLED=1 go build -ldflags="-s -w" -o golink ./cmd/golink
+ARG VERSION=dev
+RUN CGO_ENABLED=1 go build \
+    -ldflags="-s -w -X github.com/mkende/golink-url-shortener/internal/version.Version=${VERSION}" \
+    -o golink ./cmd/golink
 
 ## Runtime stage
 FROM alpine:latest

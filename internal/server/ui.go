@@ -14,6 +14,7 @@ import (
 	"github.com/mkende/golink-url-shortener/internal/db"
 	"github.com/mkende/golink-url-shortener/internal/links"
 	serverMiddleware "github.com/mkende/golink-url-shortener/internal/server/middleware"
+	"github.com/mkende/golink-url-shortener/internal/version"
 )
 
 // linksPerPage returns the configured page size for link list pages.
@@ -87,6 +88,8 @@ type baseData struct {
 	FaviconPath string
 	// OIDCEnabled is true when OIDC authentication is configured.
 	OIDCEnabled bool
+	// Version is the application version string (e.g. "v1.2.3" or "dev").
+	Version string
 }
 
 // newBaseData populates baseData from the current request and writes a fresh
@@ -103,6 +106,7 @@ func (s *Server) newBaseData(w http.ResponseWriter, r *http.Request) (baseData, 
 		CSRFToken:   token,
 		FaviconPath: s.cfg.FaviconPath,
 		OIDCEnabled: s.cfg.OIDC.Enabled,
+		Version:     version.Version,
 	}, nil
 }
 

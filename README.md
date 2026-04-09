@@ -29,13 +29,22 @@ etc.
 go install github.com/mkende/golink-url-shortener/cmd/golink@latest
 ```
 
-**Or build locally**:
+`@latest` resolves to the most recent tagged release. The Go toolchain embeds
+that tag in the binary, so the footer shows the correct version automatically.
+
+**Or build locally** (requires [just](https://github.com/casey/just)):
 
 ```bash
 git clone https://github.com/mkende/golink-url-shortener.git
 cd golink-url-shortener
-go build -o golink ./cmd/golink
+just build        # build binary (version stamped from VERSION file)
+just install      # install to $GOBIN / $GOPATH/bin
+just test         # run all tests
+just run          # build and run locally (requires config.toml)
+just run-docker   # run in Docker (requires config.toml and just build-container)
 ```
+
+Running `go build` directly produces a binary labelled `dev`.
 
 ### 2. Configure
 

@@ -8,7 +8,7 @@
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
     <link rel="icon" type="image/svg+xml" href="/favicon.ico">
 </head>
-<body>
+<body style="display:flex;flex-direction:column;min-height:100vh">
 <nav class="navbar is-link" role="navigation" aria-label="main navigation">
   <div class="navbar-brand">
     <a class="navbar-item has-text-weight-bold" href="/">{{.Title}}</a>
@@ -69,10 +69,19 @@
     });
   });
 </script>
-<section class="section">
+<section class="section" style="flex:1">
   <div class="container">
     {{block "content" .}}{{end}}
   </div>
 </section>
+<footer class="footer py-3">
+  <div class="content has-text-centered is-size-7 has-text-grey">
+    <strong>{{.Title}}</strong>
+    &mdash;
+    <a href="https://github.com/mkende/golink-url-shortener" target="_blank" rel="noopener">GitHub</a>
+    &mdash;
+    {{.Version}}
+  </div>
+</footer>
 </body>
 </html>

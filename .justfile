@@ -1,0 +1,47 @@
+version := `cat VERSION`
+image   := "golink"
+
+# Build the golink binary, stamping the version from the VERSION file.
+build:
+    go build -ldflags="-X github.com/mkende/golink-url-shortener/internal/version.Version=v{{version}}" \
+        -o golink ./cmd/golink
+
+# Run all tests.
+test:
+    go test ./...
+
+# Install the binary into $GOBIN (or $GOPATH/bin).
+install:
+    go install -ldflags="-X github.com/mkende/golink-url-shortener/internal/version.Version=v{{version}}" \
+        ./cmd/golink
+
+# Remove the installed binary from $GOBIN (or $GOPATH/bin).
+uninstall:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    bin=$(go env GOBIN)
+    [[ -z "$bin" ]] && bin="$(go env GOPATH)/bin"
+    rm -f "$bin/golink"
+    echo "Removed $bin/golink"
+
+# Build the Docker image locally.
+build-container:
+    docker build --build-arg VERSION=v{{version}} -t {{image}}:v{{version}} .
+
+# Run the local binary with config.toml (builds first).
+run: build check-config
+    ./golink -config config.toml
+
+# Run the locally built Docker image with config.toml.
+run-docker: check-config
+    docker run --rm \
+        -v "$(pwd)/config.toml:/config/golink.conf:ro" \
+        -e GOLINK_CONFIG=/config/golink.conf \
+        -p 8080:8080 \
+        {{image}}:v{{version}}
+
+# Fail with a clear message if config.toml is missing.
+[private]
+check-config:
+    @test -f config.toml || \
+        (echo "error: config.toml not found — copy config.template.toml and edit it" >&2 && exit 1)
