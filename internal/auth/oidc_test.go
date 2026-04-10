@@ -14,7 +14,7 @@ import (
 const testJWTSecret = "test-secret-for-unit-tests"
 
 // makeSessionCookie creates a signed JWT session cookie for testing.
-func makeSessionCookie(t *testing.T, email string, isAdmin bool, expiry time.Time) *http.Cookie {
+func makeSessionCookie(t *testing.T, email string, expiry time.Time) *http.Cookie {
 	t.Helper()
 	type sessionClaims struct {
 		jwt.RegisteredClaims
@@ -22,15 +22,13 @@ func makeSessionCookie(t *testing.T, email string, isAdmin bool, expiry time.Tim
 		DisplayName string   `json:"name"`
 		AvatarURL   string   `json:"picture"`
 		Groups      []string `json:"groups"`
-		IsAdmin     bool     `json:"is_admin"`
 	}
 	claims := sessionClaims{
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(expiry),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
 		},
-		Email:   email,
-		IsAdmin: isAdmin,
+		Email: email,
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	signed, err := token.SignedString([]byte(testJWTSecret))
@@ -51,7 +49,7 @@ func TestOIDCMiddleware_Disabled(t *testing.T) {
 	}))
 
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
-	req.AddCookie(makeSessionCookie(t, "user@example.com", false, time.Now().Add(time.Hour)))
+	req.AddCookie(makeSessionCookie(t, "user@example.com", time.Now().Add(time.Hour)))
 	handler.ServeHTTP(httptest.NewRecorder(), req)
 	if !called {
 		t.Error("handler not called")
@@ -70,14 +68,18 @@ func TestOIDCMiddleware_NoCookie(t *testing.T) {
 }
 
 func TestOIDCMiddleware_ValidCookie(t *testing.T) {
-	cfg := &config.Config{JWTSecret: testJWTSecret, OIDC: config.OIDCConfig{Enabled: true}}
+	cfg := &config.Config{
+		JWTSecret:   testJWTSecret,
+		OIDC:        config.OIDCConfig{Enabled: true},
+		AdminEmails: []string{"bob@example.com"},
+	}
 	var got *auth.Identity
 	handler := auth.OIDCMiddleware(cfg, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		got = auth.FromContext(r.Context())
 	}))
 
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
-	req.AddCookie(makeSessionCookie(t, "bob@example.com", true, time.Now().Add(time.Hour)))
+	req.AddCookie(makeSessionCookie(t, "bob@example.com", time.Now().Add(time.Hour)))
 	handler.ServeHTTP(httptest.NewRecorder(), req)
 
 	if got == nil {
@@ -87,7 +89,30 @@ func TestOIDCMiddleware_ValidCookie(t *testing.T) {
 		t.Errorf("email: got %q, want %q", got.Email, "bob@example.com")
 	}
 	if !got.IsAdmin {
-		t.Error("expected admin")
+		t.Error("expected admin: email is in AdminEmails")
+	}
+}
+
+// TestOIDCMiddleware_AdminReevaluated verifies that IsAdmin is determined from
+// the current config on every request, not from the value baked into the JWT.
+func TestOIDCMiddleware_AdminReevaluated(t *testing.T) {
+	// Config has no admin emails — user should NOT be admin even if they held
+	// admin rights when the JWT was originally issued.
+	cfg := &config.Config{JWTSecret: testJWTSecret, OIDC: config.OIDCConfig{Enabled: true}}
+	var got *auth.Identity
+	handler := auth.OIDCMiddleware(cfg, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		got = auth.FromContext(r.Context())
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.AddCookie(makeSessionCookie(t, "former-admin@example.com", time.Now().Add(time.Hour)))
+	handler.ServeHTTP(httptest.NewRecorder(), req)
+
+	if got == nil {
+		t.Fatal("expected identity, got nil")
+	}
+	if got.IsAdmin {
+		t.Error("IsAdmin must be re-evaluated from config, not read from JWT")
 	}
 }
 
@@ -100,7 +125,7 @@ func TestOIDCMiddleware_ExpiredCookie(t *testing.T) {
 	}))
 
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
-	req.AddCookie(makeSessionCookie(t, "user@example.com", false, time.Now().Add(-time.Hour)))
+	req.AddCookie(makeSessionCookie(t, "user@example.com", time.Now().Add(-time.Hour)))
 	handler.ServeHTTP(httptest.NewRecorder(), req)
 }
 
@@ -113,6 +138,6 @@ func TestOIDCMiddleware_WrongSecret(t *testing.T) {
 	}))
 
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
-	req.AddCookie(makeSessionCookie(t, "user@example.com", false, time.Now().Add(time.Hour)))
+	req.AddCookie(makeSessionCookie(t, "user@example.com", time.Now().Add(time.Hour)))
 	handler.ServeHTTP(httptest.NewRecorder(), req)
 }
