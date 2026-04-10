@@ -15,9 +15,9 @@ import (
 // through unchanged. When a UserRepo is provided, the user record is upserted
 // asynchronously on each authenticated request.
 //
-// When cfg.TrustedProxy is non-empty the headers are only accepted from
-// requests whose original TCP remote address falls within one of those ranges;
-// headers from other IPs are silently ignored.
+// cfg.TrustedProxy must be non-empty (enforced by config validation); headers
+// are only accepted from requests whose original TCP remote address falls
+// within one of those ranges. Headers from other IPs are silently ignored.
 //
 // Note: Tailscale only injects Tailscale-User-* headers when using
 // `tailscale serve` in HTTP proxy mode (i.e. via Handlers, not TCPForward).

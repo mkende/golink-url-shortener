@@ -29,7 +29,7 @@ canonical_address = "https://go.example.com"
 #     redirect and HTTPS enforcement).
 #   - Tailscale-User-* headers are accepted (when tailscale.enabled = true).
 #   - Remote-* headers are accepted (when proxy_auth.enabled = true).
-# Required when proxy_auth.enabled = true.
+# Required when tailscale.enabled = true or proxy_auth.enabled = true.
 # Example: ["127.0.0.0/8", "::1/128", "10.0.0.0/8"]
 # Default: [] (no trusted proxies)
 trusted_proxy = []
@@ -160,8 +160,9 @@ is_admin = false
 # Note that we don't support Tailnet capabilities header. Admin role must be
 # granted through the admin options above.
 #
-# Set trusted_proxy to the Tailscale CGNAT range (100.64.0.0/10) or to
-# 127.0.0.0/8 when running as a local service reachable only via localhost.
+# SECURITY: trusted_proxy is REQUIRED when this mode is enabled.  Set it to
+# the Tailscale CGNAT range (100.64.0.0/10) or to 127.0.0.0/8 when running
+# as a local service reachable only via localhost.
 [tailscale]
 # Default: false
 enabled = false

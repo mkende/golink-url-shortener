@@ -350,6 +350,9 @@ func validate(c *Config) error {
 	if c.OIDC.Enabled && c.JWTSecret == "" {
 		return errors.New("jwt_secret is required when OIDC is enabled")
 	}
+	if c.Tailscale.Enabled && len(c.TrustedProxy) == 0 {
+		return errors.New("trusted_proxy must be set when tailscale auth is enabled")
+	}
 	if c.ProxyAuth.Enabled && len(c.TrustedProxy) == 0 {
 		return errors.New("trusted_proxy must be set when proxy_auth is enabled")
 	}

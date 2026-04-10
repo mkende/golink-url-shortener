@@ -251,6 +251,12 @@ groups_claim = "roles"
 			errContains: "trusted_proxy",
 		},
 		{
+			name:        "tailscale without trusted_proxy returns error",
+			toml:        minimalValid + "[tailscale]\nenabled = true\n",
+			wantErr:     true,
+			errContains: "trusted_proxy must be set when tailscale auth is enabled",
+		},
+		{
 			name:        "proxy_auth without trusted_proxy returns error",
 			toml:        minimalValid + "[proxy_auth]\nenabled = true\n", // proxy_auth needs trusted_proxy
 			wantErr:     true,
