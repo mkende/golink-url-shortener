@@ -106,8 +106,7 @@ frame-ancestors 'self'
 ```
 
 No `'unsafe-inline'` is required because all JavaScript and CSS assets are
-self-hosted (see `web/static/`) and all former inline `<script>` blocks have
-been moved to `web/static/app.js`.
+self-hosted (see `web/static/`) and there are no inline scripts.
 
 ### Strict-Transport-Security
 
