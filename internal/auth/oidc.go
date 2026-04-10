@@ -196,7 +196,6 @@ type sessionClaims struct {
 	DisplayName string   `json:"name"`
 	AvatarURL   string   `json:"picture"`
 	Groups      []string `json:"groups"`
-	IsAdmin     bool     `json:"is_admin"`
 }
 
 func (h *OIDCHandler) issueSessionCookie(w http.ResponseWriter, id *Identity) error {
@@ -209,7 +208,6 @@ func (h *OIDCHandler) issueSessionCookie(w http.ResponseWriter, id *Identity) er
 		DisplayName: id.DisplayName,
 		AvatarURL:   id.AvatarURL,
 		Groups:      id.Groups,
-		IsAdmin:     id.IsAdmin,
 	}
 	jwtToken := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	signed, err := jwtToken.SignedString([]byte(h.cfg.JWTSecret))
@@ -266,9 +264,9 @@ func OIDCMiddleware(cfg *config.Config, logger *slog.Logger) func(http.Handler) 
 				DisplayName: claims.DisplayName,
 				AvatarURL:   claims.AvatarURL,
 				Groups:      claims.Groups,
-				IsAdmin:     claims.IsAdmin,
 				Source:      AuthSourceOIDC,
 			}
+			id.IsAdmin = isAdmin(cfg, id)
 			logger.DebugContext(r.Context(), "oidc: identity established",
 				"email", id.Email,
 				"is_admin", id.IsAdmin,
