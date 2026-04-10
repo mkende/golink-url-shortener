@@ -4,8 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{{block "title" .}}{{.Title}}{{end}}</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.4/css/bulma.min.css">
-    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <link rel="stylesheet" href="/static/bulma-0.9.4.min.css">
+    <script src="/static/htmx-1.9.10.min.js" defer></script>
+    <script src="/static/app.js" defer></script>
     <link rel="icon" type="image/svg+xml" href="/favicon.ico">
 </head>
 <body style="display:flex;flex-direction:column;min-height:100vh">
@@ -47,28 +48,6 @@
     </div>
   </div>
 </nav>
-<script>
-  document.addEventListener('DOMContentLoaded', function () {
-    var burgers = document.querySelectorAll('.navbar-burger');
-    burgers.forEach(function (burger) {
-      burger.addEventListener('click', function () {
-        var target = document.getElementById(burger.dataset.target);
-        burger.classList.toggle('is-active');
-        burger.setAttribute('aria-expanded', burger.classList.contains('is-active'));
-        if (target) { target.classList.toggle('is-active'); }
-      });
-    });
-    document.querySelectorAll('time.local-time').forEach(function (el) {
-      var d = new Date(el.getAttribute('datetime'));
-      if (isNaN(d.getTime())) { return; }
-      el.textContent = d.toLocaleString(undefined, {
-        year: 'numeric', month: '2-digit', day: '2-digit',
-        hour: '2-digit', minute: '2-digit'
-      });
-      el.title = el.getAttribute('datetime');
-    });
-  });
-</script>
 <section class="section" style="flex:1">
   <div class="container">
     {{block "content" .}}{{end}}

@@ -33,7 +33,7 @@
             <button class="button is-primary" type="submit">Create</button>
           </div>
           <div class="control">
-            <button type="button" class="button" onclick="goToAdvanced(this.form)">Advanced options</button>
+            <button type="button" class="button" data-go-advanced>Advanced options</button>
           </div>
         </div>
       </form>
@@ -74,15 +74,4 @@
   {{template "link_table" .PopularLinks}}
 </div>
 {{end}}
-<script>
-function goToAdvanced(form) {
-  var params = new URLSearchParams();
-  var name = form.elements['name'].value;
-  var target = form.elements['target'].value;
-  if (name) params.set('name', name);
-  if (target) params.set('target', target);
-  var qs = params.toString();
-  window.location.href = '/new' + (qs ? '?' + qs : '');
-}
-</script>
 {{end}}
