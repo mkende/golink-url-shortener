@@ -64,7 +64,7 @@
         <form method="POST" action="/apikeys/{{.ID}}/delete" style="display:inline">
           <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
           <button class="button is-small is-danger" type="submit"
-            onclick="return confirm('Revoke this key?')">Revoke</button>
+            data-confirm="Revoke this key?">Revoke</button>
         </form>
       </td>
     </tr>

@@ -74,7 +74,7 @@
   <form method="POST" action="/edit/{{.Link.Name}}/delete">
     <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
     <button class="button is-danger" type="submit"
-      onclick="return confirm('Delete this link?')">Delete Link</button>
+      data-confirm="Delete this link?">Delete Link</button>
   </form>
 </div>
 </div>

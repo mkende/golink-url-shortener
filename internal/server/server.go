@@ -108,7 +108,7 @@ func (s *Server) buildRouter() chi.Router {
 	r.Use(middleware.RealIP)
 	r.Use(middleware.Recoverer)
 	r.Use(serverMiddleware.RequestLogger(s.logger))
-	r.Use(serverMiddleware.SecurityHeaders)
+	r.Use(serverMiddleware.SecurityHeaders(s.cfg))
 
 	// Auth middleware: populate identity context from Tailscale headers,
 	// reverse-proxy forward-auth headers, JWT cookie, or anonymous fallback
@@ -122,6 +122,15 @@ func (s *Server) buildRouter() chi.Router {
 	// and request domain are available for both the request log line and any
 	// handler-level log calls retrieved via s.logr(r.Context()).
 	r.Use(serverMiddleware.LogEnricher(s.logger))
+
+	// Static assets: CSS, JS. Served before domain redirect and auth so that
+	// login pages and non-canonical-domain requests can still load assets.
+	// Files are versioned in their names so responses are immutably cached.
+	staticHandler := http.StripPrefix("/static", http.FileServer(http.FS(static.FS)))
+	r.Handle("/static/*", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+		staticHandler.ServeHTTP(w, r)
+	}))
 
 	// Favicon — served before domain redirect so browsers always get it.
 	r.Get("/favicon.ico", s.handleFavicon)
