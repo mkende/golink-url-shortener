@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/mkende/golink-url-shortener/internal/db"
 	"github.com/mkende/golink-url-shortener/internal/templates"
 )
 
@@ -62,18 +63,18 @@ type baseData struct {
 // linksPageData mirrors server.linksPageData for test use.
 type linksPageData struct {
 	baseData
-	Sort      string
-	Dir       string
-	Query     string
-	Links     any
-	Total     int
-	Page      int
+	Sort       string
+	Dir        string
+	Query      string
+	Links      any
+	Total      int
+	Page       int
 	TotalPage  int
 	TotalPages int
-	PageStart int
-	PageEnd   int
-	OwnedIDs  map[int64]bool
-	SharedIDs map[int64]bool
+	PageStart  int
+	PageEnd    int
+	OwnedIDs   map[int64]bool
+	SharedIDs  map[int64]bool
 }
 
 func TestSortURL_and_SortIcon(t *testing.T) {
@@ -92,6 +93,99 @@ func TestSortURL_and_SortIcon(t *testing.T) {
 	// Ascending sort on "name" should produce a descending link for "name".
 	if !strings.Contains(body, "sort=name&amp;dir=desc") {
 		t.Errorf("expected toggled sort link; body excerpt: %q", body[:min(200, len(body))])
+	}
+}
+
+// detailsPageData mirrors server.detailsPageData for template rendering tests.
+type detailsPageData struct {
+	baseData
+	Link          *db.Link
+	CanEdit       bool
+	Aliases       []*db.Link
+	CanonicalLink *db.Link
+	Shares        []string
+	DefaultDomain string
+	Error         string
+	Success       string
+}
+
+func simpleLink() *db.Link {
+	return &db.Link{
+		Name:      "mylink",
+		NameLower: "mylink",
+		Target:    "https://example.com",
+		LinkType:  db.LinkTypeSimple,
+	}
+}
+
+// TestDetailsTemplate_ShareForm verifies that the share-with input is rendered
+// as type="text" (not type="email") and carries the required HTMX attributes.
+func TestDetailsTemplate_ShareForm(t *testing.T) {
+	r := newTestRenderer(t)
+	data := detailsPageData{
+		baseData: baseData{Title: "Test"},
+		Link:     simpleLink(),
+		CanEdit:  true,
+	}
+	var buf bytes.Buffer
+	if err := r.RenderTo(&buf, "details", data); err != nil {
+		t.Fatalf("RenderTo(details): %v", err)
+	}
+	body := buf.String()
+
+	if strings.Contains(body, `type="email"`) {
+		t.Error(`share input must use type="text", not type="email"`)
+	}
+	for _, attr := range []string{
+		`hx-get="/api/users/search"`,
+		`hx-trigger="input changed delay:300ms"`,
+		`hx-target="#known-users"`,
+		`hx-params="email"`,
+	} {
+		if !strings.Contains(body, attr) {
+			t.Errorf("share input missing HTMX attribute: %s", attr)
+		}
+	}
+}
+
+// TestDetailsTemplate_SharePlaceholder verifies that the placeholder text
+// reflects the DefaultDomain setting.
+func TestDetailsTemplate_SharePlaceholder(t *testing.T) {
+	r := newTestRenderer(t)
+
+	cases := []struct {
+		name            string
+		defaultDomain   string
+		wantPlaceholder string
+	}{
+		{
+			name:            "no default domain",
+			defaultDomain:   "",
+			wantPlaceholder: "user@example.com",
+		},
+		{
+			name:            "with default domain",
+			defaultDomain:   "corp.example.com",
+			wantPlaceholder: "user or user@corp.example.com",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			data := detailsPageData{
+				baseData:      baseData{Title: "Test"},
+				Link:          simpleLink(),
+				CanEdit:       true,
+				DefaultDomain: tc.defaultDomain,
+			}
+			var buf bytes.Buffer
+			if err := r.RenderTo(&buf, "details", data); err != nil {
+				t.Fatalf("RenderTo(details): %v", err)
+			}
+			if !strings.Contains(buf.String(), tc.wantPlaceholder) {
+				t.Errorf("expected placeholder %q in rendered page", tc.wantPlaceholder)
+			}
+		})
 	}
 }
 

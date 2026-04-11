@@ -366,6 +366,7 @@ func TestAPIUnauthenticated_AllEndpoints(t *testing.T) {
 		{http.MethodDelete, "/api/links/x", nil},
 		{http.MethodGet, "/api/export", nil},
 		{http.MethodPost, "/api/import", map[string]any{"version": 1, "links": []any{}}},
+		{http.MethodGet, "/api/users/search?email=foo", nil},
 	}
 
 	for _, tc := range cases {

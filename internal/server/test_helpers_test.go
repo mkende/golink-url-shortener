@@ -21,6 +21,7 @@ type apiTestEnv struct {
 	handler http.Handler
 	links   db.LinkRepo
 	apiKeys db.APIKeyRepo
+	users   db.UserRepo
 }
 
 // newAPITestEnv creates an in-memory SQLite database, wires up a Server, and
@@ -43,6 +44,7 @@ func newAPITestEnv(t *testing.T) *apiTestEnv {
 		handler: handler,
 		links:   db.NewLinkRepo(sqlDB),
 		apiKeys: db.NewAPIKeyRepo(sqlDB),
+		users:   db.NewUserRepo(sqlDB),
 	}
 }
 

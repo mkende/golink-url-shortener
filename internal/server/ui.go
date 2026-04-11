@@ -454,6 +454,13 @@ func (s *Server) handleAPIUserSearch(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleDetailsShare(w http.ResponseWriter, r *http.Request) {
 	name := urlParamLower(r, "name")
 
+	base, err := s.newBaseData(w, r)
+	if err != nil {
+		s.logr(r.Context()).Error("share: baseData", "error", err)
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+
 	if !requireCSRF(w, r) {
 		return
 	}
@@ -474,9 +481,14 @@ func (s *Server) handleDetailsShare(w http.ResponseWriter, r *http.Request) {
 		email = email + "@" + s.cfg.DefaultDomain
 	}
 
+	if !strings.Contains(email, "@") {
+		s.renderDetailsError(w, r, base, link, true, "Please enter a valid email address.")
+		return
+	}
+
 	// Enforce required domain restriction.
 	if s.cfg.RequiredDomain != "" && !strings.HasSuffix(email, "@"+s.cfg.RequiredDomain) {
-		http.Error(w, "sharing restricted to domain "+s.cfg.RequiredDomain, http.StatusBadRequest)
+		s.renderDetailsError(w, r, base, link, true, "Sharing is restricted to @"+s.cfg.RequiredDomain+" addresses.")
 		return
 	}
 
