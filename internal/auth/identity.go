@@ -1,7 +1,13 @@
 // Package auth provides authentication middleware and helpers.
 package auth
 
-import "context"
+import (
+	"context"
+	"log/slog"
+
+	"github.com/mkende/golink-url-shortener/internal/config"
+	"github.com/mkende/golink-url-shortener/internal/db"
+)
 
 // AuthSource identifies how the user was authenticated.
 type AuthSource string
@@ -44,4 +50,36 @@ func WithIdentity(ctx context.Context, id *Identity) context.Context {
 func FromContext(ctx context.Context) *Identity {
 	id, _ := ctx.Value(identityKey).(*Identity)
 	return id
+}
+
+// isAdmin reports whether the given identity has admin privileges according to
+// the config's admin_emails list and admin_groups setting.
+func isAdmin(cfg *config.Config, id *Identity) bool {
+	for _, email := range cfg.AdminEmails {
+		if email == id.Email {
+			return true
+		}
+	}
+	for _, adminGroup := range cfg.AdminGroups {
+		for _, g := range id.Groups {
+			if g == adminGroup {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// upsertUserAsync fires off a background goroutine that upserts the user
+// record. If users is nil the call is a no-op. Errors are logged at Warn level
+// rather than silently discarded.
+func upsertUserAsync(logger *slog.Logger, users db.UserRepo, email, name, avatar string) {
+	if users == nil {
+		return
+	}
+	go func() {
+		if _, err := users.Upsert(context.Background(), email, name, avatar); err != nil {
+			logger.Warn("async user upsert failed", "email", email, "error", err)
+		}
+	}()
 }

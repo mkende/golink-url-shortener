@@ -56,7 +56,7 @@ func TestIPInRanges(t *testing.T) {
 	}
 }
 
-func TestRemoteIP_FromContext(t *testing.T) {
+func TestPeerIP_FromContext(t *testing.T) {
 	req := httptest.NewRequest("GET", "/", nil)
 	// Simulate PreserveRemoteAddr saving the original addr.
 	ctx := WithOriginalRemoteAddr(context.Background(), "10.0.0.1:5555")
@@ -64,18 +64,18 @@ func TestRemoteIP_FromContext(t *testing.T) {
 	// Set r.RemoteAddr to something different (as RealIP would).
 	req.RemoteAddr = "1.2.3.4:9999"
 
-	got := remoteIP(req)
+	got := PeerIP(req)
 	if got.String() != "10.0.0.1" {
 		t.Errorf("got %q, want 10.0.0.1", got)
 	}
 }
 
-func TestRemoteIP_Fallback(t *testing.T) {
+func TestPeerIP_Fallback(t *testing.T) {
 	req := httptest.NewRequest("GET", "/", nil)
 	req.RemoteAddr = "192.0.2.5:1234"
 	// No context value set.
 
-	got := remoteIP(req)
+	got := PeerIP(req)
 	if got.String() != "192.0.2.5" {
 		t.Errorf("got %q, want 192.0.2.5", got)
 	}

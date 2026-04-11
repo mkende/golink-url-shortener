@@ -19,6 +19,12 @@ type apiKeysPageData struct {
 	Error  string
 }
 
+// renderAPIKeysError re-renders the /apikeys page with an error message.
+func (s *Server) renderAPIKeysError(w http.ResponseWriter, r *http.Request, base baseData, msg string) {
+	keys, _ := s.apiKeys.List(r.Context())
+	s.renderer.Render(w, "apikeys", apiKeysPageData{baseData: base, Keys: keys, Error: msg})
+}
+
 // handleAPIKeysPage serves GET /apikeys (admin only).
 func (s *Server) handleAPIKeysPage(w http.ResponseWriter, r *http.Request) {
 	base, err := s.newBaseData(w, r)
@@ -51,8 +57,7 @@ func (s *Server) handleCreateAPIKey(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !validateCSRF(r) {
-		http.Error(w, "invalid CSRF token", http.StatusForbidden)
+	if !requireCSRF(w, r) {
 		return
 	}
 
@@ -66,30 +71,21 @@ func (s *Server) handleCreateAPIKey(w http.ResponseWriter, r *http.Request) {
 	// The form sends "true" for read-only (default) and "false" for read-write.
 	readOnly := r.FormValue("read_only") != "false"
 
-	renderError := func(msg string) {
-		keys, _ := s.apiKeys.List(r.Context())
-		s.renderer.Render(w, "apikeys", apiKeysPageData{
-			baseData: base,
-			Keys:     keys,
-			Error:    msg,
-		})
-	}
-
 	if name == "" {
-		renderError("Key description is required.")
+		s.renderAPIKeysError(w, r, base, "Key description is required.")
 		return
 	}
 
 	rawKey, err := generateAPIKey()
 	if err != nil {
 		s.logr(r.Context()).Error("apikeys create: generate key", "error", err)
-		renderError("Could not generate API key.")
+		s.renderAPIKeysError(w, r, base, "Could not generate API key.")
 		return
 	}
 
 	if _, err := s.apiKeys.Create(r.Context(), name, HashAPIKey(rawKey), id.Email, readOnly); err != nil {
 		s.logr(r.Context()).Error("apikeys create: db create", "error", err)
-		renderError("Could not create API key. Please try again.")
+		s.renderAPIKeysError(w, r, base, "Could not create API key. Please try again.")
 		return
 	}
 
@@ -107,8 +103,7 @@ func (s *Server) handleCreateAPIKey(w http.ResponseWriter, r *http.Request) {
 
 // handleDeleteAPIKey serves POST /apikeys/{id}/delete (admin only).
 func (s *Server) handleDeleteAPIKey(w http.ResponseWriter, r *http.Request) {
-	if !validateCSRF(r) {
-		http.Error(w, "invalid CSRF token", http.StatusForbidden)
+	if !requireCSRF(w, r) {
 		return
 	}
 

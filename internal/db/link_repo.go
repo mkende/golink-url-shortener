@@ -218,11 +218,8 @@ func (r *SQLLinkRepo) Delete(ctx context.Context, id int64) error {
 // validated against an allow-list to prevent SQL injection. When publicOnly is
 // true, links with require_auth set are excluded.
 func (r *SQLLinkRepo) List(ctx context.Context, limit, offset int, sortField SortField, sortDir SortDir, publicOnly bool) ([]*Link, int, error) {
-	if !validSortFields[sortField] {
-		return nil, 0, fmt.Errorf("invalid sort field: %q", sortField)
-	}
-	if !validSortDirs[sortDir] {
-		return nil, 0, fmt.Errorf("invalid sort direction: %q", sortDir)
+	if err := validateSort(sortField, sortDir); err != nil {
+		return nil, 0, err
 	}
 
 	authFilter := ""
@@ -255,11 +252,8 @@ func (r *SQLLinkRepo) List(ctx context.Context, limit, offset int, sortField Sor
 
 // ListByOwner returns a paginated, sorted slice of links for ownerEmail.
 func (r *SQLLinkRepo) ListByOwner(ctx context.Context, ownerEmail string, limit, offset int, sortField SortField, sortDir SortDir) ([]*Link, int, error) {
-	if !validSortFields[sortField] {
-		return nil, 0, fmt.Errorf("invalid sort field: %q", sortField)
-	}
-	if !validSortDirs[sortDir] {
-		return nil, 0, fmt.Errorf("invalid sort direction: %q", sortDir)
+	if err := validateSort(sortField, sortDir); err != nil {
+		return nil, 0, err
 	}
 
 	var total int
@@ -286,6 +280,34 @@ func (r *SQLLinkRepo) ListByOwner(ctx context.Context, ownerEmail string, limit,
 		return nil, 0, err
 	}
 	return links, total, nil
+}
+
+// buildSearchMatchExpr returns the SQL WHERE expression and the LIKE argument
+// slice for the given search field. For searchAll the expression matches name,
+// target, and alias_target and the args slice contains the pattern three times.
+func buildSearchMatchExpr(field searchField, pattern string) (expr string, args []any) {
+	switch field {
+	case searchName:
+		return "name_lower LIKE ?", []any{pattern}
+	case searchTarget:
+		return "LOWER(target) LIKE ?", []any{pattern}
+	case searchAlias:
+		return "alias_target LIKE ?", []any{pattern}
+	default:
+		return "(name_lower LIKE ? OR LOWER(target) LIKE ? OR alias_target LIKE ?)", []any{pattern, pattern, pattern}
+	}
+}
+
+// validateSort returns an error when sortField or sortDir are not in the
+// allow-list, preventing SQL injection via interpolated ORDER BY clauses.
+func validateSort(sortField SortField, sortDir SortDir) error {
+	if !validSortFields[sortField] {
+		return fmt.Errorf("invalid sort field: %q", sortField)
+	}
+	if !validSortDirs[sortDir] {
+		return fmt.Errorf("invalid sort direction: %q", sortDir)
+	}
+	return nil
 }
 
 // searchField indicates which column(s) a search query targets.
@@ -345,26 +367,9 @@ func (r *SQLLinkRepo) Search(ctx context.Context, query string, limit, offset in
 		authCond = " AND require_auth = 0"
 	}
 
-	var countSQL, listSQL string
-	var baseArgs []any
-	switch field {
-	case searchName:
-		countSQL = r.db.q("SELECT COUNT(*) FROM links WHERE name_lower LIKE ?" + authCond)
-		listSQL = r.db.q("SELECT " + selectCols + " FROM links WHERE name_lower LIKE ?" + authCond + " ORDER BY name_lower ASC LIMIT ? OFFSET ?")
-		baseArgs = []any{pattern}
-	case searchTarget:
-		countSQL = r.db.q("SELECT COUNT(*) FROM links WHERE LOWER(target) LIKE ?" + authCond)
-		listSQL = r.db.q("SELECT " + selectCols + " FROM links WHERE LOWER(target) LIKE ?" + authCond + " ORDER BY name_lower ASC LIMIT ? OFFSET ?")
-		baseArgs = []any{pattern}
-	case searchAlias:
-		countSQL = r.db.q("SELECT COUNT(*) FROM links WHERE alias_target LIKE ?" + authCond)
-		listSQL = r.db.q("SELECT " + selectCols + " FROM links WHERE alias_target LIKE ?" + authCond + " ORDER BY name_lower ASC LIMIT ? OFFSET ?")
-		baseArgs = []any{pattern}
-	default:
-		countSQL = r.db.q("SELECT COUNT(*) FROM links WHERE (name_lower LIKE ? OR LOWER(target) LIKE ? OR alias_target LIKE ?)" + authCond)
-		listSQL = r.db.q("SELECT " + selectCols + " FROM links WHERE (name_lower LIKE ? OR LOWER(target) LIKE ? OR alias_target LIKE ?)" + authCond + " ORDER BY name_lower ASC LIMIT ? OFFSET ?")
-		baseArgs = []any{pattern, pattern, pattern}
-	}
+	matchExpr, baseArgs := buildSearchMatchExpr(field, pattern)
+	countSQL := r.db.q("SELECT COUNT(*) FROM links WHERE " + matchExpr + authCond)
+	listSQL := r.db.q("SELECT " + selectCols + " FROM links WHERE " + matchExpr + authCond + " ORDER BY name_lower ASC LIMIT ? OFFSET ?")
 
 	var total int
 	if err := r.db.QueryRowContext(ctx, countSQL, baseArgs...).Scan(&total); err != nil {
@@ -390,22 +395,7 @@ func (r *SQLLinkRepo) Search(ctx context.Context, query string, limit, offset in
 func (r *SQLLinkRepo) SearchOwnedOrSharedWith(ctx context.Context, ownerEmail string, identifiers []string, query string, limit, offset int) ([]*Link, int, error) {
 	field, pattern := parseSearchQuery(query)
 
-	var matchExpr string
-	switch field {
-	case searchName:
-		matchExpr = "name_lower LIKE ?"
-	case searchTarget:
-		matchExpr = "LOWER(target) LIKE ?"
-	case searchAlias:
-		matchExpr = "alias_target LIKE ?"
-	default:
-		matchExpr = "(name_lower LIKE ? OR LOWER(target) LIKE ? OR alias_target LIKE ?)"
-	}
-	// patternArgs holds the LIKE arguments for one branch of the UNION.
-	patternArgs := []any{pattern}
-	if field == searchAll {
-		patternArgs = []any{pattern, pattern, pattern}
-	}
+	matchExpr, patternArgs := buildSearchMatchExpr(field, pattern)
 
 	if len(identifiers) == 0 {
 		// Fast path: no sharing, restrict to owner only.
@@ -550,11 +540,8 @@ func (r *SQLLinkRepo) SharedLinkIDs(ctx context.Context, identifiers []string) (
 // ListOwnedOrSharedWith returns links owned by ownerEmail UNION links shared
 // with any of the given identifiers (excluding those already owned by ownerEmail).
 func (r *SQLLinkRepo) ListOwnedOrSharedWith(ctx context.Context, ownerEmail string, identifiers []string, limit, offset int, sortField SortField, sortDir SortDir) ([]*Link, int, error) {
-	if !validSortFields[sortField] {
-		return nil, 0, fmt.Errorf("invalid sort field: %q", sortField)
-	}
-	if !validSortDirs[sortDir] {
-		return nil, 0, fmt.Errorf("invalid sort direction: %q", sortDir)
+	if err := validateSort(sortField, sortDir); err != nil {
+		return nil, 0, err
 	}
 
 	if len(identifiers) == 0 {

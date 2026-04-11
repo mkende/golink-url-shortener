@@ -6,15 +6,9 @@ import (
 	"regexp"
 	"strings"
 	"text/template"
-)
 
-// isSafeURL returns true when the URL produced by an advanced template is safe
-// to redirect to.  It must use http or https; javascript:, data:, vbscript:
-// and protocol-relative URLs are all rejected.
-func isSafeURL(u string) bool {
-	lower := strings.ToLower(u)
-	return strings.HasPrefix(lower, "http://") || strings.HasPrefix(lower, "https://")
-}
+	"github.com/mkende/golink-url-shortener/internal/links"
+)
 
 // TemplateVars holds the template variables available to advanced redirect templates.
 type TemplateVars struct {
@@ -84,8 +78,8 @@ func parseTemplate(templateStr string) (*template.Template, error) {
 
 // toMap converts TemplateVars to a map with lowercase keys so that template
 // authors can write {{.path}} instead of {{.Path}}.
-func (v TemplateVars) toMap() map[string]interface{} {
-	return map[string]interface{}{
+func (v TemplateVars) toMap() map[string]any {
+	return map[string]any{
 		"path":  v.Path,
 		"parts": v.Parts,
 		"args":  v.Args,
@@ -99,7 +93,7 @@ func (v TemplateVars) toMap() map[string]interface{} {
 // (e.g. out-of-range index) and returning them as errors. Occurrences of
 // "<no value>" (produced by undefined map keys) are stripped from the output
 // so that missing variables silently become empty strings.
-func executeTemplate(t *template.Template, data interface{}) (result string, err error) {
+func executeTemplate(t *template.Template, data any) (result string, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = fmt.Errorf("template execution panic: %v", r)
@@ -128,8 +122,8 @@ func ResolveAdvanced(templateStr string, vars TemplateVars) (string, error) {
 	}
 
 	result := strings.TrimSpace(raw)
-	if !isSafeURL(result) {
-		return "", fmt.Errorf("advanced template produced a disallowed URL scheme: %q", result)
+	if err := links.ValidateTarget(result); err != nil {
+		return "", fmt.Errorf("advanced template produced an invalid URL: %w", err)
 	}
 	return result, nil
 }

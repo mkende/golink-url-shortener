@@ -23,6 +23,11 @@ func (s *Server) handleImportExportPage(w http.ResponseWriter, r *http.Request) 
 	s.renderer.Render(w, "importexport", importExportPageData{baseData: base})
 }
 
+// renderImportError re-renders the importexport page with an error message.
+func (s *Server) renderImportError(w http.ResponseWriter, base baseData, msg string) {
+	s.renderer.Render(w, "importexport", importExportPageData{baseData: base, Error: msg})
+}
+
 // handleImportUpload serves POST /importexport (admin only).
 // It accepts a JSON file upload and imports all links from it, then renders
 // the page with a result summary.
@@ -34,33 +39,25 @@ func (s *Server) handleImportUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !validateCSRF(r) {
-		http.Error(w, "invalid CSRF token", http.StatusForbidden)
+	if !requireCSRF(w, r) {
 		return
 	}
 
-	renderError := func(msg string) {
-		s.renderer.Render(w, "importexport", importExportPageData{
-			baseData: base,
-			Error:    msg,
-		})
-	}
-
 	if err := r.ParseMultipartForm(32 << 20); err != nil {
-		renderError("Could not parse form: " + err.Error())
+		s.renderImportError(w, base, "Could not parse form: "+err.Error())
 		return
 	}
 
 	file, _, err := r.FormFile("file")
 	if err != nil {
-		renderError("No file uploaded.")
+		s.renderImportError(w, base, "No file uploaded.")
 		return
 	}
 	defer file.Close()
 
 	var data ExportData
 	if err := json.NewDecoder(file).Decode(&data); err != nil {
-		renderError("Invalid JSON file: " + err.Error())
+		s.renderImportError(w, base, "Invalid JSON file: "+err.Error())
 		return
 	}
 

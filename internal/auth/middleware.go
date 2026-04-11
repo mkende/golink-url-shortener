@@ -1,12 +1,28 @@
 package auth
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/url"
 	"strings"
 
 	"github.com/mkende/golink-url-shortener/internal/config"
 )
+
+// isAPIRequest reports whether the request targets an API path or the client
+// signals it expects JSON via the Accept header.
+func isAPIRequest(r *http.Request) bool {
+	return strings.HasPrefix(r.URL.Path, "/api/") ||
+		strings.Contains(r.Header.Get("Accept"), "application/json")
+}
+
+// writeJSONMiddlewareError writes a JSON {"error": message} response. It is
+// used by auth middleware which cannot import the server package.
+func writeJSONMiddlewareError(w http.ResponseWriter, status int, message string) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	json.NewEncoder(w).Encode(map[string]string{"error": message}) //nolint:errcheck
+}
 
 // LoginRedirect redirects the user to the OIDC login page, encoding the
 // current request URI as the ?rd= post-login destination.
@@ -33,9 +49,8 @@ func RequireAuth(cfg *config.Config) func(http.Handler) http.Handler {
 				next.ServeHTTP(w, r)
 				return
 			}
-			if strings.HasPrefix(r.URL.Path, "/api/") {
-				w.Header().Set("Content-Type", "application/json")
-				http.Error(w, `{"error":"authentication required"}`, http.StatusUnauthorized)
+			if isAPIRequest(r) {
+				writeJSONMiddlewareError(w, http.StatusUnauthorized, "authentication required")
 				return
 			}
 			if cfg.OIDC.Enabled {
@@ -72,8 +87,7 @@ func RequireWriteScope() func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if id := FromContext(r.Context()); id != nil && id.APIKeyReadOnly {
-				w.Header().Set("Content-Type", "application/json")
-				http.Error(w, `{"error":"read-only API key cannot perform write operations"}`, http.StatusForbidden)
+				writeJSONMiddlewareError(w, http.StatusForbidden, "read-only API key cannot perform write operations")
 				return
 			}
 			next.ServeHTTP(w, r)

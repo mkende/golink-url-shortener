@@ -150,13 +150,7 @@ func (h *OIDCHandler) HandleCallback(w http.ResponseWriter, r *http.Request) {
 	}
 	id.IsAdmin = isAdmin(h.cfg, id)
 
-	if h.users != nil {
-		go func() {
-			if _, err := h.users.Upsert(context.Background(), id.Email, id.DisplayName, id.AvatarURL); err != nil {
-				_ = err
-			}
-		}()
-	}
+	upsertUserAsync(slog.Default(), h.users, id.Email, id.DisplayName, id.AvatarURL)
 
 	// Issue JWT session cookie
 	if err := h.issueSessionCookie(w, id); err != nil {
@@ -248,7 +242,7 @@ func OIDCMiddleware(cfg *config.Config, logger *slog.Logger) func(http.Handler) 
 				return
 			}
 			var claims sessionClaims
-			jwtToken, err := jwt.ParseWithClaims(cookie.Value, &claims, func(t *jwt.Token) (interface{}, error) {
+			jwtToken, err := jwt.ParseWithClaims(cookie.Value, &claims, func(t *jwt.Token) (any, error) {
 				if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
 					return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
 				}

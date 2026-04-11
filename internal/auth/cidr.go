@@ -66,5 +66,3 @@ func PeerIP(r *http.Request) net.IP {
 	return net.ParseIP(host)
 }
 
-// remoteIP is an unexported alias kept for use within the auth package only.
-func remoteIP(r *http.Request) net.IP { return PeerIP(r) }

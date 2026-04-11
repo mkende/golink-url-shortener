@@ -102,8 +102,7 @@ func (s *Server) handleAPIListLinks(w http.ResponseWriter, r *http.Request) {
 		linkList, total, err = s.links.List(r.Context(), limit, offset, sortField, sortDir, false)
 	}
 	if err != nil {
-		s.logr(r.Context()).Error("api: list links", "error", err)
-		writeJSONError(w, http.StatusInternalServerError, "internal server error")
+		s.apiError(r.Context(), w, "api: list links", "error", err)
 		return
 	}
 
@@ -152,8 +151,7 @@ func (s *Server) handleAPICreateLink(w http.ResponseWriter, r *http.Request) {
 		case createErrValidation:
 			writeJSONError(w, http.StatusBadRequest, cerr.Message)
 		default:
-			s.logr(r.Context()).Error("api: create link", "name", req.Name, "error", cerr.Message)
-			writeJSONError(w, http.StatusInternalServerError, "internal server error")
+			s.apiError(r.Context(), w, "api: create link", "name", req.Name, "error", cerr.Message)
 		}
 		return
 	}
@@ -163,15 +161,14 @@ func (s *Server) handleAPICreateLink(w http.ResponseWriter, r *http.Request) {
 
 // handleAPIGetLink serves GET /api/links/{name}.
 func (s *Server) handleAPIGetLink(w http.ResponseWriter, r *http.Request) {
-	name := strings.ToLower(chi.URLParam(r, "name"))
+	name := urlParamLower(r, "name")
 	link, err := s.links.GetByName(r.Context(), name)
 	if err != nil {
 		if errors.Is(err, db.ErrNotFound) {
 			writeJSONError(w, http.StatusNotFound, "link not found")
 			return
 		}
-		s.logr(r.Context()).Error("api: get link", "name", name, "error", err)
-		writeJSONError(w, http.StatusInternalServerError, "internal server error")
+		s.apiError(r.Context(), w, "api: get link", "name", name, "error", err)
 		return
 	}
 	writeJSON(w, http.StatusOK, linkToResponse(link))
@@ -180,7 +177,7 @@ func (s *Server) handleAPIGetLink(w http.ResponseWriter, r *http.Request) {
 // handleAPIUpdateLink serves PATCH /api/links/{name}.
 // Only supplied fields are updated (field-mask semantics via JSON null vs omit).
 func (s *Server) handleAPIUpdateLink(w http.ResponseWriter, r *http.Request) {
-	name := strings.ToLower(chi.URLParam(r, "name"))
+	name := urlParamLower(r, "name")
 
 	id := auth.FromContext(r.Context())
 
@@ -190,17 +187,15 @@ func (s *Server) handleAPIUpdateLink(w http.ResponseWriter, r *http.Request) {
 			writeJSONError(w, http.StatusNotFound, "link not found")
 			return
 		}
-		s.logr(r.Context()).Error("api: update link get", "name", name, "error", err)
-		writeJSONError(w, http.StatusInternalServerError, "internal server error")
+		s.apiError(r.Context(), w, "api: update link get", "name", name, "error", err)
 		return
 	}
 
-	if !canEdit(id, link) {
+	if !canEditBasic(id, link) {
 		// Check the share list before denying access.
 		ok, checkErr := s.isSharedWith(r.Context(), link.ID, id)
 		if checkErr != nil {
-			s.logr(r.Context()).Error("api: update link check shares", "name", name, "error", checkErr)
-			writeJSONError(w, http.StatusInternalServerError, "internal server error")
+			s.apiError(r.Context(), w, "api: update link check shares", "name", name, "error", checkErr)
 			return
 		}
 		if !ok {
@@ -252,8 +247,7 @@ func (s *Server) handleAPIUpdateLink(w http.ResponseWriter, r *http.Request) {
 				writeJSONError(w, http.StatusUnprocessableEntity, "alias limit reached for this link")
 				return
 			}
-			s.logr(r.Context()).Error("api: set alias", "id", link.ID, "error", err)
-			writeJSONError(w, http.StatusInternalServerError, "internal server error")
+			s.apiError(r.Context(), w, "api: set alias", "id", link.ID, "error", err)
 			return
 		}
 		writeJSON(w, http.StatusOK, linkToResponse(updated))
@@ -272,8 +266,7 @@ func (s *Server) handleAPIUpdateLink(w http.ResponseWriter, r *http.Request) {
 
 	updated, err := s.links.Update(r.Context(), link.ID, link.Name, newTarget, newLinkType, newRequireAuth)
 	if err != nil {
-		s.logr(r.Context()).Error("api: update link", "id", link.ID, "error", err)
-		writeJSONError(w, http.StatusInternalServerError, "internal server error")
+		s.apiError(r.Context(), w, "api: update link", "id", link.ID, "error", err)
 		return
 	}
 	writeJSON(w, http.StatusOK, linkToResponse(updated))
@@ -281,7 +274,7 @@ func (s *Server) handleAPIUpdateLink(w http.ResponseWriter, r *http.Request) {
 
 // handleAPIDeleteLink serves DELETE /api/links/{name}.
 func (s *Server) handleAPIDeleteLink(w http.ResponseWriter, r *http.Request) {
-	name := strings.ToLower(chi.URLParam(r, "name"))
+	name := urlParamLower(r, "name")
 
 	id := auth.FromContext(r.Context())
 
@@ -291,8 +284,7 @@ func (s *Server) handleAPIDeleteLink(w http.ResponseWriter, r *http.Request) {
 			writeJSONError(w, http.StatusNotFound, "link not found")
 			return
 		}
-		s.logr(r.Context()).Error("api: delete link get", "name", name, "error", err)
-		writeJSONError(w, http.StatusInternalServerError, "internal server error")
+		s.apiError(r.Context(), w, "api: delete link get", "name", name, "error", err)
 		return
 	}
 
@@ -303,8 +295,7 @@ func (s *Server) handleAPIDeleteLink(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := s.links.Delete(r.Context(), link.ID); err != nil {
-		s.logr(r.Context()).Error("api: delete link", "id", link.ID, "error", err)
-		writeJSONError(w, http.StatusInternalServerError, "internal server error")
+		s.apiError(r.Context(), w, "api: delete link", "id", link.ID, "error", err)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -351,8 +342,7 @@ func (s *Server) resolveAliasTarget(r *http.Request, aliasTargetLower, selfNameL
 func (s *Server) handleAPIListAPIKeys(w http.ResponseWriter, r *http.Request) {
 	keys, err := s.apiKeys.List(r.Context())
 	if err != nil {
-		s.logr(r.Context()).Error("api: list api keys", "error", err)
-		writeJSONError(w, http.StatusInternalServerError, "internal server error")
+		s.apiError(r.Context(), w, "api: list api keys", "error", err)
 		return
 	}
 	resp := make([]APIKeyResponse, len(keys))
@@ -395,15 +385,13 @@ func (s *Server) handleAPICreateAPIKey(w http.ResponseWriter, r *http.Request) {
 
 	rawKey, err := generateAPIKey()
 	if err != nil {
-		s.logr(r.Context()).Error("api: generate api key", "error", err)
-		writeJSONError(w, http.StatusInternalServerError, "internal server error")
+		s.apiError(r.Context(), w, "api: generate api key", "error", err)
 		return
 	}
 
 	key, err := s.apiKeys.Create(r.Context(), body.Name, HashAPIKey(rawKey), id.Email, readOnly)
 	if err != nil {
-		s.logr(r.Context()).Error("api: create api key", "error", err)
-		writeJSONError(w, http.StatusInternalServerError, "internal server error")
+		s.apiError(r.Context(), w, "api: create api key", "error", err)
 		return
 	}
 
@@ -426,8 +414,7 @@ func (s *Server) handleAPIDeleteAPIKey(w http.ResponseWriter, r *http.Request) {
 			writeJSONError(w, http.StatusNotFound, "api key not found")
 			return
 		}
-		s.logr(r.Context()).Error("api: delete api key", "id", keyID, "error", err)
-		writeJSONError(w, http.StatusInternalServerError, "internal server error")
+		s.apiError(r.Context(), w, "api: delete api key", "id", keyID, "error", err)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)

@@ -9,7 +9,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/mkende/golink-url-shortener/internal/auth"
 	"github.com/mkende/golink-url-shortener/internal/db"
 	"github.com/mkende/golink-url-shortener/internal/links"
@@ -163,6 +162,11 @@ type newPageData struct {
 	Form  newLinkForm
 }
 
+// renderNewError re-renders the /new page with an error message.
+func (s *Server) renderNewError(w http.ResponseWriter, base baseData, form newLinkForm, msg string) {
+	s.renderer.Render(w, "new", newPageData{baseData: base, Error: msg, Form: form})
+}
+
 // handleNew serves GET and POST /new.
 func (s *Server) handleNew(w http.ResponseWriter, r *http.Request) {
 	base, err := s.newBaseData(w, r)
@@ -182,8 +186,7 @@ func (s *Server) handleNew(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// POST — create the link.
-	if !validateCSRF(r) {
-		http.Error(w, "invalid CSRF token", http.StatusForbidden)
+	if !requireCSRF(w, r) {
 		return
 	}
 
@@ -204,10 +207,6 @@ func (s *Server) handleNew(w http.ResponseWriter, r *http.Request) {
 		form.LinkType = "simple"
 	}
 
-	renderError := func(msg string) {
-		s.renderer.Render(w, "new", newPageData{baseData: base, Error: msg, Form: form})
-	}
-
 	linkType := db.LinkTypeSimple
 	if form.LinkType == "advanced" {
 		linkType = db.LinkTypeAdvanced
@@ -225,12 +224,12 @@ func (s *Server) handleNew(w http.ResponseWriter, r *http.Request) {
 	if cerr != nil {
 		switch cerr.Kind {
 		case createErrConflict:
-			renderError("A link with that name already exists.")
+			s.renderNewError(w, base, form, "A link with that name already exists.")
 		case createErrInternal:
 			s.logr(r.Context()).Error("new: create link", "name", form.Name, "error", cerr.Message)
-			renderError("Could not create link. Please try again.")
+			s.renderNewError(w, base, form, "Could not create link. Please try again.")
 		default:
-			renderError(cerr.Message)
+			s.renderNewError(w, base, form, cerr.Message)
 		}
 		return
 	}
@@ -251,10 +250,21 @@ type detailsPageData struct {
 	Success       string
 }
 
+// renderDetailsError re-renders the /details/{name} page with an error message.
+func (s *Server) renderDetailsError(w http.ResponseWriter, r *http.Request, base baseData, link *db.Link, canEdit bool, msg string) {
+	data, buildErr := s.buildDetailsPageData(r, base, link, canEdit)
+	if buildErr != nil {
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+	data.Error = msg
+	s.renderer.Render(w, "details", data)
+}
+
 // handleDetails serves GET /details/{name} and POST /details/{name}.
 // Any authenticated user may view; only owners, shared users, and admins may edit.
 func (s *Server) handleDetails(w http.ResponseWriter, r *http.Request) {
-	name := strings.ToLower(chi.URLParam(r, "name"))
+	name := urlParamLower(r, "name")
 
 	base, err := s.newBaseData(w, r)
 	if err != nil {
@@ -294,34 +304,31 @@ func (s *Server) handleDetails(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if r.Method == http.MethodGet {
-		data, err := s.buildDetailsPageData(r, base, link, canEdit)
-		if err != nil {
-			s.logr(r.Context()).Error("details: build page data", "error", err)
-			http.Error(w, "internal server error", http.StatusInternalServerError)
-			return
-		}
-		s.renderer.Render(w, "details", data)
+		s.handleDetailsGet(w, r, base, link, canEdit)
+	} else {
+		s.handleDetailsPost(w, r, base, link, canEdit)
+	}
+}
+
+// handleDetailsGet renders the details page for GET /details/{name}.
+func (s *Server) handleDetailsGet(w http.ResponseWriter, r *http.Request, base baseData, link *db.Link, canEdit bool) {
+	data, err := s.buildDetailsPageData(r, base, link, canEdit)
+	if err != nil {
+		s.logr(r.Context()).Error("details: build page data", "error", err)
+		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
+	s.renderer.Render(w, "details", data)
+}
 
-	// POST — save changes; requires edit access.
+// handleDetailsPost processes the form submission for POST /details/{name}.
+func (s *Server) handleDetailsPost(w http.ResponseWriter, r *http.Request, base baseData, link *db.Link, canEdit bool) {
 	if !canEdit {
 		http.Error(w, "forbidden", http.StatusForbidden)
 		return
 	}
-	if !validateCSRF(r) {
-		http.Error(w, "invalid CSRF token", http.StatusForbidden)
+	if !requireCSRF(w, r) {
 		return
-	}
-
-	renderError := func(msg string) {
-		data, buildErr := s.buildDetailsPageData(r, base, link, canEdit)
-		if buildErr != nil {
-			http.Error(w, "internal server error", http.StatusInternalServerError)
-			return
-		}
-		data.Error = msg
-		s.renderer.Render(w, "details", data)
 	}
 
 	linkTypeStr := r.FormValue("link_type")
@@ -331,22 +338,22 @@ func (s *Server) handleDetails(w http.ResponseWriter, r *http.Request) {
 	case "alias":
 		aliasTargetRaw := strings.TrimSpace(r.FormValue("alias_target"))
 		if aliasTargetRaw == "" {
-			renderError("Alias target cannot be empty.")
+			s.renderDetailsError(w, r, base, link, canEdit, "Alias target cannot be empty.")
 			return
 		}
 		aliasTargetLower, resolveErr := s.resolveAliasTarget(r, strings.ToLower(aliasTargetRaw), link.NameLower)
 		if resolveErr != nil {
-			renderError(resolveErr.Error())
+			s.renderDetailsError(w, r, base, link, canEdit, resolveErr.Error())
 			return
 		}
 		updated, setErr := s.links.SetAlias(r.Context(), link.ID, link.Name, aliasTargetLower, requireAuth, s.cfg.MaxAliasesPerLink)
 		if setErr != nil {
 			if errors.Is(setErr, db.ErrAliasLimitExceeded) {
-				renderError(fmt.Sprintf("Alias limit reached: a link may have at most %d aliases.", s.cfg.MaxAliasesPerLink))
+				s.renderDetailsError(w, r, base, link, canEdit, fmt.Sprintf("Alias limit reached: a link may have at most %d aliases.", s.cfg.MaxAliasesPerLink))
 				return
 			}
 			s.logr(r.Context()).Error("details: set alias", "id", link.ID, "error", setErr)
-			renderError("Could not save changes. Please try again.")
+			s.renderDetailsError(w, r, base, link, canEdit, "Could not save changes. Please try again.")
 			return
 		}
 		data, buildErr := s.buildDetailsPageData(r, base, updated, canEdit)
@@ -366,13 +373,13 @@ func (s *Server) handleDetails(w http.ResponseWriter, r *http.Request) {
 		}
 		target := strings.TrimSpace(r.FormValue("target"))
 		if err := links.ValidateTarget(target); err != nil {
-			renderError(err.Error())
+			s.renderDetailsError(w, r, base, link, canEdit, err.Error())
 			return
 		}
 		updated, updateErr := s.links.Update(r.Context(), link.ID, link.Name, target, lt, requireAuth)
 		if updateErr != nil {
 			s.logr(r.Context()).Error("details: update link", "id", link.ID, "error", updateErr)
-			renderError("Could not save changes. Please try again.")
+			s.renderDetailsError(w, r, base, link, canEdit, "Could not save changes. Please try again.")
 			return
 		}
 		data, buildErr := s.buildDetailsPageData(r, base, updated, canEdit)
@@ -430,18 +437,16 @@ func (s *Server) buildDetailsPageData(r *http.Request, base baseData, link *db.L
 
 // handleDetailsShare serves POST /details/{name}/share.
 func (s *Server) handleDetailsShare(w http.ResponseWriter, r *http.Request) {
-	name := strings.ToLower(chi.URLParam(r, "name"))
+	name := urlParamLower(r, "name")
 
-	if !validateCSRF(r) {
-		http.Error(w, "invalid CSRF token", http.StatusForbidden)
+	if !requireCSRF(w, r) {
 		return
 	}
 
-	link, id, ok := s.requireEditAccess(w, r, name)
+	link, _, ok := s.requireEditAccess(w, r, name)
 	if !ok {
 		return
 	}
-	_ = id
 
 	email := strings.TrimSpace(r.FormValue("email"))
 	if email == "" {
@@ -471,18 +476,16 @@ func (s *Server) handleDetailsShare(w http.ResponseWriter, r *http.Request) {
 
 // handleDetailsUnshare serves POST /details/{name}/unshare.
 func (s *Server) handleDetailsUnshare(w http.ResponseWriter, r *http.Request) {
-	name := strings.ToLower(chi.URLParam(r, "name"))
+	name := urlParamLower(r, "name")
 
-	if !validateCSRF(r) {
-		http.Error(w, "invalid CSRF token", http.StatusForbidden)
+	if !requireCSRF(w, r) {
 		return
 	}
 
-	link, id, ok := s.requireEditAccess(w, r, name)
+	link, _, ok := s.requireEditAccess(w, r, name)
 	if !ok {
 		return
 	}
-	_ = id
 
 	email := strings.TrimSpace(r.FormValue("email"))
 	if err := s.links.RemoveShare(r.Context(), link.ID, email); err != nil {
@@ -496,18 +499,16 @@ func (s *Server) handleDetailsUnshare(w http.ResponseWriter, r *http.Request) {
 
 // handleDetailsDelete serves POST /details/{name}/delete.
 func (s *Server) handleDetailsDelete(w http.ResponseWriter, r *http.Request) {
-	name := strings.ToLower(chi.URLParam(r, "name"))
+	name := urlParamLower(r, "name")
 
-	if !validateCSRF(r) {
-		http.Error(w, "invalid CSRF token", http.StatusForbidden)
+	if !requireCSRF(w, r) {
 		return
 	}
 
-	link, id, ok := s.requireEditAccess(w, r, name)
+	link, _, ok := s.requireEditAccess(w, r, name)
 	if !ok {
 		return
 	}
-	_ = id
 
 	if err := s.links.Delete(r.Context(), link.ID); err != nil {
 		s.logr(r.Context()).Error("delete: delete link", "name", name, "error", err)
@@ -521,10 +522,9 @@ func (s *Server) handleDetailsDelete(w http.ResponseWriter, r *http.Request) {
 // handleCreateAlias serves POST /details/{name}/alias.
 // Any authenticated user may create an alias for any link.
 func (s *Server) handleCreateAlias(w http.ResponseWriter, r *http.Request) {
-	canonicalName := strings.ToLower(chi.URLParam(r, "name"))
+	canonicalName := urlParamLower(r, "name")
 
-	if !validateCSRF(r) {
-		http.Error(w, "invalid CSRF token", http.StatusForbidden)
+	if !requireCSRF(w, r) {
 		return
 	}
 
@@ -812,13 +812,6 @@ func canEditBasic(id *auth.Identity, link *db.Link) bool {
 		return true
 	}
 	return strings.EqualFold(id.Email, link.OwnerEmail)
-}
-
-// canEdit returns true when the identity may edit the given link based on
-// owner and admin status.  Callers that need share-list checks should use
-// requireEditAccess instead.
-func canEdit(id *auth.Identity, link *db.Link) bool {
-	return canEditBasic(id, link)
 }
 
 // isSharedWith reports whether the given identity's email is in the share list

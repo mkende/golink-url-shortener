@@ -48,6 +48,8 @@ func (d *DB) migrate() error {
 		if err != nil {
 			return fmt.Errorf("migrate: %w", err)
 		}
+	default:
+		return fmt.Errorf("unsupported backend %q in switch", d.backend)
 	}
 
 	if err := m.Up(); err != nil && err != migrate.ErrNoChange {

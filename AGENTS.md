@@ -139,6 +139,8 @@ commit message.
   when a `vX.Y.Z` tag is pushed. Cache the build layer between the two jobs.
 - CI workflows are added only at the **end** of development (see
   `IMPLEMENTATION_PLAN.md`).
+- Common test and linting can be executed locally using the recipes in the
+  .justfile (e.g. `just lint`, `just test`, etc.).
 
 ---
 
@@ -155,19 +157,10 @@ commit message.
 
 ---
 
-## Implementation progress
-
-Follow [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) in phase order.
-Mark each checkbox as done when the phase is committed.
-
----
-
 ## Branch & commit hygiene
 
 - Commit messages: imperative mood, ≤ 72 chars subject, blank line, then body
   explaining *why* if non-obvious.
-- Each implementation phase ends with the phase number and name in the commit
-  subject, e.g. `phase 3: database layer`.
 - Never force-push to `main`.
 
 ## TODO

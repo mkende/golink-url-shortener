@@ -1,7 +1,6 @@
 package auth
 
 import (
-	"context"
 	"log/slog"
 	"net"
 	"net/http"
@@ -54,7 +53,7 @@ func TailscaleMiddleware(cfg *config.Config, users db.UserRepo, logger *slog.Log
 			}
 			// If trusted CIDRs are configured, reject headers from untrusted IPs.
 			if len(trustedNets) > 0 {
-				ip := remoteIP(r)
+				ip := PeerIP(r)
 				if ip == nil || !IPInRanges(ip, trustedNets) {
 					logger.DebugContext(r.Context(), "tailscale: request from untrusted IP, ignoring headers",
 						"remote_ip", ip,
@@ -77,34 +76,10 @@ func TailscaleMiddleware(cfg *config.Config, users db.UserRepo, logger *slog.Log
 				"is_admin", id.IsAdmin,
 			)
 
-			if users != nil {
-				go func() {
-					if _, err := users.Upsert(context.Background(), id.Email, id.DisplayName, id.AvatarURL); err != nil {
-						// Best-effort; errors are not surfaced to the caller.
-						_ = err
-					}
-				}()
-			}
+			upsertUserAsync(logger, users, id.Email, id.DisplayName, id.AvatarURL)
 
 			next.ServeHTTP(w, r.WithContext(WithIdentity(r.Context(), id)))
 		})
 	}
 }
 
-// isAdmin reports whether the given identity has admin privileges according to
-// the config's admin_emails list and admin_groups setting.
-func isAdmin(cfg *config.Config, id *Identity) bool {
-	for _, email := range cfg.AdminEmails {
-		if email == id.Email {
-			return true
-		}
-	}
-	for _, adminGroup := range cfg.AdminGroups {
-		for _, g := range id.Groups {
-			if g == adminGroup {
-				return true
-			}
-		}
-	}
-	return false
-}

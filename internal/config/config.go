@@ -197,7 +197,7 @@ type Config struct {
 // UIConfig holds settings that control the behaviour of the web UI.
 type UIConfig struct {
 	// LinksPerPage is the number of links shown on each page of the /links and
-	// /mylinks lists. Must be >= 10. Defaults to 100.
+	// /mylinks lists. Must be >= 10. Defaults to 50.
 	LinksPerPage int `toml:"links_per_page"`
 }
 

@@ -13,7 +13,7 @@ import (
 )
 
 func (s *Server) handleRedirect(w http.ResponseWriter, r *http.Request) {
-	name := strings.ToLower(chi.URLParam(r, "name"))
+	name := urlParamLower(r, "name")
 	suffix := chi.URLParam(r, "*") // no leading "/"
 
 	link, err := s.links.GetByName(r.Context(), name)

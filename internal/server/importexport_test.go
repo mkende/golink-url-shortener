@@ -58,7 +58,7 @@ func exportAll(t *testing.T, env *apiTestEnv, apiKey string) *server.ExportData 
 
 // importData calls POST /api/import with the given ExportData and returns the
 // raw JSON response body decoded into a map.
-func importData(t *testing.T, env *apiTestEnv, data *server.ExportData, apiKey string) map[string]interface{} {
+func importData(t *testing.T, env *apiTestEnv, data *server.ExportData, apiKey string) map[string]any {
 	t.Helper()
 	body, err := json.Marshal(data)
 	if err != nil {
@@ -68,7 +68,7 @@ func importData(t *testing.T, env *apiTestEnv, data *server.ExportData, apiKey s
 	if w.Code != http.StatusOK {
 		t.Fatalf("import: expected 200, got %d: %s", w.Code, w.Body.String())
 	}
-	var result map[string]interface{}
+	var result map[string]any
 	if err := json.NewDecoder(w.Body).Decode(&result); err != nil {
 		t.Fatalf("import: decode response: %v", err)
 	}
@@ -243,7 +243,7 @@ func TestImport_InvalidName(t *testing.T) {
 	if skipped, ok := result["skipped"].(float64); !ok || int(skipped) != 1 {
 		t.Errorf("expected skipped=1, got %v", result["skipped"])
 	}
-	errs, _ := result["errors"].([]interface{})
+	errs, _ := result["errors"].([]any)
 	if len(errs) == 0 {
 		t.Errorf("expected at least one error message")
 	}
@@ -270,7 +270,7 @@ func TestImport_InvalidTarget(t *testing.T) {
 	if skipped, ok := result["skipped"].(float64); !ok || int(skipped) != 1 {
 		t.Errorf("expected skipped=1, got %v", result["skipped"])
 	}
-	errs, _ := result["errors"].([]interface{})
+	errs, _ := result["errors"].([]any)
 	if len(errs) == 0 {
 		t.Errorf("expected at least one error message")
 	}

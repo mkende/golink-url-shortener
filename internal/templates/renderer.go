@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"html/template"
 	"io"
+	"log/slog"
 	"net/http"
 	"strings"
 
@@ -44,13 +45,18 @@ var funcMap = template.FuncMap{
 // Renderer holds parsed HTML templates ready for execution.
 type Renderer struct {
 	templates map[string]*template.Template
+	logger    *slog.Logger
 }
 
 // New parses all page templates and returns a ready Renderer.
 // Pages are discovered automatically from the embedded FS: every .html file
 // that is not base.html and not listed in partials is treated as a page.
+// If logger is nil, slog.Default() is used.
 // Returns an error if any template fails to parse.
-func New() (*Renderer, error) {
+func New(logger *slog.Logger) (*Renderer, error) {
+	if logger == nil {
+		logger = slog.Default()
+	}
 	partials := []string{"link_table.html", "pagination.html"}
 
 	entries, err := webtemplates.FS.ReadDir(".")
@@ -97,18 +103,18 @@ func New() (*Renderer, error) {
 		}
 		templates[page] = t
 	}
-	return &Renderer{templates: templates}, nil
+	return &Renderer{templates: templates, logger: logger}, nil
 }
 
 // Render writes the named page template to w with the given data using HTTP
 // 200 OK. On template-not-found it writes a 500 response.
-func (r *Renderer) Render(w http.ResponseWriter, name string, data interface{}) {
+func (r *Renderer) Render(w http.ResponseWriter, name string, data any) {
 	r.RenderStatus(w, http.StatusOK, name, data)
 }
 
 // RenderStatus writes the named page template to w with the given HTTP status
 // code and data. On template-not-found it writes a 500 response.
-func (r *Renderer) RenderStatus(w http.ResponseWriter, status int, name string, data interface{}) {
+func (r *Renderer) RenderStatus(w http.ResponseWriter, status int, name string, data any) {
 	t, ok := r.templates[name]
 	if !ok {
 		http.Error(w, "template not found: "+name, http.StatusInternalServerError)
@@ -117,13 +123,13 @@ func (r *Renderer) RenderStatus(w http.ResponseWriter, status int, name string, 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(status)
 	if err := t.Execute(w, data); err != nil {
-		// Headers already sent; nothing useful we can do but log.
-		_ = err
+		// Headers are already sent; we can't change the status code, but we can log.
+		r.logger.Error("template execution failed", "template", name, "error", err)
 	}
 }
 
 // RenderTo renders the named template to w (for testing / non-HTTP use).
-func (r *Renderer) RenderTo(w io.Writer, name string, data interface{}) error {
+func (r *Renderer) RenderTo(w io.Writer, name string, data any) error {
 	t, ok := r.templates[name]
 	if !ok {
 		return fmt.Errorf("template not found: %s", name)

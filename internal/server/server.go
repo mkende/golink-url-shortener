@@ -38,7 +38,7 @@ type Server struct {
 // goroutines. Call Shutdown to drain them gracefully. The oidcHandler may be
 // nil when OIDC is disabled.
 func New(cfg *config.Config, sqlDB *db.DB, logger *slog.Logger, oidcHandler *auth.OIDCHandler) *Server {
-	renderer, err := templates.New()
+	renderer, err := templates.New(logger)
 	if err != nil {
 		// Template parse errors are programmer errors; panic early so they are
 		// caught during development rather than silently serving broken pages.

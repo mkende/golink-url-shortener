@@ -2,7 +2,6 @@ version := `cat VERSION`
 image   := "golink"
 
 # Run lint, check-format, and test (default target).
-[default]
 default: lint check-format test
 
 # Run all tests.

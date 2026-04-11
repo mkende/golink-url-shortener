@@ -1,7 +1,6 @@
 package auth
 
 import (
-	"context"
 	"log/slog"
 	"net"
 	"net/http"
@@ -52,7 +51,7 @@ func ProxyAuthMiddleware(cfg *config.Config, users db.UserRepo, logger *slog.Log
 			}
 
 			// Only accept headers from trusted IP ranges.
-			ip := remoteIP(r)
+			ip := PeerIP(r)
 			if ip == nil || !IPInRanges(ip, trustedNets) {
 				logger.DebugContext(r.Context(), "proxy_auth: request from untrusted IP, ignoring headers",
 					"remote_ip", ip,
@@ -97,13 +96,7 @@ func ProxyAuthMiddleware(cfg *config.Config, users db.UserRepo, logger *slog.Log
 				"is_admin", id.IsAdmin,
 			)
 
-			if users != nil {
-				go func() {
-					if _, err := users.Upsert(context.Background(), id.Email, id.DisplayName, ""); err != nil {
-						_ = err
-					}
-				}()
-			}
+			upsertUserAsync(logger, users, id.Email, id.DisplayName, "")
 
 			next.ServeHTTP(w, r.WithContext(WithIdentity(r.Context(), id)))
 		})

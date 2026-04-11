@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"strings"
@@ -36,7 +37,7 @@ type APIKeyResponse struct {
 }
 
 // writeJSON writes v as a JSON response with the given HTTP status code.
-func writeJSON(w http.ResponseWriter, status int, v interface{}) {
+func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	json.NewEncoder(w).Encode(v) //nolint:errcheck
@@ -45,6 +46,14 @@ func writeJSON(w http.ResponseWriter, status int, v interface{}) {
 // writeJSONError writes a JSON object {"error": message} with the given status.
 func writeJSONError(w http.ResponseWriter, status int, message string) {
 	writeJSON(w, status, map[string]string{"error": message})
+}
+
+// apiError logs the error at Error level and writes a JSON 500 response. It is
+// a convenience wrapper for the common pattern in API handlers where an
+// unexpected internal error should be logged and surfaced as a generic 500.
+func (s *Server) apiError(ctx context.Context, w http.ResponseWriter, logMsg string, args ...any) {
+	s.logr(ctx).Error(logMsg, args...)
+	writeJSONError(w, http.StatusInternalServerError, "internal server error")
 }
 
 // linkTypeToString converts a db.LinkType to its API string representation.

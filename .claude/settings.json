@@ -12,7 +12,8 @@
       "Skill(update-config:*)",
       "Bash(go work:*)",
       "Bash(go vet:*)",
-      "Bash(gofmt -w .)"
+      "Bash(gofmt -w .)",
+      "Bash(just lint:*)"
     ]
   }
 }
