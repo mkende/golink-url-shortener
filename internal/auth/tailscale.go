@@ -82,4 +82,3 @@ func TailscaleMiddleware(cfg *config.Config, users db.UserRepo, logger *slog.Log
 		})
 	}
 }
-

@@ -65,4 +65,3 @@ func PeerIP(r *http.Request) net.IP {
 	}
 	return net.ParseIP(host)
 }
-
