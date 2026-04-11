@@ -79,11 +79,12 @@
     <label class="label" for="share-email">Share with</label>
     <div class="field has-addons">
       <div class="control is-expanded">
-        <input id="share-email" class="input" type="email" name="email" placeholder="user@example.com"
-          list="known-users" aria-label="Email address to share with">
-        <datalist id="known-users">
-          {{range .KnownUsers}}<option value="{{.Email}}">{{.DisplayName}}</option>{{end}}
-        </datalist>
+        <input id="share-email" class="input" type="text" name="email"
+          placeholder="{{if .DefaultDomain}}user or user@{{.DefaultDomain}}{{else}}user@example.com{{end}}"
+          aria-label="Email address to share with" list="known-users"
+          hx-get="/api/users/search" hx-trigger="input changed delay:300ms"
+          hx-target="#known-users" hx-swap="innerHTML" hx-params="email">
+        <datalist id="known-users"></datalist>
       </div>
       <div class="control">
         <button class="button is-link" type="submit">Share</button>
@@ -199,11 +200,12 @@
     <label class="label" for="share-email">Share with</label>
     <div class="field has-addons">
       <div class="control is-expanded">
-        <input id="share-email" class="input" type="email" name="email" placeholder="user@example.com"
-          list="known-users" aria-label="Email address to share with">
-        <datalist id="known-users">
-          {{range .KnownUsers}}<option value="{{.Email}}">{{.DisplayName}}</option>{{end}}
-        </datalist>
+        <input id="share-email" class="input" type="text" name="email"
+          placeholder="{{if .DefaultDomain}}user or user@{{.DefaultDomain}}{{else}}user@example.com{{end}}"
+          aria-label="Email address to share with" list="known-users"
+          hx-get="/api/users/search" hx-trigger="input changed delay:300ms"
+          hx-target="#known-users" hx-swap="innerHTML" hx-params="email">
+        <datalist id="known-users"></datalist>
       </div>
       <div class="control">
         <button class="button is-link" type="submit">Share</button>

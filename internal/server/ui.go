@@ -245,7 +245,7 @@ type detailsPageData struct {
 	Aliases       []*db.Link
 	CanonicalLink *db.Link // non-nil only for alias links
 	Shares        []string
-	KnownUsers    []*db.User
+	DefaultDomain string // non-empty when bare names are accepted for sharing
 	Error         string
 	Success       string
 }
@@ -423,16 +423,31 @@ func (s *Server) buildDetailsPageData(r *http.Request, base baseData, link *db.L
 			return detailsPageData{}, fmt.Errorf("get shares: %w", err)
 		}
 		data.Shares = shares
-
-		knownUsers, err := s.users.List(r.Context(), 200, 0)
-		if err != nil {
-			// Non-fatal: autocomplete just won't be populated.
-			s.logr(r.Context()).Error("details: list users for autocomplete", "error", err)
-		}
-		data.KnownUsers = knownUsers
+		data.DefaultDomain = s.cfg.DefaultDomain
 	}
 
 	return data, nil
+}
+
+// handleAPIUserSearch serves GET /api/users/search?email=<query>.
+// It returns an HTML fragment of <option> elements for use as datalist suggestions.
+// The endpoint requires authentication (enforced by the /api route group middleware).
+func (s *Server) handleAPIUserSearch(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query().Get("email")
+	if q == "" {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		return
+	}
+	users, err := s.users.Search(r.Context(), q, 10)
+	if err != nil {
+		s.logr(r.Context()).Error("user search", "query", q, "error", err)
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	for _, u := range users {
+		fmt.Fprintf(w, "<option value=%q>%s</option>", html.EscapeString(u.Email), html.EscapeString(u.DisplayName))
+	}
 }
 
 // handleDetailsShare serves POST /details/{name}/share.

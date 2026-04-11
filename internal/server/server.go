@@ -230,6 +230,9 @@ func (s *Server) buildRouter() chi.Router {
 			// Quick-name generator (also reachable by HTMX from the group above)
 			r.Get("/quickname", s.handleQuickName)
 
+			// User search for share autocomplete (reachable by HTMX)
+			r.Get("/users/search", s.handleAPIUserSearch)
+
 			// API key management — admin only, always requires write scope.
 			r.Route("/apikeys", func(r chi.Router) {
 				r.Use(auth.RequireAdmin(http.HandlerFunc(s.handleForbidden)))
