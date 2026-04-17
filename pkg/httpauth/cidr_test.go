@@ -1,4 +1,4 @@
-package auth
+package httpauth
 
 import (
 	"context"
@@ -22,7 +22,7 @@ func TestParseCIDRs(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			_, err := ParseCIDRs(tc.cidrs)
+			_, err := parseCIDRs(tc.cidrs)
 			if (err != nil) != tc.wantErr {
 				t.Errorf("parseCIDRs(%v) error = %v, wantErr %v", tc.cidrs, err, tc.wantErr)
 			}
@@ -31,7 +31,7 @@ func TestParseCIDRs(t *testing.T) {
 }
 
 func TestIPInRanges(t *testing.T) {
-	nets, err := ParseCIDRs([]string{"192.168.0.0/16", "10.0.0.0/8", "::1/128"})
+	nets, err := parseCIDRs([]string{"192.168.0.0/16", "10.0.0.0/8", "::1/128"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -50,21 +50,19 @@ func TestIPInRanges(t *testing.T) {
 	}
 	for _, tc := range tests {
 		ip := net.ParseIP(tc.ip)
-		if got := IPInRanges(ip, nets); got != tc.want {
-			t.Errorf("IPInRanges(%q) = %v, want %v", tc.ip, got, tc.want)
+		if got := ipInRanges(ip, nets); got != tc.want {
+			t.Errorf("ipInRanges(%q) = %v, want %v", tc.ip, got, tc.want)
 		}
 	}
 }
 
 func TestPeerIP_FromContext(t *testing.T) {
 	req := httptest.NewRequest("GET", "/", nil)
-	// Simulate PreserveRemoteAddr saving the original addr.
 	ctx := WithOriginalRemoteAddr(context.Background(), "10.0.0.1:5555")
 	req = req.WithContext(ctx)
-	// Set r.RemoteAddr to something different (as RealIP would).
 	req.RemoteAddr = "1.2.3.4:9999"
 
-	got := PeerIP(req)
+	got := peerIP(req)
 	if got.String() != "10.0.0.1" {
 		t.Errorf("got %q, want 10.0.0.1", got)
 	}
@@ -73,9 +71,8 @@ func TestPeerIP_FromContext(t *testing.T) {
 func TestPeerIP_Fallback(t *testing.T) {
 	req := httptest.NewRequest("GET", "/", nil)
 	req.RemoteAddr = "192.0.2.5:1234"
-	// No context value set.
 
-	got := PeerIP(req)
+	got := peerIP(req)
 	if got.String() != "192.0.2.5" {
 		t.Errorf("got %q, want 192.0.2.5", got)
 	}

@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/mkende/golink-url-shortener/internal/db"
-	"github.com/mkende/golink-url-shortener/internal/server"
+	"github.com/mkende/golink-url-shortener/pkg/httpauth"
 )
 
 // --- Create link tests ---
@@ -381,7 +381,7 @@ func TestAPIUnauthenticated_AllEndpoints(t *testing.T) {
 func TestAPIKeyAuth_BearerToken(t *testing.T) {
 	env := newAPITestEnv(t)
 	rawKey := "testkey-bearer"
-	hash := server.HashAPIKey(rawKey)
+	hash := httpauth.HashAPIKey(rawKey)
 	_, err := env.apiKeys.Create(context.Background(), "bearer", hash, "admin@example.com", false)
 	if err != nil {
 		t.Fatalf("create api key: %v", err)

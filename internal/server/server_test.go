@@ -12,7 +12,37 @@ import (
 	"github.com/mkende/golink-url-shortener/internal/config"
 	"github.com/mkende/golink-url-shortener/internal/db"
 	"github.com/mkende/golink-url-shortener/internal/server"
+	"github.com/mkende/golink-url-shortener/pkg/httpauth"
 )
+
+// httptestClientAddr is the remote address httptest.NewRequest uses.
+const httptestClientAddr = "192.0.2.1/32"
+
+// makeAuthManager creates an AuthManager from cfg. When no auth provider is
+// configured it defaults to ProxyAuth with the trusted proxy set to the
+// httptest client address, so requests without a Remote-User header arrive
+// unauthenticated.
+func makeAuthManager(t *testing.T, cfg *config.Config) *httpauth.AuthManager {
+	t.Helper()
+	authCfg := cfg.Auth
+	trustedProxy := cfg.TrustedProxy
+	if !authCfg.OIDC.Enabled && !authCfg.Tailscale.Enabled && !authCfg.ProxyAuth.Enabled && !authCfg.Anonymous.Enabled {
+		trustedProxy = []string{httptestClientAddr}
+		authCfg.ProxyAuth = httpauth.ProxyAuthConfig{Enabled: true}
+	}
+	opts := []httpauth.Option{}
+	if cfg.CanonicalAddress != "" {
+		opts = append(opts, httpauth.WithCanonicalAddress(cfg.CanonicalAddress))
+	}
+	if len(trustedProxy) > 0 {
+		opts = append(opts, httpauth.WithTrustedProxy(trustedProxy))
+	}
+	m, err := httpauth.New(context.Background(), authCfg, opts...)
+	if err != nil {
+		t.Fatalf("create auth manager: %v", err)
+	}
+	return m
+}
 
 func newTestServer(t *testing.T) (http.Handler, db.LinkRepo) {
 	t.Helper()
@@ -26,8 +56,9 @@ func newTestServer(t *testing.T) (http.Handler, db.LinkRepo) {
 		ListenAddr: ":8080",
 		Title:      "Test GoLink",
 	}
+	authManager := makeAuthManager(t, cfg)
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	handler := server.New(cfg, sqlDB, logger, nil)
+	handler := server.New(cfg, sqlDB, logger, authManager)
 	links := db.NewLinkRepo(sqlDB)
 	return handler, links
 }
@@ -105,8 +136,9 @@ func TestRedirectNotFoundRedirectsToCanonicalDomain(t *testing.T) {
 		Title:            "Test GoLink",
 		CanonicalAddress: "https://go.example.com",
 	}
+	authManager := makeAuthManager(t, cfg)
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	handler := server.New(cfg, sqlDB, logger, nil)
+	handler := server.New(cfg, sqlDB, logger, authManager)
 
 	// http://go/missing — link doesn't exist, non-canonical host
 	req := httptest.NewRequest(http.MethodGet, "/missing", nil)
@@ -156,8 +188,9 @@ func TestRedirectRequireAuth_NonCanonical_RedirectsFirst(t *testing.T) {
 		Title:            "Test GoLink",
 		CanonicalAddress: "https://go.example.com",
 	}
+	authManager := makeAuthManager(t, cfg)
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	handler := server.New(cfg, sqlDB, logger, nil)
+	handler := server.New(cfg, sqlDB, logger, authManager)
 	links := db.NewLinkRepo(sqlDB)
 
 	_, err = links.Create(context.Background(), "secret", "https://secret.example.com", "owner@example.com", db.LinkTypeSimple, "", true)
@@ -181,8 +214,7 @@ func TestRedirectRequireAuth_NonCanonical_RedirectsFirst(t *testing.T) {
 
 func TestUIRequiresAuth(t *testing.T) {
 	handler, _ := newTestServer(t)
-	// No auth providers enabled and OIDC disabled, so an unauthenticated
-	// request to a UI page should return 401.
+	// ProxyAuth without Remote-User header → no identity → 401.
 	req := httptest.NewRequest(http.MethodGet, "/links", nil)
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
@@ -206,8 +238,9 @@ func TestUIUnauthenticatedRedirectsToCanonicalDomain(t *testing.T) {
 		Title:            "Test GoLink",
 		CanonicalAddress: "https://go.example.com",
 	}
+	authManager := makeAuthManager(t, cfg)
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	handler := server.New(cfg, sqlDB, logger, nil)
+	handler := server.New(cfg, sqlDB, logger, authManager)
 
 	// Simulate http://go/ — plain HTTP, wrong host.
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
@@ -235,11 +268,12 @@ func TestUIWithAnonymousAuthAllows(t *testing.T) {
 	cfg := &config.Config{
 		ListenAddr: ":8080",
 		Title:      "Test GoLink",
-		Anonymous:  config.AnonymousConfig{Enabled: true},
+		Auth:       httpauth.AuthConfig{Anonymous: httpauth.AnonymousConfig{Enabled: true}},
 		UI:         config.UIConfig{LinksPerPage: 100},
 	}
+	authManager := makeAuthManager(t, cfg)
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	handler := server.New(cfg, sqlDB, logger, nil)
+	handler := server.New(cfg, sqlDB, logger, authManager)
 
 	req := httptest.NewRequest(http.MethodGet, "/links", nil)
 	w := httptest.NewRecorder()
@@ -263,8 +297,9 @@ func TestRedirectRequireAuthForRedirects_Unauthenticated(t *testing.T) {
 		Title:                   "Test GoLink",
 		RequireAuthForRedirects: true,
 	}
+	authManager := makeAuthManager(t, cfg)
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	handler := server.New(cfg, sqlDB, logger, nil)
+	handler := server.New(cfg, sqlDB, logger, authManager)
 	links := db.NewLinkRepo(sqlDB)
 
 	_, err = links.Create(context.Background(), "pub", "https://public.example.com", "owner@example.com", db.LinkTypeSimple, "", false)

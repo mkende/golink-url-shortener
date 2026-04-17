@@ -11,10 +11,10 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/mkende/golink-url-shortener/internal/auth"
 	"github.com/mkende/golink-url-shortener/internal/config"
 	"github.com/mkende/golink-url-shortener/internal/db"
 	"github.com/mkende/golink-url-shortener/internal/server"
+	"github.com/mkende/golink-url-shortener/pkg/httpauth"
 )
 
 func main() {
@@ -36,7 +36,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	// structured logger
 	var logLevel slog.Level
 	switch cfg.LogLevel {
 	case "debug":
@@ -58,18 +57,24 @@ func main() {
 	}
 	defer sqlDB.Close()
 
-	// Initialise OIDC handler only when OIDC is enabled.
-	var oidcHandler *auth.OIDCHandler
-	if cfg.OIDC.Enabled {
-		userRepo := db.NewUserRepo(sqlDB)
-		oidcHandler, err = auth.NewOIDCHandler(ctx, cfg, userRepo)
-		if err != nil {
-			logger.Error("failed to initialise OIDC provider", "error", err)
-			os.Exit(1)
-		}
+	userRepo := db.NewUserRepo(sqlDB)
+	authManager, err := httpauth.New(ctx, cfg.Auth,
+		httpauth.WithCanonicalAddress(cfg.CanonicalAddress),
+		httpauth.WithJWTSecret(cfg.JWTSecret),
+		httpauth.WithTrustedProxy(cfg.TrustedProxy),
+		httpauth.WithLogger(logger),
+		httpauth.WithOnAuthenticated(func(email, name, avatar string) {
+			if _, err := userRepo.Upsert(ctx, email, name, avatar); err != nil {
+				logger.Warn("user upsert failed", "email", email, "error", err)
+			}
+		}),
+	)
+	if err != nil {
+		logger.Error("failed to initialise auth", "error", err)
+		os.Exit(1)
 	}
 
-	srv := server.New(cfg, sqlDB, logger, oidcHandler)
+	srv := server.New(cfg, sqlDB, logger, authManager)
 
 	httpSrv := &http.Server{
 		Addr:         cfg.ListenAddr,
@@ -79,7 +84,6 @@ func main() {
 		IdleTimeout:  60 * time.Second,
 	}
 
-	// Graceful shutdown
 	done := make(chan struct{})
 	go func() {
 		sigCh := make(chan os.Signal, 1)
@@ -89,7 +93,6 @@ func main() {
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 		httpSrv.Shutdown(shutdownCtx) //nolint:errcheck
-		// Flush any buffered use-count increments before exiting.
 		if err := srv.Shutdown(shutdownCtx); err != nil {
 			logger.Error("use-counter shutdown error", "error", err)
 		}

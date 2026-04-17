@@ -14,6 +14,7 @@ import (
 	"github.com/mkende/golink-url-shortener/internal/config"
 	"github.com/mkende/golink-url-shortener/internal/db"
 	"github.com/mkende/golink-url-shortener/internal/server"
+	"github.com/mkende/golink-url-shortener/pkg/httpauth"
 )
 
 // doGet sends an authenticated GET request using an API key.
@@ -138,21 +139,29 @@ func newShareTestEnv(t *testing.T, cfg func(*config.Config)) *shareTestEnv {
 		ListenAddr:   ":8080",
 		Title:        "Test GoLink",
 		TrustedProxy: []string{httptestRemoteAddr},
-		ProxyAuth: config.ProxyAuthConfig{
-			Enabled:      true,
-			EmailHeader:  "Remote-Email",
-			UserHeader:   "Remote-User",
-			NameHeader:   "Remote-Name",
-			GroupsHeader: "Remote-Groups",
+		Auth: httpauth.AuthConfig{
+			ProxyAuth: httpauth.ProxyAuthConfig{
+				Enabled:      true,
+				EmailHeader:  "Remote-Email",
+				UserHeader:   "Remote-User",
+				NameHeader:   "Remote-Name",
+				GroupsHeader: "Remote-Groups",
+			},
 		},
 	}
 	if cfg != nil {
 		cfg(c)
 	}
 
+	authManager, err := httpauth.New(context.Background(), c.Auth,
+		httpauth.WithTrustedProxy(c.TrustedProxy),
+	)
+	if err != nil {
+		t.Fatalf("create auth manager: %v", err)
+	}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	return &shareTestEnv{
-		handler: server.New(c, sqlDB, logger, nil),
+		handler: server.New(c, sqlDB, logger, authManager),
 		links:   db.NewLinkRepo(sqlDB),
 	}
 }

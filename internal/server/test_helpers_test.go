@@ -14,6 +14,7 @@ import (
 	"github.com/mkende/golink-url-shortener/internal/config"
 	"github.com/mkende/golink-url-shortener/internal/db"
 	"github.com/mkende/golink-url-shortener/internal/server"
+	"github.com/mkende/golink-url-shortener/pkg/httpauth"
 )
 
 // apiTestEnv holds a test server and the repos needed to set up state.
@@ -35,11 +36,21 @@ func newAPITestEnv(t *testing.T) *apiTestEnv {
 	t.Cleanup(func() { sqlDB.Close() })
 
 	cfg := &config.Config{
-		ListenAddr: ":8080",
-		Title:      "Test GoLink",
+		ListenAddr:   ":8080",
+		Title:        "Test GoLink",
+		TrustedProxy: []string{"192.0.2.1/32"},
+		Auth: httpauth.AuthConfig{
+			ProxyAuth: httpauth.ProxyAuthConfig{Enabled: true},
+		},
+	}
+	authManager, err := httpauth.New(context.Background(), cfg.Auth,
+		httpauth.WithTrustedProxy(cfg.TrustedProxy),
+	)
+	if err != nil {
+		t.Fatalf("create auth manager: %v", err)
 	}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	handler := server.New(cfg, sqlDB, logger, nil)
+	handler := server.New(cfg, sqlDB, logger, authManager)
 	return &apiTestEnv{
 		handler: handler,
 		links:   db.NewLinkRepo(sqlDB),
@@ -59,7 +70,7 @@ func createTestAPIKey(t *testing.T, env *apiTestEnv, name string) string {
 func createTestAPIKeyWithAccess(t *testing.T, env *apiTestEnv, name string, readOnly bool) string {
 	t.Helper()
 	raw := "testkey-" + name
-	hash := server.HashAPIKey(raw)
+	hash := httpauth.HashAPIKey(raw)
 	_, err := env.apiKeys.Create(context.Background(), name, hash, "admin@example.com", readOnly)
 	if err != nil {
 		t.Fatalf("create api key: %v", err)

@@ -10,73 +10,8 @@ import (
 	"time"
 
 	"github.com/BurntSushi/toml"
+	"github.com/mkende/golink-url-shortener/pkg/httpauth"
 )
-
-// AnonymousConfig holds settings for anonymous (user-less) authentication.
-// In this mode every request is automatically treated as a single shared
-// anonymous user. Intended for local development, testing, or private
-// instances where no real user management is needed.
-// WARNING: Do not enable on a publicly reachable server.
-type AnonymousConfig struct {
-	// Enabled controls whether anonymous auth is active.
-	Enabled bool `toml:"enabled"`
-	// IsAdmin grants the anonymous user full admin privileges when true.
-	// Useful for private/test instances where you also need API key management
-	// and import/export access. Default: false.
-	IsAdmin bool `toml:"is_admin"`
-}
-
-// TailscaleConfig holds settings for Tailscale header-based authentication.
-type TailscaleConfig struct {
-	// Enabled controls whether Tailscale header-based auth is active.
-	Enabled bool `toml:"enabled"`
-}
-
-// ProxyAuthConfig holds settings for reverse-proxy header-based authentication.
-// This is similar to Tailscale auth but reads generic forward-auth headers
-// injected by a trusted reverse proxy such as nginx, Caddy, or Traefik.
-// The header names default to the de-facto standard used by Authelia.
-type ProxyAuthConfig struct {
-	// Enabled controls whether proxy header-based auth is active.
-	Enabled bool `toml:"enabled"`
-	// UserHeader is the header containing the authenticated user's login name
-	// or username. Used as the primary identifier when EmailHeader is absent
-	// or empty. Defaults to "Remote-User".
-	UserHeader string `toml:"user_header"`
-	// EmailHeader is the header containing the user's email address. When
-	// present it is used as the primary user identifier (Identity.Email);
-	// UserHeader is then treated as a supplementary username. Defaults to
-	// "Remote-Email". Set to "" to disable and always use UserHeader instead.
-	EmailHeader string `toml:"email_header"`
-	// NameHeader is the header containing the user's display name.
-	// Defaults to "Remote-Name".
-	NameHeader string `toml:"name_header"`
-	// GroupsHeader is the header containing a comma-separated list of the
-	// user's group memberships. Defaults to "Remote-Groups".
-	GroupsHeader string `toml:"groups_header"`
-}
-
-// OIDCConfig holds settings for OpenID Connect authentication.
-type OIDCConfig struct {
-	// Enabled controls whether OIDC auth is active.
-	Enabled bool `toml:"enabled"`
-	// Issuer is the OIDC provider issuer URL (e.g. "https://accounts.google.com").
-	Issuer string `toml:"issuer"`
-	// ClientID is the OAuth2 client identifier.
-	ClientID string `toml:"client_id"`
-	// ClientSecret is the OAuth2 client secret. Mutually exclusive with
-	// ClientSecretEnvVar; exactly one must be set when OIDC is enabled.
-	ClientSecret string `toml:"client_secret"`
-	// ClientSecretEnvVar is the name of an environment variable whose value is
-	// used as the OAuth2 client secret. Mutually exclusive with ClientSecret.
-	ClientSecretEnvVar string `toml:"client_secret_env_var"`
-	// Scopes is the list of OAuth2 scopes to request.
-	// Defaults to ["openid", "email", "profile"].
-	Scopes []string `toml:"scopes"`
-	// GroupsClaim is the JWT claim name that contains group memberships.
-	// Defaults to "groups".
-	GroupsClaim string `toml:"groups_claim"`
-}
 
 // DBConfig holds database connection settings.
 type DBConfig struct {
@@ -105,7 +40,7 @@ type Config struct {
 	// TrustedProxy is the list of IP ranges (CIDR notation) from which
 	// proxy-forwarding headers are trusted: X-Forwarded-Proto for scheme
 	// detection, Tailscale-User-* for Tailscale auth, and Remote-* for
-	// proxy_auth. Required when proxy_auth is enabled.
+	// proxy_auth. Required when proxy_auth or tailscale auth is enabled.
 	TrustedProxy []string `toml:"trusted_proxy"`
 
 	// Title is the human-readable name shown in the UI.
@@ -126,17 +61,8 @@ type Config struct {
 	// used as the JWT HMAC secret. Mutually exclusive with JWTSecret.
 	JWTSecretEnvVar string `toml:"jwt_secret_env_var"`
 
-	// Anonymous holds settings for anonymous (user-less) authentication.
-	Anonymous AnonymousConfig `toml:"anonymous"`
-
-	// Tailscale holds settings for Tailscale header-based authentication.
-	Tailscale TailscaleConfig `toml:"tailscale"`
-
-	// ProxyAuth holds settings for reverse-proxy header-based authentication.
-	ProxyAuth ProxyAuthConfig `toml:"proxy_auth"`
-
-	// OIDC holds settings for OpenID Connect authentication.
-	OIDC OIDCConfig `toml:"oidc"`
+	// Auth holds all authentication provider configuration.
+	Auth httpauth.AuthConfig `toml:"auth"`
 
 	// RequireAuthForRedirects controls whether unauthenticated users are
 	// blocked from following any redirect.
@@ -157,24 +83,13 @@ type Config struct {
 	// string disables the restriction.
 	RequiredDomain string `toml:"required_domain"`
 
-	// AdminEmails lists the email addresses of users with admin privileges.
-	AdminEmails []string `toml:"admin_emails"`
-
-	// AdminGroups is a list of OIDC group names whose members are treated as
-	// admins. Requires OIDC (or proxy_auth with groups) to be enabled and the
-	// groups_claim to be correctly configured.
-	AdminGroups []string `toml:"admin_groups"`
-
 	// CacheSize is the maximum number of links kept in the in-process LRU
-	// redirect cache. Increasing this reduces database reads on the hot path.
-	// Defaults to 1000.
+	// redirect cache. Defaults to 1000.
 	CacheSize int `toml:"cache_size"`
 
 	// CacheTTL is the maximum time a link is kept in the redirect cache before
 	// being evicted and re-fetched from the database on next access. Use Go
-	// duration syntax, e.g. "5m", "1h", "30s". An empty string or "0" disables
-	// time-based expiry (entries are only evicted by LRU pressure). Defaults to
-	// "1m".
+	// duration syntax, e.g. "5m", "1h", "30s". Defaults to "1m".
 	CacheTTL string `toml:"cache_ttl"`
 
 	// CacheTTLDuration is CacheTTL parsed into a time.Duration. It is populated
@@ -182,12 +97,12 @@ type Config struct {
 	CacheTTLDuration time.Duration `toml:"-"`
 
 	// MaxAliasesPerLink is the maximum number of alias links that may target
-	// any single canonical link.  Defaults to 100.
+	// any single canonical link. Defaults to 100.
 	MaxAliasesPerLink int `toml:"max_aliases_per_link"`
 
 	// LogLevel controls the minimum severity of log messages emitted by the
-	// server. Supported values (from most to least verbose): "debug", "info",
-	// "warn", "error". Defaults to "info".
+	// server. Supported values: "debug", "info", "warn", "error". Defaults to
+	// "info".
 	LogLevel string `toml:"log_level"`
 
 	// UI holds settings that control the behaviour of the web UI.
@@ -225,31 +140,15 @@ func (c *Config) CanonicalScheme() string {
 	return u.Scheme
 }
 
-// applyDefaults fills in zero-value fields with their documented defaults.
+// applyDefaults fills in zero-value fields with their documented defaults,
+// including auth-provider defaults via httpauth.ApplyAuthDefaults.
 func applyDefaults(c *Config) {
+	httpauth.ApplyAuthDefaults(&c.Auth)
 	if c.ListenAddr == "" {
 		c.ListenAddr = "0.0.0.0:8080"
 	}
 	if c.Title == "" {
 		c.Title = "GoLink"
-	}
-	if len(c.OIDC.Scopes) == 0 {
-		c.OIDC.Scopes = []string{"openid", "email", "profile"}
-	}
-	if c.OIDC.GroupsClaim == "" {
-		c.OIDC.GroupsClaim = "groups"
-	}
-	if c.ProxyAuth.UserHeader == "" {
-		c.ProxyAuth.UserHeader = "Remote-User"
-	}
-	if c.ProxyAuth.EmailHeader == "" {
-		c.ProxyAuth.EmailHeader = "Remote-Email"
-	}
-	if c.ProxyAuth.NameHeader == "" {
-		c.ProxyAuth.NameHeader = "Remote-Name"
-	}
-	if c.ProxyAuth.GroupsHeader == "" {
-		c.ProxyAuth.GroupsHeader = "Remote-Groups"
 	}
 	if c.DB.Driver == "" {
 		c.DB.Driver = "sqlite"
@@ -277,8 +176,7 @@ func applyDefaults(c *Config) {
 	}
 }
 
-// validateCIDRList returns an error if any entry in cidrs is not a valid CIDR,
-// using fieldName in the error message for clarity.
+// validateCIDRList returns an error if any entry in cidrs is not a valid CIDR.
 func validateCIDRList(fieldName string, cidrs []string) error {
 	for _, cidr := range cidrs {
 		if _, _, err := net.ParseCIDR(cidr); err != nil {
@@ -288,10 +186,7 @@ func validateCIDRList(fieldName string, cidrs []string) error {
 	return nil
 }
 
-// resolveSecret resolves a single secret field. It returns the direct value
-// when envVarName is empty, reads the named environment variable when it is
-// set, and returns an error when both are provided or the variable is unset.
-// field and envVarField are used only in error messages.
+// resolveSecret resolves a single secret field from a direct value or an env var.
 func resolveSecret(field, value, envVarField, envVarName string) (string, error) {
 	if value != "" && envVarName != "" {
 		return "", fmt.Errorf("cannot set both %s and %s", field, envVarField)
@@ -306,22 +201,21 @@ func resolveSecret(field, value, envVarField, envVarName string) (string, error)
 	return resolved, nil
 }
 
-// resolveSecrets populates JWTSecret and OIDC.ClientSecret from the
-// corresponding _env_var fields when those are used instead of inline values.
-// It returns an error if both forms are provided for the same secret.
+// resolveSecrets populates JWTSecret from JWTSecretEnvVar when the env-var
+// form is used, and delegates OIDC secret resolution to httpauth.
 func resolveSecrets(c *Config) error {
 	var err error
 	c.JWTSecret, err = resolveSecret("jwt_secret", c.JWTSecret, "jwt_secret_env_var", c.JWTSecretEnvVar)
 	if err != nil {
 		return err
 	}
-	c.OIDC.ClientSecret, err = resolveSecret("oidc.client_secret", c.OIDC.ClientSecret, "oidc.client_secret_env_var", c.OIDC.ClientSecretEnvVar)
-	return err
+	return httpauth.ResolveAuthSecrets(&c.Auth)
 }
 
 // validate checks that required fields are present and values are within
-// acceptable ranges. It returns a descriptive error for the first violation
-// found.
+// acceptable ranges. Note: auth-provider-level validation (at least one
+// provider, OIDC issuer, etc.) is performed by the AuthManager at construction
+// time; this function validates only application-level fields.
 func validate(c *Config) error {
 	if c.CanonicalAddress != "" {
 		u, err := url.Parse(c.CanonicalAddress)
@@ -332,39 +226,37 @@ func validate(c *Config) error {
 			return fmt.Errorf("canonical_address scheme must be http or https (got %q)", u.Scheme)
 		}
 	}
-	if c.OIDC.Enabled && c.CanonicalAddress == "" {
-		return errors.New("canonical_address is required when oidc is enabled")
+	if !c.Auth.OIDC.Enabled && !c.Auth.Tailscale.Enabled && !c.Auth.ProxyAuth.Enabled && !c.Auth.Anonymous.Enabled {
+		return errors.New("at least one authentication provider must be enabled (auth.oidc, auth.tailscale, auth.proxy_auth, or auth.anonymous)")
 	}
-	if !c.Anonymous.Enabled && !c.Tailscale.Enabled && !c.ProxyAuth.Enabled && !c.OIDC.Enabled {
-		return errors.New("at least one authentication provider must be enabled (anonymous, tailscale, proxy_auth, or oidc)")
+	if c.Auth.OIDC.Enabled && c.CanonicalAddress == "" {
+		return errors.New("canonical_address is required when auth.oidc is enabled")
+	}
+	if c.Auth.OIDC.Enabled && c.JWTSecret == "" {
+		return errors.New("jwt_secret is required when auth.oidc is enabled")
+	}
+	if c.Auth.Tailscale.Enabled && len(c.TrustedProxy) == 0 {
+		return errors.New("trusted_proxy must be set when auth.tailscale is enabled")
+	}
+	if c.Auth.ProxyAuth.Enabled && len(c.TrustedProxy) == 0 {
+		return errors.New("trusted_proxy must be set when auth.proxy_auth is enabled")
+	}
+	if err := validateCIDRList("trusted_proxy", c.TrustedProxy); err != nil {
+		return err
 	}
 	if c.QuickLinkLength < 4 {
 		return fmt.Errorf("quick_link_length must be >= 4, got %d", c.QuickLinkLength)
 	}
 	switch c.DB.Driver {
 	case "sqlite", "postgres":
-		// valid
 	default:
 		return fmt.Errorf("db.driver must be \"sqlite\" or \"postgres\", got %q", c.DB.Driver)
-	}
-	if c.OIDC.Enabled && c.JWTSecret == "" {
-		return errors.New("jwt_secret is required when OIDC is enabled")
-	}
-	if c.Tailscale.Enabled && len(c.TrustedProxy) == 0 {
-		return errors.New("trusted_proxy must be set when tailscale auth is enabled")
-	}
-	if c.ProxyAuth.Enabled && len(c.TrustedProxy) == 0 {
-		return errors.New("trusted_proxy must be set when proxy_auth is enabled")
-	}
-	if err := validateCIDRList("trusted_proxy", c.TrustedProxy); err != nil {
-		return err
 	}
 	if c.UI.LinksPerPage < 10 {
 		return fmt.Errorf("ui.links_per_page must be >= 10, got %d", c.UI.LinksPerPage)
 	}
 	switch c.LogLevel {
 	case "debug", "info", "warn", "error":
-		// valid
 	default:
 		return fmt.Errorf("log_level must be one of \"debug\", \"info\", \"warn\", \"error\", got %q", c.LogLevel)
 	}

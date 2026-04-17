@@ -9,11 +9,10 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/mkende/golink-url-shortener/internal/auth"
 	"github.com/mkende/golink-url-shortener/internal/db"
 	"github.com/mkende/golink-url-shortener/internal/links"
-	serverMiddleware "github.com/mkende/golink-url-shortener/internal/server/middleware"
 	"github.com/mkende/golink-url-shortener/internal/version"
+	"github.com/mkende/golink-url-shortener/pkg/httpauth"
 )
 
 // linksPerPage returns the configured page size for link list pages.
@@ -31,7 +30,7 @@ type notFoundData struct {
 // first (301), so that e.g. http://go/missing lands on the canonical domain
 // rather than showing a 404 on the wrong host.
 func (s *Server) renderNotFound(w http.ResponseWriter, r *http.Request, name string) {
-	if serverMiddleware.RedirectToCanonical(s.cfg, s.trustedNets, w, r) {
+	if s.authManager.RedirectToCanonical(w, r) {
 		return
 	}
 	base, err := s.newBaseData(w, r)
@@ -80,12 +79,12 @@ type baseData struct {
 	// Title is the site name shown in the navigation bar and browser tab.
 	Title string
 	// Identity is the currently authenticated user, or nil when anonymous.
-	Identity *auth.Identity
+	Identity *httpauth.Identity
 	// CSRFToken is the per-request CSRF protection value injected into forms.
 	CSRFToken string
 	// FaviconPath is non-empty when a custom favicon is configured.
 	FaviconPath string
-	// OIDCEnabled is true when OIDC authentication is configured.
+	// OIDCEnabled is true when a login/logout flow is available.
 	OIDCEnabled bool
 	// Version is the application version string (e.g. "v1.2.3" or "dev").
 	Version string
@@ -101,10 +100,10 @@ func (s *Server) newBaseData(w http.ResponseWriter, r *http.Request) (baseData, 
 	setCSRFCookie(w, token)
 	return baseData{
 		Title:       s.cfg.Title,
-		Identity:    auth.FromContext(r.Context()),
+		Identity:    httpauth.IdentityFromContext(r.Context()),
 		CSRFToken:   token,
 		FaviconPath: s.cfg.FaviconPath,
-		OIDCEnabled: s.cfg.OIDC.Enabled,
+		OIDCEnabled: s.authManager.SupportsLogout(),
 		Version:     version.Version,
 	}, nil
 }
@@ -190,7 +189,7 @@ func (s *Server) handleNew(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	id := auth.FromContext(r.Context())
+	id := httpauth.IdentityFromContext(r.Context())
 	if id == nil {
 		// RequireUIAccess should have caught this; guard defensively.
 		s.renderUnauthorized(w, r)
@@ -555,7 +554,7 @@ func (s *Server) handleCreateAlias(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	id := auth.FromContext(r.Context())
+	id := httpauth.IdentityFromContext(r.Context())
 	if id == nil {
 		// RequireUIAccess should have caught this; guard defensively.
 		s.renderUnauthorized(w, r)
@@ -704,7 +703,7 @@ func (s *Server) handleMyLinks(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	id := auth.FromContext(r.Context())
+	id := httpauth.IdentityFromContext(r.Context())
 	if id == nil {
 		// RequireUIAccess should have caught this; guard defensively.
 		s.renderUnauthorized(w, r)
@@ -801,7 +800,7 @@ func (s *Server) handleQuickName(w http.ResponseWriter, r *http.Request) {
 // requireEditAccess looks up the named link and checks that the current user
 // may edit it (owner, shared user, or admin).  Returns false and writes an HTTP
 // error when access is denied.
-func (s *Server) requireEditAccess(w http.ResponseWriter, r *http.Request, nameLower string) (*db.Link, *auth.Identity, bool) {
+func (s *Server) requireEditAccess(w http.ResponseWriter, r *http.Request, nameLower string) (*db.Link, *httpauth.Identity, bool) {
 	link, err := s.links.GetByName(r.Context(), nameLower)
 	if err != nil {
 		if errors.Is(err, db.ErrNotFound) {
@@ -812,7 +811,7 @@ func (s *Server) requireEditAccess(w http.ResponseWriter, r *http.Request, nameL
 		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return nil, nil, false
 	}
-	id := auth.FromContext(r.Context())
+	id := httpauth.IdentityFromContext(r.Context())
 	if !canEditBasic(id, link) {
 		// Check whether the user is in the share list.
 		ok, checkErr := s.isSharedWith(r.Context(), link.ID, id)
@@ -831,7 +830,7 @@ func (s *Server) requireEditAccess(w http.ResponseWriter, r *http.Request, nameL
 
 // canEditBasic returns true when the identity may edit the link based solely on
 // owner and admin status, without consulting the share list.
-func canEditBasic(id *auth.Identity, link *db.Link) bool {
+func canEditBasic(id *httpauth.Identity, link *db.Link) bool {
 	if id == nil {
 		return false
 	}
@@ -843,7 +842,7 @@ func canEditBasic(id *auth.Identity, link *db.Link) bool {
 
 // isSharedWith reports whether the given identity's email is in the share list
 // for the link.  Returns false (not an error) when id is nil.
-func (s *Server) isSharedWith(ctx context.Context, linkID int64, id *auth.Identity) (bool, error) {
+func (s *Server) isSharedWith(ctx context.Context, linkID int64, id *httpauth.Identity) (bool, error) {
 	if id == nil {
 		return false, nil
 	}
