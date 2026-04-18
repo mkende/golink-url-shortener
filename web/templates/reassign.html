@@ -21,14 +21,24 @@
       <label class="label" for="from-email">From (current owner)</label>
       <div class="control">
         <input id="from-email" class="input" type="email" name="from_email"
-               value="{{.FromEmail}}" placeholder="alice@example.com" required>
+               value="{{.FromEmail}}" placeholder="alice@example.com" required
+               list="from-users"
+               hx-get="/api/users/search" hx-trigger="input changed delay:300ms"
+               hx-target="#from-users" hx-swap="innerHTML"
+               hx-params="none" hx-vals='js:{"email": document.getElementById("from-email").value}'>
+        <datalist id="from-users"></datalist>
       </div>
     </div>
     <div class="field">
       <label class="label" for="to-email">To (new owner)</label>
       <div class="control">
         <input id="to-email" class="input" type="email" name="to_email"
-               value="{{.ToEmail}}" placeholder="bob@example.com" required>
+               value="{{.ToEmail}}" placeholder="bob@example.com" required
+               list="to-users"
+               hx-get="/api/users/search" hx-trigger="input changed delay:300ms"
+               hx-target="#to-users" hx-swap="innerHTML"
+               hx-params="none" hx-vals='js:{"email": document.getElementById("to-email").value}'>
+        <datalist id="to-users"></datalist>
       </div>
     </div>
     <div class="field">
