@@ -5,15 +5,18 @@ etc.
 
 ## Features
 
-- **Redirection syntax**: supports a simple syntax or an
-  [advanced syntax](docs/links.md) based on Go templates with regex functions
-  and variables extracted from context (for example, include the current user
-  email address in the destination URL).
-- **Authentication**: Tailscale header-based, OIDC (Authelia, Keycloak, etc.) or
-  reverse proxy autorization header.
+- **Powerful redirection syntax**: [advanced syntax](docs/links.md) based on Go
+  templates with regex functions and variables extracted from context (for
+  example, include the current user email address in the destination URL). Also
+  support a simple syntax.
+- **Authentication**: Multiple supported authentication source, such as
+  Tailscale header-based, OIDC (Authelia, Keycloak, etc.) or reverse proxy
+  autorization header.
+- **Short domain redirect**: Support redirection and web-site access through
+  short domains (such as go/foobar), typically through Tailscale MagicDNS.
 - **Link sharing**: Share links ownership with other users by email or group.
-- **Easy to deploy**: Just one SQLite DB (or, optionnaly, Postgres), follow our
-  [guides](docs/deployment.md) for Docker, Docker compose, Kubernetes, etc.
+- **Easy to deploy**: Just one database is required (SQLite or Postgres), follow
+  our [guides](docs/deployment.md) for Docker, Docker compose, Kubernetes, etc.
 - **High performance**: LRU cache and async use-count writes. Designed for 
   hundred of thousands of users and short links.
 - **REST API**: Full API support to create/edit/resolve links and perform
