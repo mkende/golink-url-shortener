@@ -97,6 +97,9 @@ func main() {
 	}()
 
 	logger.Info("starting server", "addr", cfg.ListenAddr)
+	if cfg.CanonicalAddress != "" {
+		logger.Info("ready at: " + cfg.CanonicalAddress)
+	}
 	if err := httpSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		logger.Error("server error", "error", err)
 		os.Exit(1)
