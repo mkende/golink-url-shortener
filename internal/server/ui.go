@@ -432,8 +432,17 @@ func (s *Server) buildDetailsPageData(r *http.Request, base baseData, link *db.L
 // handleAPIUserSearch serves GET /api/users/search?email=<query>.
 // It returns an HTML fragment of <option> elements for use as datalist suggestions.
 // The endpoint requires authentication (enforced by the /api route group middleware).
+// The query may also be supplied as from_email or to_email to match the field
+// names used by forms that have two separate email inputs (e.g. the reassign page).
 func (s *Server) handleAPIUserSearch(w http.ResponseWriter, r *http.Request) {
-	q := r.URL.Query().Get("email")
+	qp := r.URL.Query()
+	q := qp.Get("email")
+	if q == "" {
+		q = qp.Get("from_email")
+	}
+	if q == "" {
+		q = qp.Get("to_email")
+	}
 	if q == "" {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		return
