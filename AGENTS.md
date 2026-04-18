@@ -129,6 +129,12 @@ commit message.
   cookies.
 - API keys must be stored hashed; only shown to the admin once on creation.
 - Perform a security review pass before closing each major phase.
+- The server sets a strict `Content-Security-Policy` (`script-src 'self'`,
+  no `unsafe-inline`, no `unsafe-eval`). Consequences for frontend work:
+  - Do not embed `<script>` tags or inline event handlers (`onclick=`, etc.)
+    in HTML templates; all JavaScript must live in static files under `web/static/`.
+  - Do not use HTMX features that rely on `eval` / `new Function()`, such as
+    `hx-vals='js:...'` or `hx-on*` attributes — they will silently do nothing.
 
 ---
 
