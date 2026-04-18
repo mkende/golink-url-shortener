@@ -29,7 +29,7 @@ func writeTemp(t *testing.T, content string) string {
 // When appending additional top-level keys, insert them before anonSection.
 const (
 	minimalHeader = `canonical_address = "https://go.example.com"` + "\n"
-	anonSection   = "[anonymous]\nenabled = true\n"
+	anonSection   = "[auth.anonymous]\nenabled = true\n"
 	minimalValid  = minimalHeader + anonSection
 )
 
@@ -63,7 +63,7 @@ func TestLoad(t *testing.T) {
 			name: "http scheme in canonical_address is valid",
 			toml: `
 canonical_address = "http://go"
-[anonymous]
+[auth.anonymous]
 enabled = true
 `,
 			check: func(t *testing.T, cfg *config.Config) {
@@ -79,7 +79,7 @@ enabled = true
 		{
 			name: "canonical_address optional when oidc disabled",
 			toml: `
-[anonymous]
+[auth.anonymous]
 enabled = true
 `,
 			check: func(t *testing.T, cfg *config.Config) {
@@ -112,16 +112,16 @@ enabled = true
 				if cfg.QuickLinkLength != 6 {
 					t.Errorf("QuickLinkLength = %d, want 6", cfg.QuickLinkLength)
 				}
-				if cfg.OIDC.GroupsClaim != "groups" {
-					t.Errorf("OIDC.GroupsClaim = %q, want %q", cfg.OIDC.GroupsClaim, "groups")
+				if cfg.Auth.OIDC.GroupsClaim != "groups" {
+					t.Errorf("Auth.OIDC.GroupsClaim = %q, want %q", cfg.Auth.OIDC.GroupsClaim, "groups")
 				}
 				wantScopes := []string{"openid", "email", "profile"}
-				if len(cfg.OIDC.Scopes) != len(wantScopes) {
-					t.Errorf("OIDC.Scopes = %v, want %v", cfg.OIDC.Scopes, wantScopes)
+				if len(cfg.Auth.OIDC.Scopes) != len(wantScopes) {
+					t.Errorf("Auth.OIDC.Scopes = %v, want %v", cfg.Auth.OIDC.Scopes, wantScopes)
 				} else {
 					for i, s := range wantScopes {
-						if cfg.OIDC.Scopes[i] != s {
-							t.Errorf("OIDC.Scopes[%d] = %q, want %q", i, cfg.OIDC.Scopes[i], s)
+						if cfg.Auth.OIDC.Scopes[i] != s {
+							t.Errorf("Auth.OIDC.Scopes[%d] = %q, want %q", i, cfg.Auth.OIDC.Scopes[i], s)
 						}
 					}
 				}
@@ -135,14 +135,14 @@ listen_addr       = "127.0.0.1:9090"
 title             = "Corp Links"
 quick_link_length = 8
 
-[anonymous]
+[auth.anonymous]
 enabled = true
 
 [db]
 driver = "postgres"
 dsn    = "host=localhost dbname=golink"
 
-[oidc]
+[auth.oidc]
 scopes       = ["openid", "email"]
 groups_claim = "roles"
 `,
@@ -160,29 +160,29 @@ groups_claim = "roles"
 				if cfg.QuickLinkLength != 8 {
 					t.Errorf("QuickLinkLength = %d, want 8", cfg.QuickLinkLength)
 				}
-				if cfg.OIDC.GroupsClaim != "roles" {
-					t.Errorf("OIDC.GroupsClaim = %q, want %q", cfg.OIDC.GroupsClaim, "roles")
+				if cfg.Auth.OIDC.GroupsClaim != "roles" {
+					t.Errorf("Auth.OIDC.GroupsClaim = %q, want %q", cfg.Auth.OIDC.GroupsClaim, "roles")
 				}
-				if len(cfg.OIDC.Scopes) != 2 {
-					t.Errorf("len(OIDC.Scopes) = %d, want 2", len(cfg.OIDC.Scopes))
+				if len(cfg.Auth.OIDC.Scopes) != 2 {
+					t.Errorf("len(Auth.OIDC.Scopes) = %d, want 2", len(cfg.Auth.OIDC.Scopes))
 				}
 			},
 		},
 		{
 			name:        "canonical_address required when oidc enabled",
-			toml:        "jwt_secret = \"secret\"\n[oidc]\nenabled = true",
+			toml:        "jwt_secret = \"secret\"\n[auth.oidc]\nenabled = true",
 			wantErr:     true,
-			errContains: "canonical_address is required when oidc is enabled",
+			errContains: "canonical_address is required when auth.oidc is enabled",
 		},
 		{
 			name:        "invalid canonical_address scheme returns error",
-			toml:        "canonical_address = \"ftp://go.example.com\"\n[anonymous]\nenabled = true",
+			toml:        "canonical_address = \"ftp://go.example.com\"\n[auth.anonymous]\nenabled = true",
 			wantErr:     true,
 			errContains: "canonical_address scheme must be http or https",
 		},
 		{
 			name:        "canonical_address without scheme returns error",
-			toml:        "canonical_address = \"go.example.com\"\n[anonymous]\nenabled = true",
+			toml:        "canonical_address = \"go.example.com\"\n[auth.anonymous]\nenabled = true",
 			wantErr:     true,
 			errContains: "canonical_address must be a valid URL",
 		},
@@ -222,15 +222,15 @@ groups_claim = "roles"
 		},
 		{
 			name: "admin fields parsed correctly",
-			toml: minimalHeader + `admin_emails = ["alice@example.com", "bob@example.com"]` + "\n" +
-				`admin_groups = ["sre", "ops"]` + "\n" + anonSection,
+			toml: minimalHeader + "[auth]\nadmin_emails = [\"alice@example.com\", \"bob@example.com\"]\n" +
+				"admin_groups = [\"sre\", \"ops\"]\n" + anonSection,
 			check: func(t *testing.T, cfg *config.Config) {
 				t.Helper()
-				if len(cfg.AdminEmails) != 2 {
-					t.Errorf("len(AdminEmails) = %d, want 2", len(cfg.AdminEmails))
+				if len(cfg.Auth.AdminEmails) != 2 {
+					t.Errorf("len(Auth.AdminEmails) = %d, want 2", len(cfg.Auth.AdminEmails))
 				}
-				if len(cfg.AdminGroups) != 2 || cfg.AdminGroups[0] != "sre" {
-					t.Errorf("AdminGroups = %v, want [sre ops]", cfg.AdminGroups)
+				if len(cfg.Auth.AdminGroups) != 2 || cfg.Auth.AdminGroups[0] != "sre" {
+					t.Errorf("Auth.AdminGroups = %v, want [sre ops]", cfg.Auth.AdminGroups)
 				}
 			},
 		},
@@ -252,15 +252,15 @@ groups_claim = "roles"
 		},
 		{
 			name:        "tailscale without trusted_proxy returns error",
-			toml:        minimalValid + "[tailscale]\nenabled = true\n",
+			toml:        minimalValid + "[auth.tailscale]\nenabled = true\n",
 			wantErr:     true,
-			errContains: "trusted_proxy must be set when tailscale auth is enabled",
+			errContains: "trusted_proxy must be set when auth.tailscale is enabled",
 		},
 		{
 			name:        "proxy_auth without trusted_proxy returns error",
-			toml:        minimalValid + "[proxy_auth]\nenabled = true\n", // proxy_auth needs trusted_proxy
+			toml:        minimalValid + "[auth.proxy_auth]\nenabled = true\n",
 			wantErr:     true,
-			errContains: "trusted_proxy must be set when proxy_auth is enabled",
+			errContains: "trusted_proxy must be set when auth.proxy_auth is enabled",
 		},
 		{
 			name:        "unknown top-level key returns error",
@@ -270,7 +270,7 @@ groups_claim = "roles"
 		},
 		{
 			name:        "unknown nested key returns error",
-			toml:        minimalValid + "[oidc]\ntypo_field = true\n",
+			toml:        minimalValid + "[auth.oidc]\ntypo_field = true\n",
 			wantErr:     true,
 			errContains: "unknown configuration key(s)",
 		},
@@ -282,7 +282,7 @@ groups_claim = "roles"
 		},
 		{
 			name:        "client_secret_env_var referencing unset variable returns error",
-			toml:        minimalHeader + "jwt_secret = \"s\"\n[oidc]\nenabled = true\nclient_id = \"id\"\nclient_secret_env_var = \"GOLINK_UNSET_VAR_12345\"\n",
+			toml:        minimalHeader + "jwt_secret = \"s\"\n[auth.oidc]\nenabled = true\nclient_id = \"id\"\nclient_secret_env_var = \"GOLINK_UNSET_VAR_12345\"\n",
 			wantErr:     true,
 			errContains: "client_secret_env_var",
 		},
@@ -362,18 +362,18 @@ func TestLoadEnvVarSecrets(t *testing.T) {
 		},
 		{
 			name:  "oidc client_secret_env_var populates ClientSecret",
-			toml:  minimalHeader + "jwt_secret = \"s\"\n[oidc]\nenabled = true\nclient_id = \"id\"\nclient_secret_env_var = \"TEST_OIDC_SECRET\"\n",
+			toml:  minimalHeader + "jwt_secret = \"s\"\n[auth.oidc]\nenabled = true\nclient_id = \"id\"\nclient_secret_env_var = \"TEST_OIDC_SECRET\"\n",
 			setup: func(t *testing.T) { t.Helper(); t.Setenv("TEST_OIDC_SECRET", "oidc-from-env") },
 			check: func(t *testing.T, cfg *config.Config) {
 				t.Helper()
-				if cfg.OIDC.ClientSecret != "oidc-from-env" {
-					t.Errorf("OIDC.ClientSecret = %q, want %q", cfg.OIDC.ClientSecret, "oidc-from-env")
+				if cfg.Auth.OIDC.ClientSecret != "oidc-from-env" {
+					t.Errorf("Auth.OIDC.ClientSecret = %q, want %q", cfg.Auth.OIDC.ClientSecret, "oidc-from-env")
 				}
 			},
 		},
 		{
 			name:        "both client_secret and client_secret_env_var returns error",
-			toml:        minimalHeader + "jwt_secret = \"s\"\n[oidc]\nenabled = true\nclient_id = \"id\"\nclient_secret = \"inline\"\nclient_secret_env_var = \"TEST_OIDC_SECRET\"\n",
+			toml:        minimalHeader + "jwt_secret = \"s\"\n[auth.oidc]\nenabled = true\nclient_id = \"id\"\nclient_secret = \"inline\"\nclient_secret_env_var = \"TEST_OIDC_SECRET\"\n",
 			setup:       func(t *testing.T) { t.Helper(); t.Setenv("TEST_OIDC_SECRET", "oidc-from-env") },
 			wantErr:     true,
 			errContains: "cannot set both oidc.client_secret and oidc.client_secret_env_var",

@@ -8,9 +8,9 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/mkende/golink-url-shortener/internal/auth"
 	"github.com/mkende/golink-url-shortener/internal/db"
 	"github.com/mkende/golink-url-shortener/internal/links"
+	"github.com/mkende/golink-url-shortener/pkg/httpauth"
 )
 
 // importResult is the JSON summary returned after a POST /api/import request.
@@ -90,7 +90,7 @@ func (s *Server) doImport(ctx context.Context, data ExportData) importResult {
 			// Resolve the owner email; fall back to the importing admin.
 			ownerEmail := el.OwnerEmail
 			if ownerEmail == "" {
-				if id := auth.FromContext(ctx); id != nil {
+				if id := httpauth.IdentityFromContext(ctx); id != nil {
 					ownerEmail = id.Email
 				}
 			}

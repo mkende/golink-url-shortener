@@ -10,9 +10,9 @@ import (
 	"strings"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/mkende/golink-url-shortener/internal/auth"
 	"github.com/mkende/golink-url-shortener/internal/db"
 	"github.com/mkende/golink-url-shortener/internal/links"
+	"github.com/mkende/golink-url-shortener/pkg/httpauth"
 )
 
 // generateAPIKey generates a cryptographically random 32-byte URL-safe base64
@@ -120,7 +120,7 @@ func (s *Server) handleAPIListLinks(w http.ResponseWriter, r *http.Request) {
 
 // handleAPICreateLink serves POST /api/links.
 func (s *Server) handleAPICreateLink(w http.ResponseWriter, r *http.Request) {
-	id := auth.FromContext(r.Context())
+	id := httpauth.IdentityFromContext(r.Context())
 
 	var req createLinkRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -179,7 +179,7 @@ func (s *Server) handleAPIGetLink(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleAPIUpdateLink(w http.ResponseWriter, r *http.Request) {
 	name := urlParamLower(r, "name")
 
-	id := auth.FromContext(r.Context())
+	id := httpauth.IdentityFromContext(r.Context())
 
 	link, err := s.links.GetByName(r.Context(), name)
 	if err != nil {
@@ -276,7 +276,7 @@ func (s *Server) handleAPIUpdateLink(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleAPIDeleteLink(w http.ResponseWriter, r *http.Request) {
 	name := urlParamLower(r, "name")
 
-	id := auth.FromContext(r.Context())
+	id := httpauth.IdentityFromContext(r.Context())
 
 	link, err := s.links.GetByName(r.Context(), name)
 	if err != nil {
@@ -362,7 +362,7 @@ type createAPIKeyResponse struct {
 // handleAPICreateAPIKey serves POST /api/apikeys (admin only).
 // Returns the raw key once; subsequent lookups will not reveal it.
 func (s *Server) handleAPICreateAPIKey(w http.ResponseWriter, r *http.Request) {
-	id := auth.FromContext(r.Context())
+	id := httpauth.IdentityFromContext(r.Context())
 
 	var body struct {
 		Name     string `json:"name"`
@@ -389,7 +389,7 @@ func (s *Server) handleAPICreateAPIKey(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	key, err := s.apiKeys.Create(r.Context(), body.Name, HashAPIKey(rawKey), id.Email, readOnly)
+	key, err := s.apiKeys.Create(r.Context(), body.Name, httpauth.HashAPIKey(rawKey), id.Email, readOnly)
 	if err != nil {
 		s.apiError(r.Context(), w, "api: create api key", "error", err)
 		return

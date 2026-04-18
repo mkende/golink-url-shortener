@@ -6,10 +6,9 @@ import (
 	"strings"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/mkende/golink-url-shortener/internal/auth"
 	"github.com/mkende/golink-url-shortener/internal/db"
 	"github.com/mkende/golink-url-shortener/internal/redirect"
-	serverMiddleware "github.com/mkende/golink-url-shortener/internal/server/middleware"
+	"github.com/mkende/golink-url-shortener/pkg/httpauth"
 )
 
 func (s *Server) handleRedirect(w http.ResponseWriter, r *http.Request) {
@@ -27,7 +26,7 @@ func (s *Server) handleRedirect(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	id := auth.FromContext(r.Context())
+	id := httpauth.IdentityFromContext(r.Context())
 	needsAuth := link.RequireAuth || s.cfg.RequireAuthForRedirects
 
 	// Step 2: public link with no global auth requirement — redirect immediately,
@@ -39,15 +38,13 @@ func (s *Server) handleRedirect(w http.ResponseWriter, r *http.Request) {
 
 	// Step 3: for auth-required links, redirect to canonical domain first so
 	// the session cookie is valid when the user returns after logging in.
-	if serverMiddleware.RedirectToCanonical(s.cfg, s.trustedNets, w, r) {
+	if s.authManager.RedirectToCanonical(w, r) {
 		return
 	}
 
 	// Step 5: enforce authentication.
 	if id == nil {
-		if s.cfg.OIDC.Enabled {
-			auth.LoginRedirect(w, r)
-		} else {
+		if !s.authManager.LoginRedirect(w, r) {
 			s.renderUnauthorized(w, r)
 		}
 		return
@@ -58,7 +55,7 @@ func (s *Server) handleRedirect(w http.ResponseWriter, r *http.Request) {
 
 // doRedirect resolves the link and writes the redirect response. id may be nil
 // for public links.
-func (s *Server) doRedirect(w http.ResponseWriter, r *http.Request, link *db.Link, name, suffix string, id *auth.Identity) {
+func (s *Server) doRedirect(w http.ResponseWriter, r *http.Request, link *db.Link, name, suffix string, id *httpauth.Identity) {
 	email := ""
 	if id != nil {
 		email = id.Email

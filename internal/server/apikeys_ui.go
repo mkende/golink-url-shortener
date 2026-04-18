@@ -7,8 +7,8 @@ import (
 	"strings"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/mkende/golink-url-shortener/internal/auth"
 	"github.com/mkende/golink-url-shortener/internal/db"
+	"github.com/mkende/golink-url-shortener/pkg/httpauth"
 )
 
 // apiKeysPageData is the template data for /apikeys.
@@ -61,7 +61,7 @@ func (s *Server) handleCreateAPIKey(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	id := auth.FromContext(r.Context())
+	id := httpauth.IdentityFromContext(r.Context())
 	if id == nil {
 		http.Redirect(w, r, "/auth/login?rd=/apikeys", http.StatusFound)
 		return
@@ -83,7 +83,7 @@ func (s *Server) handleCreateAPIKey(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, err := s.apiKeys.Create(r.Context(), name, HashAPIKey(rawKey), id.Email, readOnly); err != nil {
+	if _, err := s.apiKeys.Create(r.Context(), name, httpauth.HashAPIKey(rawKey), id.Email, readOnly); err != nil {
 		s.logr(r.Context()).Error("apikeys create: db create", "error", err)
 		s.renderAPIKeysError(w, r, base, "Could not create API key. Please try again.")
 		return

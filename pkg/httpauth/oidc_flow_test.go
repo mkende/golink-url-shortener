@@ -1,4 +1,4 @@
-package auth_test
+package httpauth
 
 import (
 	"context"
@@ -8,32 +8,32 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mkende/golink-url-shortener/internal/auth"
-	"github.com/mkende/golink-url-shortener/internal/config"
 	"github.com/oauth2-proxy/mockoidc"
 )
 
-// newOIDCHandlerForTest creates an OIDCHandler backed by the given mock
+// newAuthManagerForOIDCTest creates an AuthManager backed by the given mock
 // OIDC server. CanonicalAddress is set to a placeholder; the mock token
 // endpoint does not validate redirect_uri so this is fine in tests.
-func newOIDCHandlerForTest(t *testing.T, m *mockoidc.MockOIDC) *auth.OIDCHandler {
+func newAuthManagerForOIDCTest(t *testing.T, m *mockoidc.MockOIDC) *AuthManager {
 	t.Helper()
-	cfg := &config.Config{
-		CanonicalAddress: "https://go.example.com",
-		JWTSecret:        testJWTSecret,
-		OIDC: config.OIDCConfig{
-			Enabled:      true,
-			Issuer:       m.Issuer(),
-			ClientID:     m.ClientID,
-			ClientSecret: m.ClientSecret,
-			Scopes:       []string{"openid", "email"},
+	mgr, err := New(context.Background(),
+		AuthConfig{
+			OIDC: OIDCConfig{
+				Enabled:      true,
+				Issuer:       m.Issuer(),
+				ClientID:     m.ClientID,
+				ClientSecret: m.ClientSecret,
+				Scopes:       []string{"openid", "email"},
+			},
 		},
-	}
-	h, err := auth.NewOIDCHandler(context.Background(), cfg, nil)
+		WithCanonicalAddress("https://go.example.com"),
+		WithJWTSecret(testJWTSecret),
+		WithLogger(noopLogger()),
+	)
 	if err != nil {
-		t.Fatalf("NewOIDCHandler: %v", err)
+		t.Fatalf("New: %v", err)
 	}
-	return h
+	return mgr
 }
 
 // TestHandleLogin_StateEncoding checks that the rd destination is embedded in
@@ -45,18 +45,17 @@ func TestHandleLogin_StateEncoding(t *testing.T) {
 	}
 	defer m.Shutdown()
 
-	h := newOIDCHandlerForTest(t, m)
+	mgr := newAuthManagerForOIDCTest(t, m)
 
 	req := httptest.NewRequest(http.MethodGet, "/auth/login?rd=%2Fmy%2Flink", nil)
 	rec := httptest.NewRecorder()
-	h.HandleLogin(rec, req)
+	mgr.oidcH.handleLogin(rec, req)
 
 	if rec.Code != http.StatusFound {
 		t.Fatalf("status: got %d, want %d", rec.Code, http.StatusFound)
 	}
 
-	// State cookie must exist and carry the destination after the "|" separator.
-	stateCookie := findCookie(rec.Result().Cookies(), "golink_oauth_state")
+	stateCookie := findCookie(rec.Result().Cookies(), stateCookieName)
 	if stateCookie == nil {
 		t.Fatal("state cookie not set")
 	}
@@ -68,7 +67,6 @@ func TestHandleLogin_StateEncoding(t *testing.T) {
 		t.Errorf("rd in state: got %q, want %q", got, want)
 	}
 
-	// The redirect URL must point at the OIDC provider and include the full state.
 	location := rec.Header().Get("Location")
 	authBase := m.Addr() + mockoidc.AuthorizationEndpoint
 	if !strings.HasPrefix(location, authBase) {
@@ -89,7 +87,7 @@ func TestHandleLogin_UnsafeRdDefaultsToRoot(t *testing.T) {
 	}
 	defer m.Shutdown()
 
-	h := newOIDCHandlerForTest(t, m)
+	mgr := newAuthManagerForOIDCTest(t, m)
 
 	cases := []struct {
 		name string
@@ -108,9 +106,9 @@ func TestHandleLogin_UnsafeRdDefaultsToRoot(t *testing.T) {
 			}
 			req := httptest.NewRequest(http.MethodGet, path, nil)
 			rec := httptest.NewRecorder()
-			h.HandleLogin(rec, req)
+			mgr.oidcH.handleLogin(rec, req)
 
-			stateCookie := findCookie(rec.Result().Cookies(), "golink_oauth_state")
+			stateCookie := findCookie(rec.Result().Cookies(), stateCookieName)
 			if stateCookie == nil {
 				t.Fatal("state cookie not set")
 			}
@@ -126,8 +124,8 @@ func TestHandleLogin_UnsafeRdDefaultsToRoot(t *testing.T) {
 }
 
 // TestHandleCallback_RdPreserved exercises the full login → OIDC provider →
-// callback chain and confirms that the post-login destination encoded in the
-// state is used for the final redirect.
+// callback chain and confirms the post-login destination is used for the
+// final redirect.
 func TestHandleCallback_RdPreserved(t *testing.T) {
 	m, err := mockoidc.Run()
 	if err != nil {
@@ -135,25 +133,22 @@ func TestHandleCallback_RdPreserved(t *testing.T) {
 	}
 	defer m.Shutdown()
 
-	h := newOIDCHandlerForTest(t, m)
+	mgr := newAuthManagerForOIDCTest(t, m)
 
-	// Step 1: HandleLogin — capture the state cookie and the URL that the
-	// browser would be sent to.
+	// Step 1: handleLogin — capture the state cookie and the provider URL.
 	loginReq := httptest.NewRequest(http.MethodGet, "/auth/login?rd=%2Fmy%2Flink", nil)
 	loginRec := httptest.NewRecorder()
-	h.HandleLogin(loginRec, loginReq)
+	mgr.oidcH.handleLogin(loginRec, loginReq)
 	if loginRec.Code != http.StatusFound {
 		t.Fatalf("login status: got %d, want %d", loginRec.Code, http.StatusFound)
 	}
-	stateCookie := findCookie(loginRec.Result().Cookies(), "golink_oauth_state")
+	stateCookie := findCookie(loginRec.Result().Cookies(), stateCookieName)
 	if stateCookie == nil {
-		t.Fatal("state cookie not set by HandleLogin")
+		t.Fatal("state cookie not set by handleLogin")
 	}
 	authURL := loginRec.Header().Get("Location")
 
-	// Step 2: Hit the OIDC provider's authorize endpoint. The mock server
-	// redirects straight back to our redirect_uri with a code and the state.
-	// Stop at the redirect so we can extract those values.
+	// Step 2: hit the OIDC provider's authorize endpoint.
 	noFollow := &http.Client{
 		CheckRedirect: func(*http.Request, []*http.Request) error {
 			return http.ErrUseLastResponse
@@ -177,13 +172,12 @@ func TestHandleCallback_RdPreserved(t *testing.T) {
 		t.Fatalf("authorize redirect missing code or state: %s", callbackURL)
 	}
 
-	// Step 3: HandleCallback — present the state cookie from step 1 and the
-	// code+state from step 2, as a real browser would.
+	// Step 3: handleCallback — present the state cookie and the code+state.
 	cbPath := "/auth/callback?code=" + url.QueryEscape(code) + "&state=" + url.QueryEscape(state)
 	cbReq := httptest.NewRequest(http.MethodGet, cbPath, nil)
 	cbReq.AddCookie(stateCookie)
 	cbRec := httptest.NewRecorder()
-	h.HandleCallback(cbRec, cbReq)
+	mgr.oidcH.handleCallback(cbRec, cbReq)
 
 	if cbRec.Code != http.StatusFound {
 		t.Fatalf("callback status: got %d, want %d", cbRec.Code, http.StatusFound)
@@ -191,7 +185,7 @@ func TestHandleCallback_RdPreserved(t *testing.T) {
 	if dest := cbRec.Header().Get("Location"); dest != "/my/link" {
 		t.Errorf("post-login destination: got %q, want %q", dest, "/my/link")
 	}
-	if findCookie(cbRec.Result().Cookies(), "golink_session") == nil {
+	if findCookie(cbRec.Result().Cookies(), sessionCookieName) == nil {
 		t.Error("session cookie not set after successful callback")
 	}
 }

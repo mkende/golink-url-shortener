@@ -1,4 +1,4 @@
-package auth
+package httpauth
 
 import (
 	"context"
@@ -13,8 +13,6 @@ import (
 
 	gooidc "github.com/coreos/go-oidc/v3/oidc"
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/mkende/golink-url-shortener/internal/config"
-	"github.com/mkende/golink-url-shortener/internal/db"
 	"golang.org/x/oauth2"
 )
 
@@ -22,47 +20,54 @@ const (
 	sessionCookieName = "golink_session"
 	sessionDuration   = 24 * time.Hour
 	stateCookieName   = "golink_oauth_state"
+	loginPath         = "/auth/login"
+	callbackPath      = "/auth/callback"
+	logoutPath        = "/auth/logout"
 )
 
-// OIDCHandler handles OIDC login, callback, and logout routes.
-type OIDCHandler struct {
-	cfg      *config.Config
+// oidcHandler handles the OIDC login, callback, and logout HTTP routes.
+type oidcHandler struct {
+	cfg      AuthConfig
 	provider *gooidc.Provider
 	oauth2   oauth2.Config
 	verifier *gooidc.IDTokenVerifier
-	users    db.UserRepo
+	// canonicalAddr and jwtSecret are copied from the manager at construction.
+	canonicalAddr string
+	jwtSecret     string
+	onAuth        func(email, name, avatarURL string)
+	logger        *slog.Logger
 }
 
-// NewOIDCHandler creates a new OIDCHandler. Returns an error if the OIDC
-// provider cannot be reached. The users repo may be nil; if provided, users are
-// upserted asynchronously on each successful authentication.
-func NewOIDCHandler(ctx context.Context, cfg *config.Config, users db.UserRepo) (*OIDCHandler, error) {
-	provider, err := gooidc.NewProvider(ctx, cfg.OIDC.Issuer)
+func newOIDCHandler(ctx context.Context, m *AuthManager) (*oidcHandler, error) {
+	provider, err := gooidc.NewProvider(ctx, m.cfg.OIDC.Issuer)
 	if err != nil {
 		return nil, fmt.Errorf("oidc provider: %w", err)
 	}
 
 	oauth2Cfg := oauth2.Config{
-		ClientID:     cfg.OIDC.ClientID,
-		ClientSecret: cfg.OIDC.ClientSecret,
-		RedirectURL:  cfg.CanonicalAddress + "/auth/callback",
+		ClientID:     m.cfg.OIDC.ClientID,
+		ClientSecret: m.cfg.OIDC.ClientSecret,
+		RedirectURL:  m.canonicalAddr + callbackPath,
 		Endpoint:     provider.Endpoint(),
-		Scopes:       cfg.OIDC.Scopes,
+		Scopes:       m.cfg.OIDC.Scopes,
 	}
 
-	verifier := provider.Verifier(&gooidc.Config{ClientID: cfg.OIDC.ClientID})
+	verifier := provider.Verifier(&gooidc.Config{ClientID: m.cfg.OIDC.ClientID})
 
-	return &OIDCHandler{
-		cfg:      cfg,
-		provider: provider,
-		oauth2:   oauth2Cfg,
-		verifier: verifier,
-		users:    users,
+	return &oidcHandler{
+		cfg:           m.cfg,
+		provider:      provider,
+		oauth2:        oauth2Cfg,
+		verifier:      verifier,
+		canonicalAddr: m.canonicalAddr,
+		jwtSecret:     m.jwtSecret,
+		onAuth:        m.onAuth,
+		logger:        m.logger,
 	}, nil
 }
 
-// HandleLogin redirects to the OIDC provider.
-func (h *OIDCHandler) HandleLogin(w http.ResponseWriter, r *http.Request) {
+// handleLogin redirects to the OIDC provider.
+func (h *oidcHandler) handleLogin(w http.ResponseWriter, r *http.Request) {
 	random, err := randomState()
 	if err != nil {
 		http.Error(w, "internal error", http.StatusInternalServerError)
@@ -70,8 +75,7 @@ func (h *OIDCHandler) HandleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Encode the post-login destination into the state so it survives the
-	// round-trip to the OIDC provider. The callback URL has no "rd" param —
-	// the provider only returns "code" and "state". Format: "<random>|<rd>".
+	// round-trip to the OIDC provider. Format: "<random>|<rd>".
 	rd := r.URL.Query().Get("rd")
 	if rd == "" || !strings.HasPrefix(rd, "/") || strings.HasPrefix(rd, "//") {
 		rd = "/"
@@ -90,19 +94,16 @@ func (h *OIDCHandler) HandleLogin(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, h.oauth2.AuthCodeURL(state), http.StatusFound)
 }
 
-// HandleCallback processes the OIDC callback, validates the ID token, issues a
+// handleCallback processes the OIDC callback, validates the ID token, issues a
 // session JWT cookie, and redirects to the original destination.
-func (h *OIDCHandler) HandleCallback(w http.ResponseWriter, r *http.Request) {
-	// Validate state
+func (h *oidcHandler) handleCallback(w http.ResponseWriter, r *http.Request) {
 	stateCookie, err := r.Cookie(stateCookieName)
 	if err != nil || stateCookie.Value != r.URL.Query().Get("state") {
 		http.Error(w, "invalid state", http.StatusBadRequest)
 		return
 	}
-	// Clear state cookie
 	http.SetCookie(w, &http.Cookie{Name: stateCookieName, MaxAge: -1, Path: "/"})
 
-	// Exchange code
 	token, err := h.oauth2.Exchange(r.Context(), r.URL.Query().Get("code"))
 	if err != nil {
 		http.Error(w, "token exchange failed", http.StatusInternalServerError)
@@ -121,7 +122,6 @@ func (h *OIDCHandler) HandleCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Extract standard claims
 	var claims struct {
 		Email   string `json:"email"`
 		Name    string `json:"name"`
@@ -132,7 +132,6 @@ func (h *OIDCHandler) HandleCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Extract groups from the configured claim name
 	var groups []string
 	var rawClaims map[string]json.RawMessage
 	if err := idToken.Claims(&rawClaims); err == nil {
@@ -150,16 +149,15 @@ func (h *OIDCHandler) HandleCallback(w http.ResponseWriter, r *http.Request) {
 	}
 	id.IsAdmin = isAdmin(h.cfg, id)
 
-	upsertUserAsync(slog.Default(), h.users, id.Email, id.DisplayName, id.AvatarURL)
+	if h.onAuth != nil {
+		go h.onAuth(id.Email, id.DisplayName, id.AvatarURL)
+	}
 
-	// Issue JWT session cookie
 	if err := h.issueSessionCookie(w, id); err != nil {
 		http.Error(w, "session creation failed", http.StatusInternalServerError)
 		return
 	}
 
-	// Extract the post-login destination from the state (format: "<random>|<rd>").
-	// Reject protocol-relative URLs like "//evil.com" which browsers treat as absolute.
 	dest := "/"
 	if parts := strings.SplitN(stateCookie.Value, "|", 2); len(parts) == 2 {
 		if rd := parts[1]; strings.HasPrefix(rd, "/") && !strings.HasPrefix(rd, "//") {
@@ -169,8 +167,8 @@ func (h *OIDCHandler) HandleCallback(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, dest, http.StatusFound)
 }
 
-// HandleLogout clears the session cookie and redirects to home.
-func (h *OIDCHandler) HandleLogout(w http.ResponseWriter, r *http.Request) {
+// handleLogout clears the session cookie and redirects to home.
+func (h *oidcHandler) handleLogout(w http.ResponseWriter, r *http.Request) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     sessionCookieName,
 		Value:    "",
@@ -192,7 +190,7 @@ type sessionClaims struct {
 	Groups      []string `json:"groups"`
 }
 
-func (h *OIDCHandler) issueSessionCookie(w http.ResponseWriter, id *Identity) error {
+func (h *oidcHandler) issueSessionCookie(w http.ResponseWriter, id *Identity) error {
 	claims := sessionClaims{
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(sessionDuration)),
@@ -204,7 +202,7 @@ func (h *OIDCHandler) issueSessionCookie(w http.ResponseWriter, id *Identity) er
 		Groups:      id.Groups,
 	}
 	jwtToken := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	signed, err := jwtToken.SignedString([]byte(h.cfg.JWTSecret))
+	signed, err := jwtToken.SignedString([]byte(h.jwtSecret))
 	if err != nil {
 		return err
 	}
@@ -220,24 +218,19 @@ func (h *OIDCHandler) issueSessionCookie(w http.ResponseWriter, id *Identity) er
 	return nil
 }
 
-// OIDCMiddleware reads the session JWT cookie and populates the identity
+// oidcMiddleware reads the session JWT cookie and populates the identity
 // context. If OIDC is disabled or no valid cookie is present, the request
 // passes through unchanged.
-//
-// If logger is nil, slog.Default() is used.
-func OIDCMiddleware(cfg *config.Config, logger *slog.Logger) func(http.Handler) http.Handler {
-	if logger == nil {
-		logger = slog.Default()
-	}
+func (m *AuthManager) oidcMiddleware() func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if !cfg.OIDC.Enabled {
+			if m.oidcH == nil {
 				next.ServeHTTP(w, r)
 				return
 			}
 			cookie, err := r.Cookie(sessionCookieName)
 			if err != nil {
-				logger.DebugContext(r.Context(), "oidc: no session cookie present")
+				m.logger.DebugContext(r.Context(), "oidc: no session cookie present")
 				next.ServeHTTP(w, r)
 				return
 			}
@@ -246,10 +239,10 @@ func OIDCMiddleware(cfg *config.Config, logger *slog.Logger) func(http.Handler) 
 				if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
 					return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
 				}
-				return []byte(cfg.JWTSecret), nil
+				return []byte(m.jwtSecret), nil
 			})
 			if err != nil || !jwtToken.Valid {
-				logger.DebugContext(r.Context(), "oidc: invalid or expired session cookie", "error", err)
+				m.logger.DebugContext(r.Context(), "oidc: invalid or expired session cookie", "error", err)
 				next.ServeHTTP(w, r)
 				return
 			}
@@ -260,8 +253,8 @@ func OIDCMiddleware(cfg *config.Config, logger *slog.Logger) func(http.Handler) 
 				Groups:      claims.Groups,
 				Source:      AuthSourceOIDC,
 			}
-			id.IsAdmin = isAdmin(cfg, id)
-			logger.DebugContext(r.Context(), "oidc: identity established",
+			id.IsAdmin = isAdmin(m.cfg, id)
+			m.logger.DebugContext(r.Context(), "oidc: identity established",
 				"email", id.Email,
 				"is_admin", id.IsAdmin,
 			)
@@ -270,8 +263,6 @@ func OIDCMiddleware(cfg *config.Config, logger *slog.Logger) func(http.Handler) 
 	}
 }
 
-// randomState generates a random base64-encoded state string for OAuth2 CSRF
-// protection.
 func randomState() (string, error) {
 	b := make([]byte, 16)
 	if _, err := rand.Read(b); err != nil {

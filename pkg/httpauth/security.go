@@ -1,10 +1,6 @@
-package middleware
+package httpauth
 
-import (
-	"net/http"
-
-	"github.com/mkende/golink-url-shortener/internal/config"
-)
+import "net/http"
 
 // cspPolicy is the Content-Security-Policy applied to every response.
 // All script and style assets are self-hosted, so 'self' is sufficient for
@@ -20,12 +16,11 @@ const cspPolicy = "default-src 'self'; " +
 	"form-action 'self'; " +
 	"frame-ancestors 'self'"
 
-// SecurityHeaders returns middleware that adds defensive HTTP headers to every
-// response. When cfg's canonical address uses HTTPS, Strict-Transport-Security
-// is also set; the header is intentionally omitted for plain-HTTP deployments
-// (Tailscale, local dev) so it does not interfere with HTTP access.
-func SecurityHeaders(cfg *config.Config) func(http.Handler) http.Handler {
-	httpsOnly := cfg != nil && cfg.CanonicalScheme() == "https"
+// securityHeaders returns middleware that adds defensive HTTP headers to every
+// response. When httpsOnly is true, Strict-Transport-Security is also set; the
+// header is intentionally omitted for plain-HTTP deployments so it does not
+// interfere with HTTP access.
+func securityHeaders(httpsOnly bool) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			h := w.Header()
