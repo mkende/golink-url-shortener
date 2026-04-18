@@ -207,6 +207,14 @@ func (s *Server) buildRouter() chi.Router {
 			r.Get("/", s.handleImportExportPage)
 			r.Post("/", s.handleImportUpload)
 		})
+
+		// Admin: reassign links UI
+		r.Route("/reassign", func(r chi.Router) {
+			r.Use(auth.RequireAuth(s.cfg))
+			r.Use(auth.RequireAdmin(http.HandlerFunc(s.handleForbidden)))
+			r.Get("/", s.handleReassignPage)
+			r.Post("/", s.handleReassignLinks)
+		})
 	})
 
 	// API key middleware applied before the API sub-router so that API key
@@ -246,6 +254,9 @@ func (s *Server) buildRouter() chi.Router {
 			// Import (write): admin only, additionally requires write scope.
 			r.With(auth.RequireAdmin(http.HandlerFunc(s.handleForbidden))).Get("/export", s.handleExport)
 			r.With(auth.RequireAdmin(http.HandlerFunc(s.handleForbidden)), auth.RequireWriteScope()).Post("/import", s.handleImport)
+
+			// Reassign all links from one user to another — admin + write scope required.
+			r.With(auth.RequireAdmin(http.HandlerFunc(s.handleForbidden)), auth.RequireWriteScope()).Post("/admin/reassign-links", s.handleAPIReassignLinks)
 		})
 	})
 

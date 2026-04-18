@@ -1,0 +1,41 @@
+{{define "title"}}Reassign Links — {{.Title}}{{end}}
+{{define "content"}}
+<h1 class="title">Reassign Links</h1>
+<p class="mb-4">Transfer ownership of all links from one user to another.</p>
+
+{{if .Error}}
+<div class="notification is-danger">{{.Error}}</div>
+{{end}}
+
+{{if .Done}}
+<div class="notification is-success">
+  <strong>Done.</strong> {{.Reassigned}} link{{if ne .Reassigned 1}}s{{end}} reassigned from
+  <code>{{.FromEmail}}</code> to <code>{{.ToEmail}}</code>.
+</div>
+{{end}}
+
+<div class="box" style="max-width:480px">
+  <form method="POST" action="/reassign">
+    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+    <div class="field">
+      <label class="label" for="from-email">From (current owner)</label>
+      <div class="control">
+        <input id="from-email" class="input" type="email" name="from_email"
+               value="{{.FromEmail}}" placeholder="alice@example.com" required>
+      </div>
+    </div>
+    <div class="field">
+      <label class="label" for="to-email">To (new owner)</label>
+      <div class="control">
+        <input id="to-email" class="input" type="email" name="to_email"
+               value="{{.ToEmail}}" placeholder="bob@example.com" required>
+      </div>
+    </div>
+    <div class="field">
+      <div class="control">
+        <button class="button is-warning" type="submit">Reassign Links</button>
+      </div>
+    </div>
+  </form>
+</div>
+{{end}}
