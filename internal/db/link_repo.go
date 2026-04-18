@@ -61,6 +61,9 @@ type LinkRepo interface {
 	GetAliases(ctx context.Context, nameLower string) ([]*Link, error)
 	// CountAliases returns the number of alias links targeting nameLower.
 	CountAliases(ctx context.Context, nameLower string) (int, error)
+	// ReassignLinks changes the owner_email of all links owned by fromEmail to
+	// toEmail. It returns the number of links updated.
+	ReassignLinks(ctx context.Context, fromEmail, toEmail string) (int64, error)
 }
 
 // ErrNotFound is returned when a requested record does not exist.
@@ -636,6 +639,23 @@ func (r *SQLLinkRepo) CountAliases(ctx context.Context, nameLower string) (int, 
 		return 0, fmt.Errorf("count aliases for %q: %w", nameLower, err)
 	}
 	return count, nil
+}
+
+// ReassignLinks bulk-updates owner_email for every link owned by fromEmail,
+// setting it to toEmail. Returns the count of rows changed.
+func (r *SQLLinkRepo) ReassignLinks(ctx context.Context, fromEmail, toEmail string) (int64, error) {
+	res, err := r.db.ExecContext(ctx,
+		r.db.q("UPDATE links SET owner_email = ? WHERE owner_email = ?"),
+		toEmail, fromEmail,
+	)
+	if err != nil {
+		return 0, fmt.Errorf("reassign links from %q to %q: %w", fromEmail, toEmail, err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return 0, fmt.Errorf("reassign links rows affected: %w", err)
+	}
+	return n, nil
 }
 
 // scanLink reads a single Link from a *sql.Row.

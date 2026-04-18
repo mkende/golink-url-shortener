@@ -142,3 +142,13 @@ func (r *CachingLinkRepo) ListOwnedOrSharedWith(ctx context.Context, ownerEmail 
 func (r *CachingLinkRepo) SearchOwnedOrSharedWith(ctx context.Context, ownerEmail string, identifiers []string, query string, limit, offset int) ([]*Link, int, error) {
 	return r.inner.SearchOwnedOrSharedWith(ctx, ownerEmail, identifiers, query, limit, offset)
 }
+
+// ReassignLinks delegates to the inner repo and purges the entire cache because
+// many link entries become stale simultaneously.
+func (r *CachingLinkRepo) ReassignLinks(ctx context.Context, fromEmail, toEmail string) (int64, error) {
+	n, err := r.inner.ReassignLinks(ctx, fromEmail, toEmail)
+	if err == nil {
+		r.cache.Purge()
+	}
+	return n, err
+}
