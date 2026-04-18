@@ -156,3 +156,25 @@ Usage: `go/ticket/see-PROJ-99-for-details` → `https://tracker.example.com/issu
 - Case-insensitive: `go/Docs` and `go/docs` resolve to the same link.
 - Reserved words (server endpoints such as `/new`, `/edit`, `/create`, etc.)
   may not be used as link names.
+
+---
+
+## Link Sharing
+
+By default, a link is only editable by its owner. You can share a link with
+other users, granting them permission to view and edit it.
+
+On a link's detail page, the owner (and any user the link is already shared
+with) can add additional users or groups to the share list. Enter the email
+address of the user you want to share with, or select from the auto-complete
+suggestions.
+
+If your instance uses OIDC authentication with group support, you can also share
+with entire groups by entering the group name.
+
+On the same detail page, you can see the full list of users and groups the link
+is shared with. Remove any entry to revoke access.
+
+- The link owner can always edit the link and manage shares.
+- Any user in the share list can edit the link and add/remove other shares.
+- Admins can access and edit any link, including managing its shares.
