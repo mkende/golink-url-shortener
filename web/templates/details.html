@@ -9,7 +9,11 @@
 {{if .Error}}<div class="notification is-danger">{{.Error}}</div>{{end}}
 {{if .Success}}<div class="notification is-success">{{.Success}}</div>{{end}}
 
+{{/* Helper to check if this is an admin action (admin viewing another user's link) */}}
+{{$isAdminAction := and (ne .Identity nil) .Identity.IsAdmin (ne .Identity.Email .Link.OwnerEmail)}}
+
 <div class="columns">
+{{/* Left column */}}
 <div class="column is-half">
 
 {{if .Link.IsAlias}}
@@ -45,7 +49,10 @@
 
 {{if .CanEdit}}
 <div class="box">
-  <h2 class="subtitle">Edit Alias</h2>
+  <h2 class="subtitle">
+    Edit Alias
+    {{if $isAdminAction}}<span class="tag is-warning is-pulled-right">admin</span>{{end}}
+  </h2>
   <form method="POST" action="/details/{{.Link.Name}}">
     <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
     <input type="hidden" name="link_type" value="alias">
@@ -73,45 +80,10 @@
 </div>
 
 <div class="box">
-  <h2 class="subtitle">Sharing</h2>
-  <form method="POST" action="/details/{{.Link.Name}}/share">
-    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
-    <label class="label" for="share-email">Share with</label>
-    <div class="field has-addons">
-      <div class="control is-expanded">
-        <input id="share-email" class="input" type="text" name="email"
-          placeholder="{{if .DefaultDomain}}user or user@{{.DefaultDomain}}{{else}}user@example.com{{end}}"
-          aria-label="Email address to share with" list="known-users"
-          hx-get="/api/users/search" hx-trigger="input changed delay:300ms"
-          hx-target="#known-users" hx-swap="innerHTML" hx-params="email">
-        <datalist id="known-users"></datalist>
-      </div>
-      <div class="control">
-        <button class="button is-link" type="submit">Share</button>
-      </div>
-    </div>
-  </form>
-  {{if .Shares}}
-  <table class="table is-fullwidth">
-    <tbody>
-    {{range .Shares}}
-    <tr>
-      <td>{{.}}</td>
-      <td>
-        <form method="POST" action="/details/{{$.Link.Name}}/unshare" style="display:inline">
-          <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
-          <input type="hidden" name="email" value="{{.}}">
-          <button class="button is-small is-danger" type="submit">Remove</button>
-        </form>
-      </td>
-    </tr>
-    {{end}}
-    </tbody>
-  </table>
-  {{end}}
-</div>
-
-<div class="box">
+  <h2 class="subtitle">
+    Delete Alias
+    {{if $isAdminAction}}<span class="tag is-warning is-pulled-right">admin</span>{{end}}
+  </h2>
   <form method="POST" action="/details/{{.Link.Name}}/delete">
     <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
     <button class="button is-danger" type="submit"
@@ -147,7 +119,10 @@
 
 {{if .CanEdit}}
 <div class="box">
-  <h2 class="subtitle">Edit Link</h2>
+  <h2 class="subtitle">
+    Edit Link
+    {{if $isAdminAction}}<span class="tag is-warning is-pulled-right">admin</span>{{end}}
+  </h2>
   <form method="POST" action="/details/{{.Link.Name}}" id="details-form">
     <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
     <div class="field">
@@ -194,45 +169,10 @@
 </div>
 
 <div class="box">
-  <h2 class="subtitle">Sharing</h2>
-  <form method="POST" action="/details/{{.Link.Name}}/share">
-    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
-    <label class="label" for="share-email">Share with</label>
-    <div class="field has-addons">
-      <div class="control is-expanded">
-        <input id="share-email" class="input" type="text" name="email"
-          placeholder="{{if .DefaultDomain}}user or user@{{.DefaultDomain}}{{else}}user@example.com{{end}}"
-          aria-label="Email address to share with" list="known-users"
-          hx-get="/api/users/search" hx-trigger="input changed delay:300ms"
-          hx-target="#known-users" hx-swap="innerHTML" hx-params="email">
-        <datalist id="known-users"></datalist>
-      </div>
-      <div class="control">
-        <button class="button is-link" type="submit">Share</button>
-      </div>
-    </div>
-  </form>
-  {{if .Shares}}
-  <table class="table is-fullwidth">
-    <tbody>
-    {{range .Shares}}
-    <tr>
-      <td>{{.}}</td>
-      <td>
-        <form method="POST" action="/details/{{$.Link.Name}}/unshare" style="display:inline">
-          <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
-          <input type="hidden" name="email" value="{{.}}">
-          <button class="button is-small is-danger" type="submit">Remove</button>
-        </form>
-      </td>
-    </tr>
-    {{end}}
-    </tbody>
-  </table>
-  {{end}}
-</div>
-
-<div class="box">
+  <h2 class="subtitle">
+    Delete Link
+    {{if $isAdminAction}}<span class="tag is-warning is-pulled-right">admin</span>{{end}}
+  </h2>
   <form method="POST" action="/details/{{.Link.Name}}/delete">
     <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
     <button class="button is-danger" type="submit"
@@ -240,11 +180,14 @@
   </form>
 </div>
 {{end}}{{/* end CanEdit for non-alias */}}
+{{end}}{{/* end if/else alias/non-alias */}}
 
 </div>{{/* end left column */}}
 
+{{/* Right column */}}
 <div class="column">
   {{/* Aliases section — only shown for non-alias links */}}
+  {{if not .Link.IsAlias}}
   <div class="box">
     <h2 class="subtitle">Aliases</h2>
     {{if .Aliases}}
@@ -287,9 +230,53 @@
     </form>
     {{end}}
   </div>
-</div>{{/* end right column */}}
+  {{end}}
 
-{{end}}{{/* end non-alias block */}}
+  {{/* Sharing box - shown after Aliases for non-alias links, and for alias links */}}
+  {{if .CanEdit}}
+  <div class="box">
+    <h2 class="subtitle">
+      Sharing
+      {{if $isAdminAction}}<span class="tag is-warning is-pulled-right">admin</span>{{end}}
+    </h2>
+    <form method="POST" action="/details/{{.Link.Name}}/share">
+      <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+      <label class="label" for="share-email">Share with</label>
+      <div class="field has-addons">
+        <div class="control is-expanded">
+          <input id="share-email" class="input" type="text" name="email"
+            placeholder="{{if .DefaultDomain}}user or user@{{.DefaultDomain}}{{else}}user@example.com{{end}}"
+            aria-label="Email address to share with" list="known-users"
+            hx-get="/api/users/search" hx-trigger="input changed delay:300ms"
+            hx-target="#known-users" hx-swap="innerHTML" hx-params="email">
+          <datalist id="known-users"></datalist>
+        </div>
+        <div class="control">
+          <button class="button is-link" type="submit">Share</button>
+        </div>
+      </div>
+    </form>
+    {{if .Shares}}
+    <table class="table is-fullwidth">
+      <tbody>
+      {{range .Shares}}
+      <tr>
+        <td>{{.}}</td>
+        <td>
+          <form method="POST" action="/details/{{$.Link.Name}}/unshare" style="display:inline">
+            <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
+            <input type="hidden" name="email" value="{{.}}">
+            <button class="button is-small is-danger" type="submit">Remove</button>
+          </form>
+        </td>
+      </tr>
+      {{end}}
+      </tbody>
+    </table>
+    {{end}}
+  </div>
+  {{end}}
+</div>{{/* end right column */}}
 
 </div>{{/* end columns */}}
 {{end}}
