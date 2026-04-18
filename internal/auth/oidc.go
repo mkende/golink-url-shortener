@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -19,9 +20,11 @@ import (
 )
 
 const (
-	sessionCookieName = "golink_session"
-	sessionDuration   = 24 * time.Hour
-	stateCookieName   = "golink_oauth_state"
+	sessionCookieName   = "golink_session"
+	sessionDuration     = 24 * time.Hour
+	stateCookieName     = "golink_oauth_state"
+	oidcVerifierCookie  = "golink_pkce_verifier"
+	oidcCookieMaxAge    = 600 // 10 minutes
 )
 
 // OIDCHandler handles OIDC login, callback, and logout routes.
@@ -87,6 +90,30 @@ func (h *OIDCHandler) HandleLogin(w http.ResponseWriter, r *http.Request) {
 		Secure:   true,
 		SameSite: http.SameSiteLaxMode,
 	})
+
+	// Add PKCE support if enabled
+	if h.cfg.OIDC.UsePKCE {
+		verifier, challenge, err := pkce()
+		if err != nil {
+			http.Error(w, "internal error", http.StatusInternalServerError)
+			return
+		}
+		http.SetCookie(w, &http.Cookie{
+			Name:     oidcVerifierCookie,
+			Value:    verifier,
+			Path:     "/auth/",
+			HttpOnly: true,
+			Secure:   true,
+			SameSite: http.SameSiteLaxMode,
+			MaxAge:   oidcCookieMaxAge,
+		})
+		http.Redirect(w, r, h.oauth2.AuthCodeURL(state,
+			oauth2.SetAuthURLParam("code_challenge", challenge),
+			oauth2.SetAuthURLParam("code_challenge_method", "S256"),
+		), http.StatusFound)
+		return
+	}
+
 	http.Redirect(w, r, h.oauth2.AuthCodeURL(state), http.StatusFound)
 }
 
@@ -102,8 +129,32 @@ func (h *OIDCHandler) HandleCallback(w http.ResponseWriter, r *http.Request) {
 	// Clear state cookie
 	http.SetCookie(w, &http.Cookie{Name: stateCookieName, MaxAge: -1, Path: "/"})
 
+	// Clear PKCE verifier cookie if present
+	http.SetCookie(w, &http.Cookie{
+		Name:   oidcVerifierCookie,
+		Path:   "/auth/",
+		MaxAge: -1,
+	})
+
+	// Get PKCE verifier if PKCE is enabled
+	var verifier string
+	if h.cfg.OIDC.UsePKCE {
+		verifierCookie, err := r.Cookie(oidcVerifierCookie)
+		if err != nil {
+			http.Error(w, "missing PKCE verifier", http.StatusBadRequest)
+			return
+		}
+		verifier = verifierCookie.Value
+	}
+
 	// Exchange code
-	token, err := h.oauth2.Exchange(r.Context(), r.URL.Query().Get("code"))
+	var token *oauth2.Token
+	if verifier != "" {
+		token, err = h.oauth2.Exchange(r.Context(), r.URL.Query().Get("code"),
+			oauth2.SetAuthURLParam("code_verifier", verifier))
+	} else {
+		token, err = h.oauth2.Exchange(r.Context(), r.URL.Query().Get("code"))
+	}
 	if err != nil {
 		http.Error(w, "token exchange failed", http.StatusInternalServerError)
 		return
@@ -278,4 +329,26 @@ func randomState() (string, error) {
 		return "", err
 	}
 	return base64.URLEncoding.EncodeToString(b), nil
+}
+
+// pkce generates a PKCE code verifier and its corresponding challenge.
+// The verifier is a random base64-encoded string, and the challenge is its
+// SHA-256 hash, base64-URL-encoded without padding.
+func pkce() (verifier, challenge string, err error) {
+	verifier, err = randomB64(32)
+	if err != nil {
+		return
+	}
+	h := sha256.Sum256([]byte(verifier))
+	challenge = base64.RawURLEncoding.EncodeToString(h[:])
+	return
+}
+
+// randomB64 generates a random base64-URL-encoded string of n bytes.
+func randomB64(n int) (string, error) {
+	b := make([]byte, n)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	return base64.RawURLEncoding.EncodeToString(b), nil
 }

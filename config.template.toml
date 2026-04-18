@@ -236,6 +236,11 @@ scopes = ["openid", "email", "profile"]
 # Default: "groups" (correct for Authelia, Keycloak, Dex, and most providers)
 groups_claim = "groups"
 
+# Use PKCE (Proof Key for Code Exchange) in the OAuth2 authorization code flow.
+# PKCE provides additional security for public clients by using a code verifier
+# and challenge. Default: false (standard authorization code flow).
+use_pkce = false
+
 # See the global jwt_secret setting — it is required when oidc.enabled = true.
 
 # ── Authelia provider notes ───────────────────────────────────────────────────

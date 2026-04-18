@@ -65,6 +65,11 @@ with your OIDC provider.
 - **`oidc.groups_claim`** (string, default: `"groups"`) — Name of the
   JWT/userinfo claim that contains the user's group memberships. Used for
   group-based sharing and `admin_group`.
+- **`oidc.use_pkce`** (bool, default: `false`) — Enable PKCE (Proof Key for
+  Code Exchange) in the OAuth2 authorization code flow. PKCE provides
+  additional security by using a code verifier and challenge, which is
+  recommended for public clients and confidential clients that cannot securely
+  store a client secret.
 - **`oidc.jwt_secret`** (string) — **Required when `oidc.enabled = true`.**
   HMAC secret used to sign session JWT cookies. Use a long random string (at
   least 32 bytes). Generate one with `openssl rand -base64 32`.
