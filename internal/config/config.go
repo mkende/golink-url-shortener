@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/BurntSushi/toml"
+	"github.com/mkende/golink-url-shortener/internal/links"
 )
 
 // AnonymousConfig holds settings for anonymous (user-less) authentication.
@@ -195,6 +196,25 @@ type Config struct {
 	// "warn", "error". Defaults to "info".
 	LogLevel string `toml:"log_level"`
 
+	// AllowAdvancedLinks controls whether advanced (Go template) links may be
+	// created or followed. When explicitly set to false, the advanced link
+	// option is hidden from creation and edit forms, and following an existing
+	// advanced link returns an error page instead of performing the redirect.
+	// Default: true (advanced links are permitted).
+	AllowAdvancedLinks *bool `toml:"allow_advanced_links"`
+
+	// DomainsForAdvancedLinks restricts advanced links to a set of allowed
+	// destination domains. Each entry is an exact hostname ("example.com") or
+	// a leading-wildcard hostname ("*.example.com"). The wildcard prefix may
+	// contain dots (multi-level subdomains) but must not contain slashes or
+	// other special characters. When non-empty, an advanced link whose
+	// resolved URL does not match any listed domain is rejected at creation
+	// time (best-effort dry-run) and at redirect time.
+	// Security recommendation: restrict this to internal, trusted domains when
+	// advanced links are enabled in production.
+	// Default: [] (no domain restriction).
+	DomainsForAdvancedLinks []string `toml:"domains_for_advanced_links"`
+
 	// UI holds settings that control the behaviour of the web UI.
 	UI UIConfig `toml:"ui"`
 }
@@ -228,6 +248,13 @@ func (c *Config) CanonicalScheme() string {
 		return ""
 	}
 	return u.Scheme
+}
+
+// AdvancedLinksAllowed returns true when advanced (Go template) links are
+// permitted. Returns true by default when allow_advanced_links is not
+// explicitly set in the configuration file.
+func (c *Config) AdvancedLinksAllowed() bool {
+	return c.AllowAdvancedLinks == nil || *c.AllowAdvancedLinks
 }
 
 // applyDefaults fills in zero-value fields with their documented defaults.
@@ -382,6 +409,11 @@ func validate(c *Config) error {
 			return fmt.Errorf("cache_ttl must be non-negative, got %q", c.CacheTTL)
 		}
 		c.CacheTTLDuration = d
+	}
+	for _, pattern := range c.DomainsForAdvancedLinks {
+		if err := links.ValidateDomainPattern(pattern); err != nil {
+			return fmt.Errorf("domains_for_advanced_links: %w", err)
+		}
 	}
 	return nil
 }

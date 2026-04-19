@@ -149,6 +149,32 @@ Usage: `go/ticket/see-PROJ-99-for-details` → `https://tracker.example.com/issu
 
 ---
 
+## Advanced link security
+
+Advanced links are powerful but carry a higher security risk than simple links:
+any user who can create an advanced link can redirect other users to an
+arbitrary URL through template logic. Administrators can restrict this risk in
+two complementary ways via `golink.conf`:
+
+**Disable entirely** (`allow_advanced_links = false`):
+The advanced link type is hidden from creation and edit forms. Existing
+advanced links return an error page when followed, prompting their owners to
+convert them to simple links.
+
+**Restrict to allowed domains** (`domains_for_advanced_links`):
+Advanced links may only redirect to the listed hostnames. Entries may be exact
+(`example.com`) or use a leading wildcard (`*.example.com`), where the
+wildcard matches any non-empty subdomain (including multi-level ones such as
+`a.b.example.com`). Creating a link whose dry-run resolved URL falls outside
+the list is rejected; following such a link at runtime also shows an error page.
+
+**Recommendation**: if advanced links are enabled in a production deployment,
+set `domains_for_advanced_links` to a list of internal, trusted hostnames so
+that advanced links cannot be used to redirect users to arbitrary external
+sites.
+
+---
+
 ## Link name rules
 
 - ASCII alphanumeric characters plus `-`, `_`, and `.` only.

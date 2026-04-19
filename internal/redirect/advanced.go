@@ -3,6 +3,7 @@ package redirect
 import (
 	"bytes"
 	"fmt"
+	"net/url"
 	"regexp"
 	"strings"
 	"text/template"
@@ -141,4 +142,33 @@ func ValidateTemplate(templateStr string) error {
 		return fmt.Errorf("template dry-run error: %w", err)
 	}
 	return nil
+}
+
+// CheckTemplateTargetDomain performs a best-effort dry-run of templateStr with
+// empty variables and validates that the resulting URL's host matches one of
+// allowedDomains. Returns nil when allowedDomains is empty (no restriction).
+// If the dry-run fails or produces a URL without a parseable host (e.g. because
+// the hostname itself is a template expression), the check is silently skipped
+// — the definitive domain check happens at redirect time via ResolveAdvanced.
+func CheckTemplateTargetDomain(templateStr string, allowedDomains []string) error {
+	if len(allowedDomains) == 0 {
+		return nil
+	}
+	t, err := parseTemplate(templateStr)
+	if err != nil {
+		return nil // syntax error will be caught by ValidateTarget
+	}
+	raw, execErr := executeTemplate(t, TemplateVars{}.toMap())
+	if execErr != nil {
+		return nil // dry-run failed; skip creation-time domain check
+	}
+	result := strings.TrimSpace(raw)
+	if result == "" {
+		return nil
+	}
+	u, parseErr := url.Parse(result)
+	if parseErr != nil || u.Hostname() == "" {
+		return nil // host not determinable statically; skip
+	}
+	return links.CheckAdvancedLinkDomain(result, allowedDomains)
 }

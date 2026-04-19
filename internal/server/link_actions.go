@@ -7,6 +7,7 @@ import (
 
 	"github.com/mkende/golink-url-shortener/internal/db"
 	"github.com/mkende/golink-url-shortener/internal/links"
+	"github.com/mkende/golink-url-shortener/internal/redirect"
 )
 
 // createLinkParams holds the already-parsed, normalised inputs for creating a link.
@@ -75,8 +76,16 @@ func (s *Server) doCreateLink(r *http.Request, params createLinkParams, ownerEma
 			}
 		}
 	} else {
+		if params.LinkType == db.LinkTypeAdvanced && !s.cfg.AdvancedLinksAllowed() {
+			return nil, &createLinkError{Kind: createErrValidation, Message: "advanced links are disabled by the server configuration"}
+		}
 		if err := links.ValidateTarget(params.Target); err != nil {
 			return nil, &createLinkError{Kind: createErrValidation, Message: err.Error()}
+		}
+		if params.LinkType == db.LinkTypeAdvanced {
+			if err := redirect.CheckTemplateTargetDomain(params.Target, s.cfg.DomainsForAdvancedLinks); err != nil {
+				return nil, &createLinkError{Kind: createErrValidation, Message: err.Error()}
+			}
 		}
 	}
 

@@ -12,6 +12,7 @@
       <label class="radio">
         <input type="radio" name="link_type" value="simple" {{if ne .Form.LinkType "advanced"}}{{if ne .Form.LinkType "alias"}}checked{{end}}{{end}}> Simple
       </label>
+      {{if .AllowAdvancedLinks}}
       <label class="radio">
         <input type="radio" name="link_type" value="advanced" {{if eq .Form.LinkType "advanced"}}checked{{end}}> Advanced (Go Template)
       </label>
@@ -20,6 +21,7 @@
                 width: 1.2em; height: 1.2em; border: 1.5px solid #666; border-radius: 50%;
                 font-size: 0.85em; font-weight: bold; color: #666; text-decoration: none;
                 vertical-align: middle; margin-left: 0.3em;">?</a>
+      {{end}}
       <label class="radio" style="margin-left: 1em;">
         <input type="radio" name="link_type" value="alias" {{if eq .Form.LinkType "alias"}}checked{{end}}> Alias
       </label>

@@ -127,11 +127,18 @@
     <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
     <div class="field">
       <label class="label">Link Type</label>
+      {{if and .Link.IsAdvanced (not .AllowAdvancedLinks)}}
+      <div class="notification is-warning is-light">
+        Advanced links are disabled by the server configuration. This link will not redirect until it is converted to a Simple link.
+      </div>
+      {{end}}
       <div class="control">
         <div class="select">
           <select name="link_type" id="link-type-select">
             <option value="simple"  {{if .Link.IsSimple}}selected{{end}}>Simple URL</option>
+            {{if or .AllowAdvancedLinks .Link.IsAdvanced}}
             <option value="advanced"{{if .Link.IsAdvanced}}selected{{end}}>Advanced (Go template)</option>
+            {{end}}
             <option value="alias">Alias of another link</option>
           </select>
         </div>

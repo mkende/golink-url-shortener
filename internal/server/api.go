@@ -13,6 +13,7 @@ import (
 	"github.com/mkende/golink-url-shortener/internal/auth"
 	"github.com/mkende/golink-url-shortener/internal/db"
 	"github.com/mkende/golink-url-shortener/internal/links"
+	"github.com/mkende/golink-url-shortener/internal/redirect"
 )
 
 // generateAPIKey generates a cryptographically random 32-byte URL-safe base64
@@ -255,10 +256,20 @@ func (s *Server) handleAPIUpdateLink(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Simple or advanced link.
+	if newLinkType == db.LinkTypeAdvanced && !s.cfg.AdvancedLinksAllowed() {
+		writeJSONError(w, http.StatusBadRequest, "advanced links are disabled by the server configuration")
+		return
+	}
 	newTarget := link.Target
 	if req.Target != nil {
 		newTarget = strings.TrimSpace(*req.Target)
 		if err := links.ValidateTarget(newTarget); err != nil {
+			writeJSONError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+	}
+	if newLinkType == db.LinkTypeAdvanced {
+		if err := redirect.CheckTemplateTargetDomain(newTarget, s.cfg.DomainsForAdvancedLinks); err != nil {
 			writeJSONError(w, http.StatusBadRequest, err.Error())
 			return
 		}
