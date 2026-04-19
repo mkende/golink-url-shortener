@@ -11,11 +11,11 @@
       {{if .IsAlias}}<span class="tag is-info is-small ml-1">alias</span>{{end}}
       {{if .IsAdvanced}}<span class="tag is-warning is-small ml-1">advanced</span>{{end}}
     </td>
-    <td>
+    <td class="target-col">
       {{if .IsAlias}}
         <span class="has-text-grey">alias of </span><a href="/details/{{.AliasTarget}}">{{.AliasTarget}}</a>
       {{else}}
-        <a href="{{.Target}}" class="has-text-truncated">{{.Target}}</a>
+        <a href="{{.Target}}"><span class="link-target-full">{{.Target}}</span><span class="link-target-short">{{trimHTTPS .Target}}</span></a>
       {{end}}
     </td>
     <td>{{.UseCount}}</td>

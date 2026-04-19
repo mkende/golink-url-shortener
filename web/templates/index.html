@@ -43,7 +43,9 @@
     {{if .RecentLinks}}
     <div class="box">
       <h2 class="subtitle">My Recent Links</h2>
-      {{template "link_table" .RecentLinks}}
+      <div class="table-container home-link-table">
+        {{template "link_table" .RecentLinks}}
+      </div>
     </div>
     {{end}}
   </div>
@@ -71,7 +73,9 @@
 {{if .PopularLinks}}
 <div class="box">
   <h2 class="subtitle">Popular Links</h2>
-  {{template "link_table" .PopularLinks}}
+  <div class="table-container home-link-table">
+    {{template "link_table" .PopularLinks}}
+  </div>
 </div>
 {{end}}
 {{end}}

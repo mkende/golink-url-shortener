@@ -15,6 +15,8 @@ import (
 var funcMap = template.FuncMap{
 	"add": func(a, b int) int { return a + b },
 	"sub": func(a, b int) int { return a - b },
+	// trimHTTPS strips the "https://" scheme for compact display; other schemes are kept.
+	"trimHTTPS": func(s string) string { return strings.TrimPrefix(s, "https://") },
 	// hasKey reports whether the map contains the given key (for ownership checks).
 	"hasKey": func(m map[int64]bool, key int64) bool {
 		if m == nil {
