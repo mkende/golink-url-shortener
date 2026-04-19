@@ -1,0 +1,18 @@
+/* The short URL variant (https:// stripped) is hidden everywhere by default. */
+.link-target-short { display: none; }
+
+/* On mobile, inside the home-page summary tables:
+   - swap to the short URL variant,
+   - truncate with ellipsis (~8em ≈ 15 average chars; adjust to taste),
+   - fall back to horizontal scroll (via .table-container) for anything still wider. */
+@media screen and (max-width: 768px) {
+  .home-link-table .link-target-full { display: none; }
+  .home-link-table .link-target-short { display: inline; }
+
+  .home-link-table td.target-col {
+    max-width: 8em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}

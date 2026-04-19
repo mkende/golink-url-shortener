@@ -10,5 +10,5 @@ import "embed"
 // Vendor assets (Bulma CSS and HTMX) are self-hosted rather than loaded from
 // external CDNs. See web/static/app.js for the rationale.
 //
-//go:embed favicon.svg app.js htmx-1.9.10.min.js bulma-0.9.4.min.css
+//go:embed favicon.svg app.js app.css htmx-1.9.10.min.js bulma-0.9.4.min.css
 var FS embed.FS
