@@ -284,6 +284,52 @@ func TestParseRequest(t *testing.T) {
 }
 
 // ----------------------------------------------------------------------------
+// CheckTemplateTargetDomain
+// ----------------------------------------------------------------------------
+
+func TestCheckTemplateTargetDomain(t *testing.T) {
+	t.Parallel()
+
+	allowed := []string{"example.com", "*.corp.com"}
+
+	tests := []struct {
+		name        string
+		templateStr string
+		wantErr     bool
+	}{
+		// Static domain in allowed list.
+		{"static allowed", "https://example.com/docs", false},
+		{"static allowed with path template", "https://example.com/{{.path}}", false},
+		{"static allowed with query template", "https://example.com?q={{.path}}", false},
+		{"static wildcard subdomain", "https://sub.corp.com/{{.path}}", false},
+		// Static domain not in allowed list.
+		{"static disallowed", "https://evil.com/docs", true},
+		{"static disallowed with path template", "https://evil.com/{{.path}}", true},
+		// Any template action at or before the host boundary — rejected.
+		{"fully dynamic", "{{if .path}}https://example.com{{end}}", true},
+		{"dynamic host prefix", "https://{{.sub}}.example.com/foo", true},
+		{"dynamic host suffix", "https://example.com{{.var}}/foo", true},
+		// No restriction.
+		{"empty allowed list", "https://evil.com/", false},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			domains := allowed
+			if tc.name == "empty allowed list" {
+				domains = nil
+			}
+			err := CheckTemplateTargetDomain(tc.templateStr, domains)
+			if (err != nil) != tc.wantErr {
+				t.Errorf("CheckTemplateTargetDomain(%q) error = %v, wantErr %v", tc.templateStr, err, tc.wantErr)
+			}
+		})
+	}
+}
+
+// ----------------------------------------------------------------------------
 // ValidateTemplate
 // ----------------------------------------------------------------------------
 

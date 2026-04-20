@@ -55,6 +55,27 @@ require_auth_for_redirects = false
 
 # ─── Links ────────────────────────────────────────────────────────────────────
 
+# Controls whether advanced (Go template) links may be created and followed.
+# When set to false, the advanced link option is hidden from creation and edit
+# forms, and attempting to follow an existing advanced link shows an error page.
+# Default: true
+# allow_advanced_links = true
+
+# Allowed destination domains for advanced links. Each entry is either an
+# exact hostname ("example.com") or a leading-wildcard hostname
+# ("*.example.com"). A wildcard prefix may contain dots (matching multi-level
+# subdomains such as "a.b.example.com") but must not contain slashes or other
+# special characters, providing a defensive check against exploitation.
+# When non-empty, creating an advanced link whose dry-run target does not match
+# any listed domain is rejected; following such a link at runtime also shows an
+# error page.
+# Security recommendation: when advanced links are enabled in production,
+# restrict this list to internal, trusted hostnames to prevent advanced links
+# from being used to redirect users to arbitrary external sites.
+# Example: ["go.corp.example.com", "*.internal.example.com"]
+# Default: [] (no domain restriction)
+# domains_for_advanced_links = []
+
 # Number of characters in a randomly-generated quick-link name.
 # Must be >= 4.
 # Default: 6

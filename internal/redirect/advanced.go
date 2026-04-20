@@ -3,6 +3,7 @@ package redirect
 import (
 	"bytes"
 	"fmt"
+	"net/url"
 	"regexp"
 	"strings"
 	"text/template"
@@ -141,4 +142,29 @@ func ValidateTemplate(templateStr string) error {
 		return fmt.Errorf("template dry-run error: %w", err)
 	}
 	return nil
+}
+
+// CheckTemplateTargetDomain validates that templateStr begins with a fully
+// static domain that matches one of the allowedDomains. "Fully static" means
+// the scheme and host contain no template actions: the first "{{" must appear
+// only after a path, query, or fragment separator. Any template action at or
+// before the host boundary is rejected outright — the domain must be known
+// with certainty when domain restrictions are in effect.
+// Returns nil when allowedDomains is empty (no restriction).
+func CheckTemplateTargetDomain(templateStr string, allowedDomains []string) error {
+	if len(allowedDomains) == 0 {
+		return nil
+	}
+	staticPart := strings.TrimSpace(templateStr)
+	if i := strings.Index(templateStr, "{{"); i >= 0 {
+		staticPart = strings.TrimSpace(templateStr[:i])
+		// Require that the cut leaves a URL with a non-empty path, query, or
+		// fragment — proof that the "{{" is past the authority. If none of
+		// those are present the action is at or inside the host.
+		u, err := url.Parse(staticPart)
+		if err != nil || u.Hostname() == "" || (u.Path == "" && u.RawQuery == "" && u.Fragment == "") {
+			return fmt.Errorf("advanced link target must have a static domain when domain restrictions are configured")
+		}
+	}
+	return links.CheckAdvancedLinkDomain(staticPart, allowedDomains)
 }

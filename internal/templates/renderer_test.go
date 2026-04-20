@@ -52,12 +52,13 @@ func TestRenderer_RenderTo_UnknownPage(t *testing.T) {
 
 // baseData mirrors server.baseData for test use.
 type baseData struct {
-	Title       string
-	Identity    any
-	CSRFToken   string
-	FaviconPath string
-	OIDCEnabled bool
-	Version     string
+	Title              string
+	Identity           any
+	CSRFToken          string
+	FaviconPath        string
+	OIDCEnabled        bool
+	Version            string
+	AllowAdvancedLinks bool
 }
 
 // linksPageData mirrors server.linksPageData for test use.

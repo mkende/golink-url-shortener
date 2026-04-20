@@ -8,6 +8,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/mkende/golink-url-shortener/internal/auth"
 	"github.com/mkende/golink-url-shortener/internal/db"
+	"github.com/mkende/golink-url-shortener/internal/links"
 	"github.com/mkende/golink-url-shortener/internal/redirect"
 	serverMiddleware "github.com/mkende/golink-url-shortener/internal/server/middleware"
 )
@@ -89,6 +90,10 @@ func (s *Server) doRedirect(w http.ResponseWriter, r *http.Request, link *db.Lin
 	var targetURL string
 	var err error
 	if link.IsAdvanced() {
+		if !s.cfg.AdvancedLinksAllowed() {
+			s.renderAdvancedLinkError(w, r, "Advanced links are disabled on this server.")
+			return
+		}
 		vars := redirect.TemplateVars{
 			Path:  suffix,
 			Parts: splitPath(suffix),
@@ -98,6 +103,13 @@ func (s *Server) doRedirect(w http.ResponseWriter, r *http.Request, link *db.Lin
 			Alias: aliasName,
 		}
 		targetURL, err = redirect.ResolveAdvanced(link.Target, vars)
+		if err == nil {
+			if domErr := links.CheckAdvancedLinkDomain(targetURL, s.cfg.DomainsForAdvancedLinks); domErr != nil {
+				s.logr(r.Context()).Error("advanced link domain not allowed", "name", name, "url", targetURL, "error", domErr)
+				s.renderAdvancedLinkError(w, r, "This link redirects to a domain that is not permitted by the server configuration.")
+				return
+			}
+		}
 	} else {
 		targetURL, err = redirect.ResolveSimple(link.Target, suffix, r.URL.RawQuery)
 	}

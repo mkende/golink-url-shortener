@@ -12,6 +12,7 @@ import (
 	"github.com/mkende/golink-url-shortener/internal/auth"
 	"github.com/mkende/golink-url-shortener/internal/db"
 	"github.com/mkende/golink-url-shortener/internal/links"
+	"github.com/mkende/golink-url-shortener/internal/redirect"
 	serverMiddleware "github.com/mkende/golink-url-shortener/internal/server/middleware"
 	"github.com/mkende/golink-url-shortener/internal/version"
 )
@@ -89,6 +90,35 @@ type baseData struct {
 	OIDCEnabled bool
 	// Version is the application version string (e.g. "v1.2.3" or "dev").
 	Version string
+	// AllowAdvancedLinks is true when advanced (Go template) links are
+	// permitted by the server configuration.
+	AllowAdvancedLinks bool
+}
+
+// advancedLinkErrorData is the template data for the advanced-link error page.
+type advancedLinkErrorData struct {
+	baseData
+	// Message is the human-readable explanation of why the link cannot be followed.
+	Message string
+}
+
+// renderAdvancedLinkError renders an error page when an advanced link cannot
+// be followed due to a configuration restriction (advanced links disabled or
+// destination domain not permitted).
+func (s *Server) renderAdvancedLinkError(w http.ResponseWriter, r *http.Request, msg string) {
+	if serverMiddleware.RedirectToCanonical(s.cfg, s.trustedNets, w, r) {
+		return
+	}
+	base, err := s.newBaseData(w, r)
+	if err != nil {
+		s.logr(r.Context()).Error("advanced link error: baseData", "error", err)
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return
+	}
+	s.renderer.RenderStatus(w, http.StatusForbidden, "advanced_disabled", advancedLinkErrorData{
+		baseData: base,
+		Message:  msg,
+	})
 }
 
 // newBaseData populates baseData from the current request and writes a fresh
@@ -100,12 +130,13 @@ func (s *Server) newBaseData(w http.ResponseWriter, r *http.Request) (baseData, 
 	}
 	setCSRFCookie(w, token)
 	return baseData{
-		Title:       s.cfg.Title,
-		Identity:    auth.FromContext(r.Context()),
-		CSRFToken:   token,
-		FaviconPath: s.cfg.FaviconPath,
-		OIDCEnabled: s.cfg.OIDC.Enabled,
-		Version:     version.Version,
+		Title:              s.cfg.Title,
+		Identity:           auth.FromContext(r.Context()),
+		CSRFToken:          token,
+		FaviconPath:        s.cfg.FaviconPath,
+		OIDCEnabled:        s.cfg.OIDC.Enabled,
+		Version:            version.Version,
+		AllowAdvancedLinks: s.cfg.AdvancedLinksAllowed(),
 	}, nil
 }
 
@@ -371,10 +402,20 @@ func (s *Server) handleDetailsPost(w http.ResponseWriter, r *http.Request, base 
 		if linkTypeStr == "advanced" {
 			lt = db.LinkTypeAdvanced
 		}
+		if lt == db.LinkTypeAdvanced && !s.cfg.AdvancedLinksAllowed() {
+			s.renderDetailsError(w, r, base, link, canEdit, "Advanced links are disabled by the server configuration.")
+			return
+		}
 		target := strings.TrimSpace(r.FormValue("target"))
 		if err := links.ValidateTarget(target); err != nil {
 			s.renderDetailsError(w, r, base, link, canEdit, err.Error())
 			return
+		}
+		if lt == db.LinkTypeAdvanced {
+			if err := redirect.CheckTemplateTargetDomain(target, s.cfg.DomainsForAdvancedLinks); err != nil {
+				s.renderDetailsError(w, r, base, link, canEdit, err.Error())
+				return
+			}
 		}
 		updated, updateErr := s.links.Update(r.Context(), link.ID, link.Name, target, lt, requireAuth)
 		if updateErr != nil {

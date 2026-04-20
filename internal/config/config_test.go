@@ -292,6 +292,65 @@ groups_claim = "roles"
 			wantErr:     true,
 			errContains: "reading config file",
 		},
+		// allow_advanced_links and domains_for_advanced_links
+		{
+			name: "allow_advanced_links defaults to true when omitted",
+			toml: minimalValid,
+			check: func(t *testing.T, cfg *config.Config) {
+				t.Helper()
+				if !cfg.AdvancedLinksAllowed() {
+					t.Error("AdvancedLinksAllowed() = false, want true (default)")
+				}
+			},
+		},
+		{
+			name: "allow_advanced_links = true is explicit",
+			toml: minimalHeader + "allow_advanced_links = true\n" + anonSection,
+			check: func(t *testing.T, cfg *config.Config) {
+				t.Helper()
+				if !cfg.AdvancedLinksAllowed() {
+					t.Error("AdvancedLinksAllowed() = false, want true")
+				}
+			},
+		},
+		{
+			name: "allow_advanced_links = false disables advanced links",
+			toml: minimalHeader + "allow_advanced_links = false\n" + anonSection,
+			check: func(t *testing.T, cfg *config.Config) {
+				t.Helper()
+				if cfg.AdvancedLinksAllowed() {
+					t.Error("AdvancedLinksAllowed() = true, want false")
+				}
+			},
+		},
+		{
+			name: "valid domains_for_advanced_links",
+			toml: minimalHeader + `domains_for_advanced_links = ["example.com", "*.internal.corp"]` + "\n" + anonSection,
+			check: func(t *testing.T, cfg *config.Config) {
+				t.Helper()
+				if len(cfg.DomainsForAdvancedLinks) != 2 {
+					t.Errorf("len(DomainsForAdvancedLinks) = %d, want 2", len(cfg.DomainsForAdvancedLinks))
+				}
+			},
+		},
+		{
+			name:        "invalid domain pattern in domains_for_advanced_links",
+			toml:        minimalHeader + `domains_for_advanced_links = ["exam_ple.com"]` + "\n" + anonSection,
+			wantErr:     true,
+			errContains: "domains_for_advanced_links",
+		},
+		{
+			name:        "wildcard without base domain rejected",
+			toml:        minimalHeader + `domains_for_advanced_links = ["*."]` + "\n" + anonSection,
+			wantErr:     true,
+			errContains: "domains_for_advanced_links",
+		},
+		{
+			name:        "star-only pattern rejected",
+			toml:        minimalHeader + `domains_for_advanced_links = ["*"]` + "\n" + anonSection,
+			wantErr:     true,
+			errContains: "domains_for_advanced_links",
+		},
 	}
 
 	for _, tc := range tests {
