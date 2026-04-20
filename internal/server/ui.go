@@ -273,6 +273,9 @@ type detailsPageData struct {
 	baseData
 	Link          *db.Link
 	CanEdit       bool
+	// CanTransfer is true when the current user is the link owner or an admin.
+	// Shared-only users may edit but not transfer ownership.
+	CanTransfer   bool
 	Aliases       []*db.Link
 	CanonicalLink *db.Link // non-nil only for alias links
 	Shares        []string
@@ -436,10 +439,13 @@ func (s *Server) handleDetailsPost(w http.ResponseWriter, r *http.Request, base 
 
 // buildDetailsPageData assembles detailsPageData for the details page.
 func (s *Server) buildDetailsPageData(r *http.Request, base baseData, link *db.Link, canEdit bool) (detailsPageData, error) {
+	id := base.Identity
+	canTransfer := id != nil && (id.IsAdmin || strings.EqualFold(id.Email, link.OwnerEmail))
 	data := detailsPageData{
-		baseData: base,
-		Link:     link,
-		CanEdit:  canEdit,
+		baseData:    base,
+		Link:        link,
+		CanEdit:     canEdit,
+		CanTransfer: canTransfer,
 	}
 
 	if link.IsAlias() {
@@ -567,6 +573,83 @@ func (s *Server) handleDetailsUnshare(w http.ResponseWriter, r *http.Request) {
 	email := strings.TrimSpace(r.FormValue("email"))
 	if err := s.links.RemoveShare(r.Context(), link.ID, email); err != nil {
 		s.logr(r.Context()).Error("unshare: remove share", "link", name, "email", email, "error", err)
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	http.Redirect(w, r, "/details/"+name, http.StatusFound)
+}
+
+// handleDetailsTransfer serves POST /details/{name}/transfer.
+// Only the link owner or an admin may transfer ownership to another user.
+func (s *Server) handleDetailsTransfer(w http.ResponseWriter, r *http.Request) {
+	name := urlParamLower(r, "name")
+
+	base, err := s.newBaseData(w, r)
+	if err != nil {
+		s.logr(r.Context()).Error("transfer: baseData", "error", err)
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	if !requireCSRF(w, r) {
+		return
+	}
+
+	id := auth.FromContext(r.Context())
+	if id == nil {
+		s.renderUnauthorized(w, r)
+		return
+	}
+
+	link, err := s.links.GetByName(r.Context(), name)
+	if err != nil {
+		if errors.Is(err, db.ErrNotFound) {
+			http.NotFound(w, r)
+			return
+		}
+		s.logr(r.Context()).Error("transfer: get link", "name", name, "error", err)
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	// Only the owner or an admin may transfer ownership.
+	if !id.IsAdmin && !strings.EqualFold(id.Email, link.OwnerEmail) {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return
+	}
+
+	canEdit := canEditBasic(id, link)
+
+	newOwner := strings.TrimSpace(r.FormValue("new_owner"))
+	if newOwner == "" {
+		s.renderDetailsError(w, r, base, link, canEdit, "New owner email cannot be empty.")
+		return
+	}
+
+	// Append default domain if bare name given (no @).
+	if !strings.Contains(newOwner, "@") && s.cfg.DefaultDomain != "" {
+		newOwner = newOwner + "@" + s.cfg.DefaultDomain
+	}
+
+	if !strings.Contains(newOwner, "@") {
+		s.renderDetailsError(w, r, base, link, canEdit, "Please enter a valid email address for the new owner.")
+		return
+	}
+
+	// Enforce required domain restriction.
+	if s.cfg.RequiredDomain != "" && !strings.HasSuffix(newOwner, "@"+s.cfg.RequiredDomain) {
+		s.renderDetailsError(w, r, base, link, canEdit, "Ownership transfers are restricted to @"+s.cfg.RequiredDomain+" addresses.")
+		return
+	}
+
+	if strings.EqualFold(newOwner, link.OwnerEmail) {
+		s.renderDetailsError(w, r, base, link, canEdit, "That user is already the owner of this link.")
+		return
+	}
+
+	if _, err := s.links.TransferOwnership(r.Context(), link.ID, newOwner); err != nil {
+		s.logr(r.Context()).Error("transfer: transfer ownership", "link", name, "to", newOwner, "error", err)
 		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
 	}

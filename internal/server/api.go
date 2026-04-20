@@ -312,6 +312,55 @@ func (s *Server) handleAPIDeleteLink(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// handleAPITransferLink serves POST /api/links/{name}/transfer.
+// Only the link owner or an admin may transfer ownership.
+func (s *Server) handleAPITransferLink(w http.ResponseWriter, r *http.Request) {
+	name := urlParamLower(r, "name")
+
+	id := auth.FromContext(r.Context())
+
+	link, err := s.links.GetByName(r.Context(), name)
+	if err != nil {
+		if errors.Is(err, db.ErrNotFound) {
+			writeJSONError(w, http.StatusNotFound, "link not found")
+			return
+		}
+		s.apiError(r.Context(), w, "api: transfer link get", "name", name, "error", err)
+		return
+	}
+
+	if !id.IsAdmin && !strings.EqualFold(id.Email, link.OwnerEmail) {
+		writeJSONError(w, http.StatusForbidden, "forbidden")
+		return
+	}
+
+	var req struct {
+		NewOwner string `json:"new_owner"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSONError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
+		return
+	}
+
+	newOwner := strings.TrimSpace(req.NewOwner)
+	if newOwner == "" {
+		writeJSONError(w, http.StatusBadRequest, "new_owner is required")
+		return
+	}
+	if strings.EqualFold(newOwner, link.OwnerEmail) {
+		writeJSONError(w, http.StatusBadRequest, "new_owner is already the current owner")
+		return
+	}
+
+	updated, err := s.links.TransferOwnership(r.Context(), link.ID, newOwner)
+	if err != nil {
+		s.apiError(r.Context(), w, "api: transfer link", "name", name, "to", newOwner, "error", err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, linkToResponse(updated))
+}
+
 // resolveAliasTarget follows at most one level of alias indirection to find
 // the canonical (non-alias) link name.  Returns an error if the target does
 // not exist, is itself an alias that resolves to selfNameLower (a loop), or
