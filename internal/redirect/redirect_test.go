@@ -305,10 +305,11 @@ func TestCheckTemplateTargetDomain(t *testing.T) {
 		// Static domain not in allowed list.
 		{"static disallowed", "https://evil.com/docs", true},
 		{"static disallowed with path template", "https://evil.com/{{.path}}", true},
-		// Dynamic domain — must skip (not an error at creation time).
+		// Fully dynamic domain — hostname not determinable, skip.
 		{"fully dynamic", "{{if .path}}https://example.com{{end}}", false},
-		{"dynamic host suffix", "https://example.com{{.var}}/foo", false},
 		{"dynamic host prefix", "https://{{.sub}}.example.com/foo", false},
+		// Template action directly extends the authority — rejected: full domain unverifiable.
+		{"dynamic host suffix", "https://example.com{{.var}}/foo", true},
 		// No restriction.
 		{"empty allowed list", "https://evil.com/", false},
 	}

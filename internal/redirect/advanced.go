@@ -166,9 +166,10 @@ func CheckTemplateTargetDomain(templateStr string, allowedDomains []string) erro
 	}
 	// If we cut at "{{" and nothing follows the authority in the static part
 	// (no path, query, or fragment), the action may be extending the hostname
-	// directly (e.g. "https://example.com{{var}}"). Skip to avoid a false positive.
+	// directly (e.g. "https://example.com{{var}}"). Reject: the full domain is
+	// not statically verifiable, which is unsafe when a domain list is enforced.
 	if i >= 0 && u.Path == "" && u.RawQuery == "" && u.Fragment == "" {
-		return nil
+		return fmt.Errorf("domain %q is not in the allowed domains list for advanced links", u.Hostname())
 	}
 	return links.CheckAdvancedLinkDomain(staticPart, allowedDomains)
 }
