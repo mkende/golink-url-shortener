@@ -144,32 +144,27 @@ func ValidateTemplate(templateStr string) error {
 	return nil
 }
 
-// CheckTemplateTargetDomain validates that the static domain prefix of
-// templateStr matches one of the allowedDomains. It reads only the characters
-// before the first "{{" action, so it works without executing the template.
-// If the domain is itself dynamic (template starts with "{{", or "{{" appears
-// before any host can be parsed), the check is skipped — the definitive
-// enforcement happens at redirect time via ResolveAdvanced.
+// CheckTemplateTargetDomain validates that templateStr begins with a fully
+// static domain that matches one of the allowedDomains. "Fully static" means
+// the scheme and host contain no template actions: the first "{{" must appear
+// only after a path, query, or fragment separator. Any template action at or
+// before the host boundary is rejected outright — the domain must be known
+// with certainty when domain restrictions are in effect.
 // Returns nil when allowedDomains is empty (no restriction).
 func CheckTemplateTargetDomain(templateStr string, allowedDomains []string) error {
 	if len(allowedDomains) == 0 {
 		return nil
 	}
-	i := strings.Index(templateStr, "{{")
 	staticPart := strings.TrimSpace(templateStr)
-	if i >= 0 {
+	if i := strings.Index(templateStr, "{{"); i >= 0 {
 		staticPart = strings.TrimSpace(templateStr[:i])
-	}
-	u, err := url.Parse(staticPart)
-	if err != nil || u.Hostname() == "" {
-		return nil // hostname not in static prefix; skip creation-time check
-	}
-	// If we cut at "{{" and nothing follows the authority in the static part
-	// (no path, query, or fragment), the action may be extending the hostname
-	// directly (e.g. "https://example.com{{var}}"). Reject: the full domain is
-	// not statically verifiable, which is unsafe when a domain list is enforced.
-	if i >= 0 && u.Path == "" && u.RawQuery == "" && u.Fragment == "" {
-		return fmt.Errorf("domain %q is not in the allowed domains list for advanced links", u.Hostname())
+		// Require that the cut leaves a URL with a non-empty path, query, or
+		// fragment — proof that the "{{" is past the authority. If none of
+		// those are present the action is at or inside the host.
+		u, err := url.Parse(staticPart)
+		if err != nil || u.Hostname() == "" || (u.Path == "" && u.RawQuery == "" && u.Fragment == "") {
+			return fmt.Errorf("advanced link target must have a static domain when domain restrictions are configured")
+		}
 	}
 	return links.CheckAdvancedLinkDomain(staticPart, allowedDomains)
 }
