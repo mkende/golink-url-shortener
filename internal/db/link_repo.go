@@ -64,6 +64,9 @@ type LinkRepo interface {
 	// ReassignLinks changes the owner_email of all links owned by fromEmail to
 	// toEmail. It returns the number of links updated.
 	ReassignLinks(ctx context.Context, fromEmail, toEmail string) (int64, error)
+	// TransferOwnership changes the owner_email of a single link to newOwnerEmail
+	// and returns the updated record.
+	TransferOwnership(ctx context.Context, id int64, newOwnerEmail string) (*Link, error)
 }
 
 // ErrNotFound is returned when a requested record does not exist.
@@ -656,6 +659,20 @@ func (r *SQLLinkRepo) ReassignLinks(ctx context.Context, fromEmail, toEmail stri
 		return 0, fmt.Errorf("reassign links rows affected: %w", err)
 	}
 	return n, nil
+}
+
+// TransferOwnership sets the owner_email of the given link to newOwnerEmail.
+func (r *SQLLinkRepo) TransferOwnership(ctx context.Context, id int64, newOwnerEmail string) (*Link, error) {
+	row := r.db.QueryRowContext(ctx, r.db.q(`
+		UPDATE links SET owner_email = ? WHERE id = ?
+		RETURNING `+selectCols),
+		newOwnerEmail, id,
+	)
+	link, err := scanLink(row)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	return link, err
 }
 
 // scanLink reads a single Link from a *sql.Row.

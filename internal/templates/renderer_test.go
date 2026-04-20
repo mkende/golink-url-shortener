@@ -102,6 +102,7 @@ type detailsPageData struct {
 	baseData
 	Link          *db.Link
 	CanEdit       bool
+	CanTransfer   bool
 	Aliases       []*db.Link
 	CanonicalLink *db.Link
 	Shares        []string

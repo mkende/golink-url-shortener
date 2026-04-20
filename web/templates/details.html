@@ -78,19 +78,34 @@
     </div>
   </form>
 </div>
+{{end}}{{/* end CanEdit for alias */}}
 
+{{if .CanTransfer}}
 <div class="box">
   <h2 class="subtitle">
-    Delete Alias
+    Transfer Ownership
     {{if $isAdminAction}}<span class="tag is-warning is-pulled-right">admin</span>{{end}}
   </h2>
-  <form method="POST" action="/details/{{.Link.Name}}/delete">
+  <form method="POST" action="/details/{{.Link.Name}}/transfer">
     <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
-    <button class="button is-danger" type="submit"
-      data-confirm="Delete this alias?">Delete Alias</button>
+    <label class="label" for="transfer-owner-alias">New owner</label>
+    <div class="field has-addons">
+      <div class="control is-expanded">
+        <input id="transfer-owner-alias" class="input" type="text" name="new_owner"
+          placeholder="{{if .DefaultDomain}}user or user@{{.DefaultDomain}}{{else}}user@example.com{{end}}"
+          aria-label="New owner email address" list="transfer-users-alias"
+          hx-get="/api/users/search" hx-trigger="input changed delay:300ms"
+          hx-target="#transfer-users-alias" hx-swap="innerHTML" hx-params="email">
+        <datalist id="transfer-users-alias"></datalist>
+      </div>
+      <div class="control">
+        <button class="button is-warning" type="submit">Transfer</button>
+      </div>
+    </div>
+    <p class="help">The new owner will be able to edit and delete this alias.</p>
   </form>
 </div>
-{{end}}{{/* end CanEdit for alias */}}
+{{end}}{{/* end CanTransfer for alias */}}
 
 {{else}}
 {{/* ── Non-alias link ── */}}
@@ -174,19 +189,35 @@
     </div>
   </form>
 </div>
+{{end}}{{/* end CanEdit for non-alias */}}
 
+{{if .CanTransfer}}
 <div class="box">
   <h2 class="subtitle">
-    Delete Link
+    Transfer Ownership
     {{if $isAdminAction}}<span class="tag is-warning is-pulled-right">admin</span>{{end}}
   </h2>
-  <form method="POST" action="/details/{{.Link.Name}}/delete">
+  <form method="POST" action="/details/{{.Link.Name}}/transfer">
     <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
-    <button class="button is-danger" type="submit"
-      data-confirm="Delete this link?">Delete Link</button>
+    <label class="label" for="transfer-owner">New owner</label>
+    <div class="field has-addons">
+      <div class="control is-expanded">
+        <input id="transfer-owner" class="input" type="text" name="new_owner"
+          placeholder="{{if .DefaultDomain}}user or user@{{.DefaultDomain}}{{else}}user@example.com{{end}}"
+          aria-label="New owner email address" list="transfer-users"
+          hx-get="/api/users/search" hx-trigger="input changed delay:300ms"
+          hx-target="#transfer-users" hx-swap="innerHTML" hx-params="email">
+        <datalist id="transfer-users"></datalist>
+      </div>
+      <div class="control">
+        <button class="button is-warning" type="submit">Transfer</button>
+      </div>
+    </div>
+    <p class="help">The new owner will be able to edit, share, and delete this link.</p>
   </form>
 </div>
-{{end}}{{/* end CanEdit for non-alias */}}
+{{end}}{{/* end CanTransfer for non-alias */}}
+
 {{end}}{{/* end if/else alias/non-alias */}}
 
 </div>{{/* end left column */}}
@@ -239,7 +270,7 @@
   </div>
   {{end}}
 
-  {{/* Sharing box - shown after Aliases for non-alias links, and for alias links */}}
+  {{/* Sharing box */}}
   {{if .CanEdit}}
   <div class="box">
     <h2 class="subtitle">
@@ -282,7 +313,22 @@
     </table>
     {{end}}
   </div>
-  {{end}}
+
+  {{/* Delete box */}}
+  <div class="box">
+    <h2 class="subtitle">
+      {{if .Link.IsAlias}}Delete Alias{{else}}Delete Link{{end}}
+      {{if $isAdminAction}}<span class="tag is-warning is-pulled-right">admin</span>{{end}}
+    </h2>
+    <form method="POST" action="/details/{{.Link.Name}}/delete">
+      <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+      <div class="has-text-right">
+        <button class="button is-danger" type="submit"
+          data-confirm="{{if .Link.IsAlias}}Delete this alias?{{else}}Delete this link?{{end}}">{{if .Link.IsAlias}}Delete Alias{{else}}Delete Link{{end}}</button>
+      </div>
+    </form>
+  </div>
+  {{end}}{{/* end CanEdit */}}
 </div>{{/* end right column */}}
 
 </div>{{/* end columns */}}

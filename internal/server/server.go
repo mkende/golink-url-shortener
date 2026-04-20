@@ -176,6 +176,7 @@ func (s *Server) buildRouter() chi.Router {
 		r.Post("/details/{name}", s.handleDetails)
 		r.Post("/details/{name}/share", s.handleDetailsShare)
 		r.Post("/details/{name}/unshare", s.handleDetailsUnshare)
+		r.Post("/details/{name}/transfer", s.handleDetailsTransfer)
 		r.Post("/details/{name}/delete", s.handleDetailsDelete)
 		r.Post("/details/{name}/alias", s.handleCreateAlias)
 		r.Get("/edit/{name}", func(w http.ResponseWriter, r *http.Request) {
@@ -234,6 +235,7 @@ func (s *Server) buildRouter() chi.Router {
 			r.Get("/links/{name}", s.handleAPIGetLink)
 			r.With(auth.RequireWriteScope()).Patch("/links/{name}", s.handleAPIUpdateLink)
 			r.With(auth.RequireWriteScope()).Delete("/links/{name}", s.handleAPIDeleteLink)
+			r.With(auth.RequireWriteScope()).Post("/links/{name}/transfer", s.handleAPITransferLink)
 
 			// Quick-name generator (also reachable by HTMX from the group above)
 			r.Get("/quickname", s.handleQuickName)

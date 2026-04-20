@@ -143,6 +143,15 @@ func (r *CachingLinkRepo) SearchOwnedOrSharedWith(ctx context.Context, ownerEmai
 	return r.inner.SearchOwnedOrSharedWith(ctx, ownerEmail, identifiers, query, limit, offset)
 }
 
+// TransferOwnership delegates to the inner repo and removes the stale cache entry.
+func (r *CachingLinkRepo) TransferOwnership(ctx context.Context, id int64, newOwnerEmail string) (*Link, error) {
+	link, err := r.inner.TransferOwnership(ctx, id, newOwnerEmail)
+	if err == nil {
+		r.cache.Remove(link.NameLower)
+	}
+	return link, err
+}
+
 // ReassignLinks delegates to the inner repo and purges the entire cache because
 // many link entries become stale simultaneously.
 func (r *CachingLinkRepo) ReassignLinks(ctx context.Context, fromEmail, toEmail string) (int64, error) {

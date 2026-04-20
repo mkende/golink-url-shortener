@@ -85,6 +85,10 @@ func (r *countingLinkRepo) ReassignLinks(ctx context.Context, fromEmail, toEmail
 	return r.inner.ReassignLinks(ctx, fromEmail, toEmail)
 }
 
+func (r *countingLinkRepo) TransferOwnership(ctx context.Context, id int64, newOwnerEmail string) (*Link, error) {
+	return r.inner.TransferOwnership(ctx, id, newOwnerEmail)
+}
+
 // TestCachingLinkRepo_HitAndMiss verifies that a second GetByName call for the
 // same name does not reach the underlying repository.
 func TestCachingLinkRepo_HitAndMiss(t *testing.T) {
