@@ -144,31 +144,25 @@ func ValidateTemplate(templateStr string) error {
 	return nil
 }
 
-// CheckTemplateTargetDomain performs a best-effort dry-run of templateStr with
-// empty variables and validates that the resulting URL's host matches one of
-// allowedDomains. Returns nil when allowedDomains is empty (no restriction).
-// If the dry-run fails or produces a URL without a parseable host (e.g. because
-// the hostname itself is a template expression), the check is silently skipped
-// — the definitive domain check happens at redirect time via ResolveAdvanced.
+// CheckTemplateTargetDomain validates that the static domain prefix of
+// templateStr matches one of the allowedDomains. It reads only the characters
+// before the first "{{" action, so it works without executing the template.
+// If the domain is itself dynamic (template starts with "{{", or "{{" appears
+// before any host can be parsed), the check is skipped — the definitive
+// enforcement happens at redirect time via ResolveAdvanced.
+// Returns nil when allowedDomains is empty (no restriction).
 func CheckTemplateTargetDomain(templateStr string, allowedDomains []string) error {
 	if len(allowedDomains) == 0 {
 		return nil
 	}
-	t, err := parseTemplate(templateStr)
-	if err != nil {
-		return nil // syntax error will be caught by ValidateTarget
+	staticPart := templateStr
+	if i := strings.Index(templateStr, "{{"); i >= 0 {
+		staticPart = templateStr[:i]
 	}
-	raw, execErr := executeTemplate(t, TemplateVars{}.toMap())
-	if execErr != nil {
-		return nil // dry-run failed; skip creation-time domain check
+	staticPart = strings.TrimSpace(staticPart)
+	u, err := url.Parse(staticPart)
+	if err != nil || u.Hostname() == "" {
+		return nil // hostname not in static prefix; skip creation-time check
 	}
-	result := strings.TrimSpace(raw)
-	if result == "" {
-		return nil
-	}
-	u, parseErr := url.Parse(result)
-	if parseErr != nil || u.Hostname() == "" {
-		return nil // host not determinable statically; skip
-	}
-	return links.CheckAdvancedLinkDomain(result, allowedDomains)
+	return links.CheckAdvancedLinkDomain(staticPart, allowedDomains)
 }
