@@ -155,14 +155,20 @@ func CheckTemplateTargetDomain(templateStr string, allowedDomains []string) erro
 	if len(allowedDomains) == 0 {
 		return nil
 	}
-	staticPart := templateStr
-	if i := strings.Index(templateStr, "{{"); i >= 0 {
-		staticPart = templateStr[:i]
+	i := strings.Index(templateStr, "{{")
+	staticPart := strings.TrimSpace(templateStr)
+	if i >= 0 {
+		staticPart = strings.TrimSpace(templateStr[:i])
 	}
-	staticPart = strings.TrimSpace(staticPart)
 	u, err := url.Parse(staticPart)
 	if err != nil || u.Hostname() == "" {
 		return nil // hostname not in static prefix; skip creation-time check
+	}
+	// If we cut at "{{" and nothing follows the authority in the static part
+	// (no path, query, or fragment), the action may be extending the hostname
+	// directly (e.g. "https://example.com{{var}}"). Skip to avoid a false positive.
+	if i >= 0 && u.Path == "" && u.RawQuery == "" && u.Fragment == "" {
+		return nil
 	}
 	return links.CheckAdvancedLinkDomain(staticPart, allowedDomains)
 }
