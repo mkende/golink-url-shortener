@@ -74,7 +74,38 @@
 <div class="box">
   <h2 class="subtitle">Popular Links</h2>
   <div class="table-container home-link-table">
-    {{template "link_table" .PopularLinks}}
+    <table class="table is-fullwidth is-striped is-hoverable">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Target</th>
+          <th class="is-hidden-mobile">Owner</th>
+          <th>Uses</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+      {{range .PopularLinks}}
+      <tr>
+        <td>
+          <a href="/{{.Name}}">{{.Name}}</a>
+          {{if .IsAlias}}<span class="tag is-info is-small ml-1">alias</span>{{end}}
+          {{if .IsAdvanced}}<span class="tag is-warning is-small ml-1">advanced</span>{{end}}
+        </td>
+        <td class="target-col">
+          {{if .IsAlias}}
+            <span class="has-text-grey">alias of </span><a href="/details/{{.AliasTarget}}">{{.AliasTarget}}</a>
+          {{else}}
+            <a href="{{.Target}}"><span class="link-target-full">{{.Target}}</span><span class="link-target-short">{{trimHTTPS .Target}}</span></a>
+          {{end}}
+        </td>
+        <td class="has-text-grey is-size-7 is-hidden-mobile">{{displayEmail .OwnerEmail $.DefaultDomain}}</td>
+        <td>{{.UseCount}}</td>
+        <td><a href="/details/{{.Name}}" class="button is-small is-info">Details</a></td>
+      </tr>
+      {{end}}
+      </tbody>
+    </table>
   </div>
 </div>
 {{end}}
