@@ -93,6 +93,9 @@ type baseData struct {
 	// AllowAdvancedLinks is true when advanced (Go template) links are
 	// permitted by the server configuration.
 	AllowAdvancedLinks bool
+	// DefaultDomain is the configured default email domain for sharing, used
+	// to abbreviate owner emails in link tables.
+	DefaultDomain string
 }
 
 // advancedLinkErrorData is the template data for the advanced-link error page.
@@ -137,6 +140,7 @@ func (s *Server) newBaseData(w http.ResponseWriter, r *http.Request) (baseData, 
 		OIDCEnabled:        s.cfg.OIDC.Enabled,
 		Version:            version.Version,
 		AllowAdvancedLinks: s.cfg.AdvancedLinksAllowed(),
+		DefaultDomain:      s.cfg.DefaultDomain,
 	}, nil
 }
 

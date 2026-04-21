@@ -22,8 +22,9 @@
   {{if .Total}}<p class="has-text-grey is-size-7 mb-2">{{.PageStart}}–{{.PageEnd}} of {{.Total}}</p>{{end}}
   <table class="table is-fullwidth is-striped is-hoverable">
     <colgroup>
-      <col style="width:22%">
+      <col style="width:20%">
       <col>
+      <col style="width:12%">
       <col style="width:6%">
       <col style="width:8%">
     </colgroup>
@@ -31,6 +32,7 @@
       <tr>
         <th><a href="{{sortURL "/links" .Sort .Dir "name"}}">Name{{sortIcon .Sort .Dir "name"}}</a></th>
         <th><a href="{{sortURL "/links" .Sort .Dir "target"}}">Target{{sortIcon .Sort .Dir "target"}}</a></th>
+        <th>Owner</th>
         <th><a href="{{sortURL "/links" .Sort .Dir "uses"}}">Uses{{sortIcon .Sort .Dir "uses"}}</a></th>
         <th>Actions</th>
       </tr>
@@ -52,6 +54,7 @@
           <a href="{{.Target}}" class="has-text-truncated">{{.Target}}</a>
         {{end}}
       </td>
+      <td class="has-text-grey is-size-7">{{displayEmail .OwnerEmail $.DefaultDomain}}</td>
       <td>{{.UseCount}}</td>
       <td><a href="/details/{{.Name}}" class="button is-small is-info">Details</a></td>
     </tr>

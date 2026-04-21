@@ -17,6 +17,13 @@ var funcMap = template.FuncMap{
 	"sub": func(a, b int) int { return a - b },
 	// trimHTTPS strips the "https://" scheme for compact display; other schemes are kept.
 	"trimHTTPS": func(s string) string { return strings.TrimPrefix(s, "https://") },
+	// displayEmail returns just the local part of email when it belongs to defaultDomain.
+	"displayEmail": func(email, defaultDomain string) string {
+		if defaultDomain != "" && strings.HasSuffix(email, "@"+defaultDomain) {
+			return strings.TrimSuffix(email, "@"+defaultDomain)
+		}
+		return email
+	},
 	// hasKey reports whether the map contains the given key (for ownership checks).
 	"hasKey": func(m map[int64]bool, key int64) bool {
 		if m == nil {
