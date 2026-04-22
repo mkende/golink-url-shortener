@@ -40,7 +40,7 @@
         <input id="name" class="input" type="text" name="name" value="{{.Form.Name}}" placeholder="my-link" required aria-describedby="name-help">
       </div>
       <div class="control">
-        <button type="button" class="button is-info"
+        <button type="button" class="button is-info" data-random-for="name"
           hx-get="/api/quickname" hx-target="[name=name]" hx-swap="outerHTML">
           Random
         </button>

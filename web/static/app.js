@@ -62,6 +62,10 @@ document.addEventListener('DOMContentLoaded', function () {
     updatePlaceholder();
   }
 
+  // index.html / new.html: disable Random while the name field has user-entered
+  // text; re-enable after Random generates a name or the field is cleared.
+  initRandomBtns();
+
   // index.html: "Advanced options" button navigates to /new with form values.
   var advancedBtn = document.querySelector('[data-go-advanced]');
   if (advancedBtn) {
@@ -92,6 +96,30 @@ function updatePlaceholder() {
   var targetLabel = document.getElementById('target-label');
   if (targetInput) { targetInput.placeholder = info.placeholder; }
   if (targetLabel) { targetLabel.textContent = info.label; }
+}
+
+// index.html / new.html: disable Random while the name field has user-entered
+// text; re-enable it after Random generates a name or the field is cleared.
+// HTMX's outerHTML swap replaces the input element, so we rebind on each
+// afterRequest (fired on the triggering button after the swap completes).
+function initRandomBtns() {
+  document.querySelectorAll('[data-random-for]').forEach(function (btn) {
+    var form = btn.closest('form');
+    if (!form) { return; }
+    bindRandomInput(btn, form);
+    btn.addEventListener('htmx:afterRequest', function () {
+      bindRandomInput(btn, form);
+      btn.disabled = false;
+    });
+  });
+}
+
+function bindRandomInput(btn, form) {
+  var input = form.querySelector('input[name="name"]');
+  if (!input) { return; }
+  function update() { btn.disabled = !!input.value.trim(); }
+  update();
+  input.addEventListener('input', update);
 }
 
 // index.html: navigate to /new, carrying over name and target from the form.

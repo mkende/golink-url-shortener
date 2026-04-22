@@ -22,10 +22,12 @@
   </div>
   <div id="navbarMenu" class="navbar-menu">
     <div class="navbar-end">
+      {{if .Identity}}
+      <a class="navbar-item" href="/new">New Link</a>
+      {{end}}
       <a class="navbar-item" href="/links">All Links</a>
       {{if .Identity}}
       <a class="navbar-item" href="/mylinks">My Links</a>
-      <a class="navbar-item" href="/new">New Link</a>
       {{if .Identity.IsAdmin}}
       <div class="navbar-item has-dropdown is-hoverable">
         <a class="navbar-link">Admin</a>
