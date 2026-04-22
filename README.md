@@ -1,7 +1,7 @@
 # GoLink URL shortener
 
 High performance URL shortener, with support for Go templates, OIDC, tailscale,
-etc.
+etc. Designed for enterprise use-cases.
 
 ## Features
 
