@@ -784,7 +784,7 @@ func (s *Server) handleLinks(w http.ResponseWriter, r *http.Request) {
 
 	publicOnly := base.Identity == nil
 	if query != "" {
-		linkList, total, err = s.links.Search(r.Context(), query, s.linksPerPage(), (page-1)*s.linksPerPage(), publicOnly)
+		linkList, total, err = s.links.Search(r.Context(), query, s.linksPerPage(), (page-1)*s.linksPerPage(), sortField, sortDir, publicOnly)
 	} else {
 		linkList, total, err = s.links.List(r.Context(), s.linksPerPage(), (page-1)*s.linksPerPage(), sortField, sortDir, publicOnly)
 	}
@@ -856,7 +856,7 @@ func (s *Server) handleMyLinks(w http.ResponseWriter, r *http.Request) {
 	var linkList []*db.Link
 	var total int
 	if query != "" {
-		linkList, total, err = s.links.SearchOwnedOrSharedWith(r.Context(), id.Email, identifiers, query, s.linksPerPage(), (page-1)*s.linksPerPage())
+		linkList, total, err = s.links.SearchOwnedOrSharedWith(r.Context(), id.Email, identifiers, query, s.linksPerPage(), (page-1)*s.linksPerPage(), sortField, sortDir)
 	} else {
 		linkList, total, err = s.links.ListOwnedOrSharedWith(r.Context(), id.Email, identifiers, s.linksPerPage(), (page-1)*s.linksPerPage(), sortField, sortDir)
 	}
@@ -1008,6 +1008,8 @@ func parseSortParams(r *http.Request) (db.SortField, db.SortDir, string, string)
 		sortField = db.SortByTarget
 	case "uses":
 		sortField = db.SortByUseCount
+	case "owner":
+		sortField = db.SortByOwner
 	case "name":
 		sortField = db.SortByName
 	default:

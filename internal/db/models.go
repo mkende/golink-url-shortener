@@ -96,6 +96,8 @@ const (
 	SortByUseCount SortField = "use_count"
 	// SortByTarget sorts links alphabetically by target URL.
 	SortByTarget SortField = "target"
+	// SortByOwner sorts links alphabetically by owner email.
+	SortByOwner SortField = "owner_email"
 )
 
 // SortDir is the direction of a sort: ascending or descending.
@@ -115,6 +117,7 @@ var validSortFields = map[SortField]bool{
 	SortByLastUsed: true,
 	SortByUseCount: true,
 	SortByTarget:   true,
+	SortByOwner:    true,
 }
 
 // validSortDirs is the set of allowed sort directions.

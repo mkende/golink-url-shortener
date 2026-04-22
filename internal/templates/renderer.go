@@ -7,6 +7,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"strings"
 
 	webtemplates "github.com/mkende/golink-url-shortener/web/templates"
@@ -31,13 +32,17 @@ var funcMap = template.FuncMap{
 		}
 		return m[key]
 	},
-	// sortURL builds a sort link preserving the current query and page.
-	"sortURL": func(basePath, currentSort, currentDir, column string) string {
+	// sortURL builds a sort link preserving the current search query.
+	"sortURL": func(basePath, currentSort, currentDir, column, query string) string {
 		dir := "asc"
 		if currentSort == column && currentDir == "asc" {
 			dir = "desc"
 		}
-		return basePath + "?sort=" + column + "&dir=" + dir
+		u := basePath + "?sort=" + column + "&dir=" + dir
+		if query != "" {
+			u += "&q=" + url.QueryEscape(query)
+		}
+		return u
 	},
 	// sortIcon returns an arrow indicator for the active sort column.
 	"sortIcon": func(currentSort, currentDir, column string) string {

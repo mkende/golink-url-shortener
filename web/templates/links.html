@@ -12,7 +12,7 @@
   </label>
   <div class="control">
     <input id="search-links" class="input" type="search" placeholder="Search links..."
-      hx-get="/links" hx-target="#links-table" hx-swap="outerHTML" hx-select="#links-table"
+      hx-get="/links?sort={{.Sort}}&dir={{.Dir}}" hx-target="#links-table" hx-swap="outerHTML" hx-select="#links-table"
       hx-trigger="input changed delay:300ms" name="q" value="{{.Query}}"
       aria-label="Search links">
   </div>
@@ -30,10 +30,10 @@
     </colgroup>
     <thead>
       <tr>
-        <th><a href="{{sortURL "/links" .Sort .Dir "name"}}">Name{{sortIcon .Sort .Dir "name"}}</a></th>
-        <th><a href="{{sortURL "/links" .Sort .Dir "target"}}">Target{{sortIcon .Sort .Dir "target"}}</a></th>
-        <th>Owner</th>
-        <th><a href="{{sortURL "/links" .Sort .Dir "uses"}}">Uses{{sortIcon .Sort .Dir "uses"}}</a></th>
+        <th><a href="{{sortURL "/links" .Sort .Dir "name" .Query}}">Name{{sortIcon .Sort .Dir "name"}}</a></th>
+        <th><a href="{{sortURL "/links" .Sort .Dir "target" .Query}}">Target{{sortIcon .Sort .Dir "target"}}</a></th>
+        <th><a href="{{sortURL "/links" .Sort .Dir "owner" .Query}}">Owner{{sortIcon .Sort .Dir "owner"}}</a></th>
+        <th><a href="{{sortURL "/links" .Sort .Dir "uses" .Query}}">Uses{{sortIcon .Sort .Dir "uses"}}</a></th>
         <th>Actions</th>
       </tr>
     </thead>

@@ -375,7 +375,7 @@ func TestLinkRepo_Search(t *testing.T) {
 				{"a:nomatch", 0, nil},
 			}
 			for _, tc := range cases {
-				results, total, err := repo.Search(ctx, tc.query, 10, 0, false)
+				results, total, err := repo.Search(ctx, tc.query, 10, 0, SortByName, SortAsc, false)
 				if err != nil {
 					t.Fatalf("Search(%q): %v", tc.query, err)
 				}

@@ -41,8 +41,8 @@ func (r *countingLinkRepo) ListByOwner(ctx context.Context, ownerEmail string, l
 	return r.inner.ListByOwner(ctx, ownerEmail, limit, offset, sortField, sortDir)
 }
 
-func (r *countingLinkRepo) Search(ctx context.Context, query string, limit, offset int, publicOnly bool) ([]*Link, int, error) {
-	return r.inner.Search(ctx, query, limit, offset, publicOnly)
+func (r *countingLinkRepo) Search(ctx context.Context, query string, limit, offset int, sortField SortField, sortDir SortDir, publicOnly bool) ([]*Link, int, error) {
+	return r.inner.Search(ctx, query, limit, offset, sortField, sortDir, publicOnly)
 }
 
 func (r *countingLinkRepo) GetShares(ctx context.Context, linkID int64) ([]string, error) {
@@ -77,8 +77,8 @@ func (r *countingLinkRepo) ListOwnedOrSharedWith(ctx context.Context, ownerEmail
 	return r.inner.ListOwnedOrSharedWith(ctx, ownerEmail, identifiers, limit, offset, sortField, sortDir)
 }
 
-func (r *countingLinkRepo) SearchOwnedOrSharedWith(ctx context.Context, ownerEmail string, identifiers []string, query string, limit, offset int) ([]*Link, int, error) {
-	return r.inner.SearchOwnedOrSharedWith(ctx, ownerEmail, identifiers, query, limit, offset)
+func (r *countingLinkRepo) SearchOwnedOrSharedWith(ctx context.Context, ownerEmail string, identifiers []string, query string, limit, offset int, sortField SortField, sortDir SortDir) ([]*Link, int, error) {
+	return r.inner.SearchOwnedOrSharedWith(ctx, ownerEmail, identifiers, query, limit, offset, sortField, sortDir)
 }
 
 func (r *countingLinkRepo) ReassignLinks(ctx context.Context, fromEmail, toEmail string) (int64, error) {

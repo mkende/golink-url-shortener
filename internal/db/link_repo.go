@@ -35,12 +35,12 @@ type LinkRepo interface {
 	// ListByOwner returns a paginated, sorted slice of links owned by ownerEmail
 	// plus the total count for that owner.
 	ListByOwner(ctx context.Context, ownerEmail string, limit, offset int, sortField SortField, sortDir SortDir) ([]*Link, int, error)
-	// Search returns links whose lower-cased name contains query, paginated.
+	// Search returns links whose lower-cased name contains query, paginated and sorted.
 	// When publicOnly is true, links with require_auth set are excluded.
-	Search(ctx context.Context, query string, limit, offset int, publicOnly bool) ([]*Link, int, error)
+	Search(ctx context.Context, query string, limit, offset int, sortField SortField, sortDir SortDir, publicOnly bool) ([]*Link, int, error)
 	// SearchOwnedOrSharedWith is like Search but restricted to links that are
 	// owned by ownerEmail or shared with any of the given identifiers.
-	SearchOwnedOrSharedWith(ctx context.Context, ownerEmail string, identifiers []string, query string, limit, offset int) ([]*Link, int, error)
+	SearchOwnedOrSharedWith(ctx context.Context, ownerEmail string, identifiers []string, query string, limit, offset int, sortField SortField, sortDir SortDir) ([]*Link, int, error)
 	// GetShares returns the emails/group names a link is shared with.
 	GetShares(ctx context.Context, linkID int64) ([]string, error)
 	// AddShare grants access to email for the given link.
@@ -241,7 +241,7 @@ func (r *SQLLinkRepo) List(ctx context.Context, limit, offset int, sortField Sor
 	// Safe to interpolate: values were validated against an allow-list above.
 	query := r.db.q(fmt.Sprintf(`
 		SELECT `+selectCols+`
-		FROM links`+authFilter+` ORDER BY %s %s LIMIT ? OFFSET ?`, sortField, sortDir))
+		FROM links`+authFilter+` ORDER BY %s LIMIT ? OFFSET ?`, orderByClause(sortField, sortDir)))
 
 	rows, err := r.db.QueryContext(ctx, query, limit, offset)
 	if err != nil {
@@ -273,7 +273,7 @@ func (r *SQLLinkRepo) ListByOwner(ctx context.Context, ownerEmail string, limit,
 	rows, err := r.db.QueryContext(ctx, r.db.q(fmt.Sprintf(`
 		SELECT `+selectCols+`
 		FROM links WHERE owner_email = ?
-		ORDER BY %s %s LIMIT ? OFFSET ?`, sortField, sortDir)),
+		ORDER BY %s LIMIT ? OFFSET ?`, orderByClause(sortField, sortDir))),
 		ownerEmail, limit, offset,
 	)
 	if err != nil {
@@ -302,6 +302,16 @@ func buildSearchMatchExpr(field searchField, pattern string) (expr string, args 
 	default:
 		return "(name_lower LIKE ? OR LOWER(target) LIKE ? OR alias_target LIKE ?)", []any{pattern, pattern, pattern}
 	}
+}
+
+// orderByClause returns the ORDER BY expression for the given sort field and
+// direction. When the primary field is not name_lower a secondary sort by
+// name_lower ASC is appended so results are stable and predictable.
+func orderByClause(sortField SortField, sortDir SortDir) string {
+	if sortField == SortByName {
+		return fmt.Sprintf("%s %s", sortField, sortDir)
+	}
+	return fmt.Sprintf("%s %s, name_lower ASC", sortField, sortDir)
 }
 
 // validateSort returns an error when sortField or sortDir are not in the
@@ -365,7 +375,10 @@ func parseSearchQuery(query string) (searchField, string) {
 // restricts to the alias target name. Without a prefix all three fields are
 // searched. The remainder supports ^ and $ anchors.
 // When publicOnly is true, links with require_auth set are excluded.
-func (r *SQLLinkRepo) Search(ctx context.Context, query string, limit, offset int, publicOnly bool) ([]*Link, int, error) {
+func (r *SQLLinkRepo) Search(ctx context.Context, query string, limit, offset int, sortField SortField, sortDir SortDir, publicOnly bool) ([]*Link, int, error) {
+	if err := validateSort(sortField, sortDir); err != nil {
+		return nil, 0, err
+	}
 	field, pattern := parseSearchQuery(query)
 
 	authCond := ""
@@ -375,7 +388,8 @@ func (r *SQLLinkRepo) Search(ctx context.Context, query string, limit, offset in
 
 	matchExpr, baseArgs := buildSearchMatchExpr(field, pattern)
 	countSQL := r.db.q("SELECT COUNT(*) FROM links WHERE " + matchExpr + authCond)
-	listSQL := r.db.q("SELECT " + selectCols + " FROM links WHERE " + matchExpr + authCond + " ORDER BY name_lower ASC LIMIT ? OFFSET ?")
+	// Safe to interpolate: values were validated against an allow-list above.
+	listSQL := r.db.q(fmt.Sprintf("SELECT "+selectCols+" FROM links WHERE "+matchExpr+authCond+" ORDER BY %s LIMIT ? OFFSET ?", orderByClause(sortField, sortDir)))
 
 	var total int
 	if err := r.db.QueryRowContext(ctx, countSQL, baseArgs...).Scan(&total); err != nil {
@@ -398,7 +412,10 @@ func (r *SQLLinkRepo) Search(ctx context.Context, query string, limit, offset in
 // SearchOwnedOrSharedWith returns links matching query that are owned by
 // ownerEmail or shared with any of the given identifiers, paginated.
 // The query syntax is identical to Search (field prefixes and ^ / $ anchors).
-func (r *SQLLinkRepo) SearchOwnedOrSharedWith(ctx context.Context, ownerEmail string, identifiers []string, query string, limit, offset int) ([]*Link, int, error) {
+func (r *SQLLinkRepo) SearchOwnedOrSharedWith(ctx context.Context, ownerEmail string, identifiers []string, query string, limit, offset int, sortField SortField, sortDir SortDir) ([]*Link, int, error) {
+	if err := validateSort(sortField, sortDir); err != nil {
+		return nil, 0, err
+	}
 	field, pattern := parseSearchQuery(query)
 
 	matchExpr, patternArgs := buildSearchMatchExpr(field, pattern)
@@ -406,7 +423,8 @@ func (r *SQLLinkRepo) SearchOwnedOrSharedWith(ctx context.Context, ownerEmail st
 	if len(identifiers) == 0 {
 		// Fast path: no sharing, restrict to owner only.
 		countSQL := r.db.q("SELECT COUNT(*) FROM links WHERE owner_email = ? AND " + matchExpr)
-		listSQL := r.db.q("SELECT " + selectCols + " FROM links WHERE owner_email = ? AND " + matchExpr + " ORDER BY name_lower ASC LIMIT ? OFFSET ?")
+		// Safe to interpolate: values were validated against an allow-list above.
+		listSQL := r.db.q(fmt.Sprintf("SELECT "+selectCols+" FROM links WHERE owner_email = ? AND "+matchExpr+" ORDER BY %s LIMIT ? OFFSET ?", orderByClause(sortField, sortDir)))
 
 		var total int
 		countArgs := append([]any{ownerEmail}, patternArgs...)
@@ -450,12 +468,13 @@ func (r *SQLLinkRepo) SearchOwnedOrSharedWith(ctx context.Context, ownerEmail st
 
 	listArgs := append(ownedBranchArgs, sharedBranchArgs...)
 	listArgs = append(listArgs, limit, offset)
-	listSQL := r.db.q(`SELECT ` + selectCols + ` FROM links WHERE owner_email = ? AND ` + matchExpr + `
+	// Safe to interpolate: values were validated against an allow-list above.
+	listSQL := r.db.q(fmt.Sprintf(`SELECT `+selectCols+` FROM links WHERE owner_email = ? AND `+matchExpr+`
 		UNION
-		SELECT ` + selectCols + ` FROM links
-		WHERE id IN (SELECT link_id FROM link_shares WHERE shared_with_email IN (` + placeholders + `))
-		AND owner_email != ? AND ` + matchExpr + `
-		ORDER BY name_lower ASC LIMIT ? OFFSET ?`)
+		SELECT `+selectCols+` FROM links
+		WHERE id IN (SELECT link_id FROM link_shares WHERE shared_with_email IN (`+placeholders+`))
+		AND owner_email != ? AND `+matchExpr+`
+		ORDER BY %s LIMIT ? OFFSET ?`, orderByClause(sortField, sortDir)))
 	rows, err := r.db.QueryContext(ctx, listSQL, listArgs...)
 	if err != nil {
 		return nil, 0, fmt.Errorf("search owned-or-shared links: %w", err)
@@ -589,7 +608,7 @@ func (r *SQLLinkRepo) ListOwnedOrSharedWith(ctx context.Context, ownerEmail stri
 		SELECT `+selectCols+` FROM links
 		WHERE id IN (SELECT link_id FROM link_shares WHERE shared_with_email IN (`+placeholders+`))
 		AND owner_email != ?
-		ORDER BY %s %s LIMIT ? OFFSET ?`, sortField, sortDir)),
+		ORDER BY %s LIMIT ? OFFSET ?`, orderByClause(sortField, sortDir))),
 		listArgs...,
 	)
 	if err != nil {

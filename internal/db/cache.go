@@ -92,8 +92,8 @@ func (r *CachingLinkRepo) ListByOwner(ctx context.Context, ownerEmail string, li
 }
 
 // Search delegates to the inner repo without caching.
-func (r *CachingLinkRepo) Search(ctx context.Context, query string, limit, offset int, publicOnly bool) ([]*Link, int, error) {
-	return r.inner.Search(ctx, query, limit, offset, publicOnly)
+func (r *CachingLinkRepo) Search(ctx context.Context, query string, limit, offset int, sortField SortField, sortDir SortDir, publicOnly bool) ([]*Link, int, error) {
+	return r.inner.Search(ctx, query, limit, offset, sortField, sortDir, publicOnly)
 }
 
 // GetShares delegates to the inner repo without caching.
@@ -139,8 +139,8 @@ func (r *CachingLinkRepo) ListOwnedOrSharedWith(ctx context.Context, ownerEmail 
 }
 
 // SearchOwnedOrSharedWith delegates to the inner repo without caching.
-func (r *CachingLinkRepo) SearchOwnedOrSharedWith(ctx context.Context, ownerEmail string, identifiers []string, query string, limit, offset int) ([]*Link, int, error) {
-	return r.inner.SearchOwnedOrSharedWith(ctx, ownerEmail, identifiers, query, limit, offset)
+func (r *CachingLinkRepo) SearchOwnedOrSharedWith(ctx context.Context, ownerEmail string, identifiers []string, query string, limit, offset int, sortField SortField, sortDir SortDir) ([]*Link, int, error) {
+	return r.inner.SearchOwnedOrSharedWith(ctx, ownerEmail, identifiers, query, limit, offset, sortField, sortDir)
 }
 
 // TransferOwnership delegates to the inner repo and removes the stale cache entry.
