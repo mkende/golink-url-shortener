@@ -373,6 +373,11 @@ func TestLinkRepo_Search(t *testing.T) {
 				{"a:^go-", 1, func(l *Link) bool { return strings.HasPrefix(l.AliasTarget, "go-") }},
 				{"a:^go-docs$", 1, func(l *Link) bool { return l.AliasTarget == "go-docs" }},
 				{"a:nomatch", 0, nil},
+				// owner: prefix — owner_email column only
+				{"owner:o@example.com", 5, func(l *Link) bool { return strings.EqualFold(l.OwnerEmail, "o@example.com") }},
+				{"o:example.com", 5, func(l *Link) bool { return strings.Contains(strings.ToLower(l.OwnerEmail), "example.com") }},
+				{"o:^o@example.com$", 5, func(l *Link) bool { return strings.EqualFold(l.OwnerEmail, "o@example.com") }},
+				{"o:nomatch", 0, nil},
 			}
 			for _, tc := range cases {
 				results, total, err := repo.Search(ctx, tc.query, 10, 0, SortByName, SortAsc, false)

@@ -4,12 +4,12 @@
 <h1 class="title">Search Syntax</h1>
 <div class="content">
 <p>
-  The search box filters links by name and target URL. The query supports
+  The search box filters links by name, target URL, and owner. The query supports
   optional field prefixes and anchor characters.
 </p>
 
 <h2>Field Prefixes</h2>
-<p>By default the query is matched against both the link name and the target URL.
+<p>By default the query is matched against the link name, target URL, alias target, and owner.
   A prefix restricts the match to a single field:</p>
 <table class="table is-striped">
   <thead><tr><th>Prefix</th><th>Searches</th><th>Example</th></tr></thead>
@@ -30,8 +30,13 @@
       <td><code>a:docs</code></td>
     </tr>
     <tr>
+      <td><code>owner:</code> or <code>o:</code></td>
+      <td>Owner email only</td>
+      <td><code>o:alice</code></td>
+    </tr>
+    <tr>
       <td><em>(none)</em></td>
-      <td>Name, target URL, and alias target</td>
+      <td>Name, target URL, alias target, and owner</td>
       <td><code>docs</code></td>
     </tr>
   </tbody>
@@ -70,6 +75,8 @@
     <tr><td><code>t:github.com/myorg</code></td><td>Links pointing into <code>github.com/myorg</code></td></tr>
     <tr><td><code>name:^wiki$</code></td><td>The link named exactly <code>wiki</code></td></tr>
     <tr><td><code>a:docs</code></td><td>Aliases whose target link name contains <code>docs</code></td></tr>
+    <tr><td><code>o:alice</code></td><td>Links owned by a user whose email contains <code>alice</code></td></tr>
+    <tr><td><code>owner:^alice@example.com$</code></td><td>Links owned exactly by <code>alice@example.com</code></td></tr>
   </tbody>
 </table>
 </div>

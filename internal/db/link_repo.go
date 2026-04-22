@@ -290,7 +290,8 @@ func (r *SQLLinkRepo) ListByOwner(ctx context.Context, ownerEmail string, limit,
 
 // buildSearchMatchExpr returns the SQL WHERE expression and the LIKE argument
 // slice for the given search field. For searchAll the expression matches name,
-// target, and alias_target and the args slice contains the pattern three times.
+// target, alias_target, and owner_email; the args slice repeats the pattern
+// once per column.
 func buildSearchMatchExpr(field searchField, pattern string) (expr string, args []any) {
 	switch field {
 	case searchName:
@@ -299,8 +300,10 @@ func buildSearchMatchExpr(field searchField, pattern string) (expr string, args 
 		return "LOWER(target) LIKE ?", []any{pattern}
 	case searchAlias:
 		return "alias_target LIKE ?", []any{pattern}
+	case searchOwner:
+		return "LOWER(owner_email) LIKE ?", []any{pattern}
 	default:
-		return "(name_lower LIKE ? OR LOWER(target) LIKE ? OR alias_target LIKE ?)", []any{pattern, pattern, pattern}
+		return "(name_lower LIKE ? OR LOWER(target) LIKE ? OR alias_target LIKE ? OR LOWER(owner_email) LIKE ?)", []any{pattern, pattern, pattern, pattern}
 	}
 }
 
@@ -330,13 +333,14 @@ func validateSort(sortField SortField, sortDir SortDir) error {
 type searchField int
 
 const (
-	searchAll    searchField = iota // default: name, target, and alias target
+	searchAll    searchField = iota // default: name, target, alias target, and owner email
 	searchName                      // name: or n: prefix
 	searchTarget                    // target: or t: prefix
 	searchAlias                     // alias: or a: prefix — alias_target column only
+	searchOwner                     // owner: or o: prefix — owner_email column only
 )
 
-// parseSearchQuery parses an optional field prefix (name:/n:/target:/t:/alias:/a:) and
+// parseSearchQuery parses an optional field prefix (name:/n:/target:/t:/alias:/a:/owner:/o:) and
 // ^ / $ anchors from a raw search string, returning the field scope and the
 // LIKE pattern to use.
 func parseSearchQuery(query string) (searchField, string) {
@@ -355,6 +359,10 @@ func parseSearchQuery(query string) (searchField, string) {
 		field, q = searchAlias, q[len("alias:"):]
 	case strings.HasPrefix(q, "a:"):
 		field, q = searchAlias, q[len("a:"):]
+	case strings.HasPrefix(q, "owner:"):
+		field, q = searchOwner, q[len("owner:"):]
+	case strings.HasPrefix(q, "o:"):
+		field, q = searchOwner, q[len("o:"):]
 	}
 	q = strings.ToLower(q)
 	prefix, suffix := "%", "%"

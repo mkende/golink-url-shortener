@@ -76,7 +76,10 @@ Returns a paginated list of all links.
 
 - **`page`** (integer, default: 1) — 1-based page number.
 - **`limit`** (integer, default: 100) — Results per page (max 100).
-- **`q`** (string) — Search substring matched against link names.
+- **`q`** (string) — Search query matched against link names, target URLs, alias
+  targets, and owner emails. Supports field prefixes (`name:`/`n:`, `target:`/`t:`,
+  `alias:`/`a:`, `owner:`/`o:`) and `^`/`$` anchors. See the
+  [search syntax help](/help/search) for details.
 - **`sort`** (string, default: `name`) — Sort field: `name`, `created`,
   `last_used`, or `use_count`.
 - **`dir`** (string, default: `asc`) — Sort direction: `asc` or `desc`.
