@@ -744,7 +744,7 @@ func (s *Server) handleCreateAlias(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	http.Redirect(w, r, "/details/"+aliasName, http.StatusFound)
+	http.Redirect(w, r, "/details/"+canonicalName, http.StatusFound)
 }
 
 // linksPageData is the template data for /links and /mylinks.

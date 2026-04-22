@@ -70,10 +70,12 @@
         <input type="checkbox" name="require_auth" {{if .Link.RequireAuth}}checked{{end}}> Require authentication
       </label>
     </div>
-    <div class="field">
+    <div class="field is-grouped is-grouped-right">
+      <div class="control">
+        <a class="button" href="/">Cancel</a>
+      </div>
       <div class="control">
         <button class="button is-primary" type="submit">Save</button>
-        <a class="button" href="/">Cancel</a>
       </div>
     </div>
   </form>
@@ -99,7 +101,7 @@
         <datalist id="transfer-users-alias"></datalist>
       </div>
       <div class="control">
-        <button class="button is-warning" type="submit">Transfer</button>
+        <button class="button is-danger" type="submit">Transfer</button>
       </div>
     </div>
     <p class="help">The new owner will be able to edit and delete this alias.</p>
@@ -147,16 +149,21 @@
         Advanced links are disabled by the server configuration. This link will not redirect until it is converted to a Simple link.
       </div>
       {{end}}
-      <div class="control">
-        <div class="select">
-          <select name="link_type" id="link-type-select">
-            <option value="simple"  {{if .Link.IsSimple}}selected{{end}}>Simple URL</option>
-            {{if or .AllowAdvancedLinks .Link.IsAdvanced}}
-            <option value="advanced"{{if .Link.IsAdvanced}}selected{{end}}>Advanced (Go template)</option>
-            {{end}}
-            <option value="alias">Alias of another link</option>
-          </select>
+      <div style="display: flex; align-items: center; gap: 1.5em; flex-wrap: wrap;">
+        <div class="control">
+          <div class="select">
+            <select name="link_type" id="link-type-select">
+              <option value="simple"  {{if .Link.IsSimple}}selected{{end}}>Simple URL</option>
+              {{if or .AllowAdvancedLinks .Link.IsAdvanced}}
+              <option value="advanced"{{if .Link.IsAdvanced}}selected{{end}}>Advanced (Go template)</option>
+              {{end}}
+              <option value="alias">Alias of another link</option>
+            </select>
+          </div>
         </div>
+        <label class="checkbox">
+          <input type="checkbox" name="require_auth" {{if .Link.RequireAuth}}checked{{end}}> Require authentication
+        </label>
       </div>
     </div>
     <div id="target-field" class="field">
@@ -176,15 +183,12 @@
         all of its current aliases to the new target.
       </p>
     </div>
-    <div class="field">
-      <label class="checkbox">
-        <input type="checkbox" name="require_auth" {{if .Link.RequireAuth}}checked{{end}}> Require authentication
-      </label>
-    </div>
-    <div class="field">
+    <div class="field is-grouped is-grouped-right">
+      <div class="control">
+        <a class="button" href="/">Cancel</a>
+      </div>
       <div class="control">
         <button class="button is-primary" type="submit">Save</button>
-        <a class="button" href="/">Cancel</a>
       </div>
     </div>
   </form>
@@ -210,7 +214,7 @@
         <datalist id="transfer-users"></datalist>
       </div>
       <div class="control">
-        <button class="button is-warning" type="submit">Transfer</button>
+        <button class="button is-danger" type="submit">Transfer</button>
       </div>
     </div>
     <p class="help">The new owner will be able to edit, share, and delete this link.</p>
@@ -224,52 +228,6 @@
 
 {{/* Right column */}}
 <div class="column">
-  {{/* Aliases section — only shown for non-alias links */}}
-  {{if not .Link.IsAlias}}
-  <div class="box">
-    <h2 class="subtitle">Aliases</h2>
-    {{if .Aliases}}
-    <table class="table is-fullwidth is-striped is-hoverable">
-      <thead>
-        <tr><th>Alias Name</th><th>Uses</th><th>Last Used</th><th>Owner</th><th></th></tr>
-      </thead>
-      <tbody>
-      {{range .Aliases}}
-      <tr>
-        <td><a href="/{{.Name}}">{{.Name}}</a></td>
-        <td>{{.UseCount}}</td>
-        <td>{{if .LastUsedAt.Valid}}<time class="local-time" datetime="{{.LastUsedAt.Time.UTC.Format "2006-01-02T15:04:05Z"}}">{{.LastUsedAt.Time.UTC.Format "2006-01-02 15:04 UTC"}}</time>{{else}}—{{end}}</td>
-        <td>{{.OwnerEmail}}</td>
-        <td><a href="/details/{{.Name}}" class="button is-small is-info">Details</a></td>
-      </tr>
-      {{end}}
-      </tbody>
-    </table>
-    {{else}}
-    <p class="has-text-grey">No aliases yet.</p>
-    {{end}}
-
-    {{/* Any logged-in user can create an alias */}}
-    {{if .Identity}}
-    <hr>
-    <p class="is-size-6 has-text-weight-semibold">Create a new alias</p>
-    <form method="POST" action="/details/{{.Link.Name}}/alias">
-      <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
-      <div class="field has-addons">
-        <div class="control is-expanded">
-          <input class="input" type="text" name="alias_name" placeholder="alias-name" required
-            aria-label="Alias link name">
-        </div>
-        <div class="control">
-          <button class="button is-info" type="submit">Create Alias</button>
-        </div>
-      </div>
-      <p class="help">The alias will redirect through this link using the same target and template logic.</p>
-    </form>
-    {{end}}
-  </div>
-  {{end}}
-
   {{/* Sharing box */}}
   {{if .CanEdit}}
   <div class="box">
@@ -290,7 +248,7 @@
           <datalist id="known-users"></datalist>
         </div>
         <div class="control">
-          <button class="button is-link" type="submit">Share</button>
+          <button class="button is-primary" type="submit">Share</button>
         </div>
       </div>
     </form>
@@ -313,8 +271,56 @@
     </table>
     {{end}}
   </div>
+  {{end}}{{/* end CanEdit for sharing */}}
+
+  {{/* Aliases section — only shown for non-alias links */}}
+  {{if not .Link.IsAlias}}
+  <div class="box">
+    <h2 class="subtitle">Aliases</h2>
+    {{if .Aliases}}
+    <table class="table is-fullwidth is-striped is-hoverable">
+      <thead>
+        <tr><th>Alias Name</th><th>Uses</th><th>Last Used</th><th>Owner</th><th></th></tr>
+      </thead>
+      <tbody>
+      {{range .Aliases}}
+      <tr>
+        <td><a href="/{{.Name}}">{{.Name}}</a></td>
+        <td>{{.UseCount}}</td>
+        <td>{{if .LastUsedAt.Valid}}<time class="local-time" datetime="{{.LastUsedAt.Time.UTC.Format "2006-01-02T15:04:05Z"}}">{{.LastUsedAt.Time.UTC.Format "2006-01-02 15:04 UTC"}}</time>{{else}}—{{end}}</td>
+        <td class="has-text-grey is-size-7">{{displayEmail .OwnerEmail $.DefaultDomain}}</td>
+        <td><a href="/details/{{.Name}}" class="button is-small is-info">Details</a></td>
+      </tr>
+      {{end}}
+      </tbody>
+    </table>
+    {{else}}
+    <p class="has-text-grey">No aliases yet.</p>
+    {{end}}
+
+    {{/* Any logged-in user can create an alias */}}
+    {{if .Identity}}
+    <hr>
+    <p class="is-size-6 has-text-weight-semibold">Create a new alias</p>
+    <form method="POST" action="/details/{{.Link.Name}}/alias">
+      <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+      <div class="field has-addons">
+        <div class="control is-expanded">
+          <input class="input" type="text" name="alias_name" placeholder="alias-name" required
+            aria-label="Alias link name">
+        </div>
+        <div class="control">
+          <button class="button is-primary" type="submit">Create Alias</button>
+        </div>
+      </div>
+      <p class="help">The alias will redirect through this link using the same target and template logic.</p>
+    </form>
+    {{end}}
+  </div>
+  {{end}}
 
   {{/* Delete box */}}
+  {{if .CanEdit}}
   <div class="box">
     <h2 class="subtitle">
       {{if .Link.IsAlias}}Delete Alias{{else}}Delete Link{{end}}
@@ -328,7 +334,7 @@
       </div>
     </form>
   </div>
-  {{end}}{{/* end CanEdit */}}
+  {{end}}{{/* end CanEdit for delete */}}
 </div>{{/* end right column */}}
 
 </div>{{/* end columns */}}

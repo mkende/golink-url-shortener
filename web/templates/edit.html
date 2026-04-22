@@ -19,16 +19,16 @@
     <label class="checkbox">
       <input type="checkbox" name="is_advanced" {{if .Link.IsAdvanced}}checked{{end}}> Advanced (Go template)
     </label>
-  </div>
-  <div class="field">
-    <label class="checkbox">
+    <label class="checkbox" style="margin-left: 1.5em;">
       <input type="checkbox" name="require_auth" {{if .Link.RequireAuth}}checked{{end}}> Require authentication
     </label>
   </div>
-  <div class="field">
+  <div class="field is-grouped is-grouped-right">
+    <div class="control">
+      <a class="button" href="/">Cancel</a>
+    </div>
     <div class="control">
       <button class="button is-primary" type="submit">Save</button>
-      <a class="button" href="/">Cancel</a>
     </div>
   </div>
 </form>
@@ -47,7 +47,7 @@
         </datalist>
       </div>
       <div class="control">
-        <button class="button is-link" type="submit">Share</button>
+        <button class="button is-primary" type="submit">Share</button>
       </div>
     </div>
   </form>
