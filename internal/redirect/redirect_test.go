@@ -200,6 +200,18 @@ func TestResolveAdvanced(t *testing.T) {
 			vars:        TemplateVars{},
 			want:        "https://example.com/page",
 		},
+		{
+			name:        "alias variable – direct access uses canonical name",
+			templateStr: "https://example.com/{{.alias}}",
+			vars:        TemplateVars{Alias: "mylink"},
+			want:        "https://example.com/mylink",
+		},
+		{
+			name:        "alias variable – via alias uses alias name",
+			templateStr: "https://example.com/{{.alias}}",
+			vars:        TemplateVars{Alias: "myalias"},
+			want:        "https://example.com/myalias",
+		},
 	}
 
 	for _, tc := range tests {
