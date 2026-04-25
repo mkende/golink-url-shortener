@@ -283,3 +283,57 @@ func TestRedirectRequireAuthForRedirects_Unauthenticated(t *testing.T) {
 		t.Error("unauthenticated request should not reach the target URL")
 	}
 }
+
+// TestAdvancedLinkAliasVar_Direct verifies that .alias resolves to the
+// canonical link name when the link is accessed directly (not via alias).
+func TestAdvancedLinkAliasVar_Direct(t *testing.T) {
+	handler, links := newTestServer(t)
+
+	_, err := links.Create(context.Background(), "canonical", "https://example.com/{{.alias}}", "owner@example.com", db.LinkTypeAdvanced, "", false)
+	if err != nil {
+		t.Fatalf("create link: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/canonical", nil)
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusFound {
+		t.Fatalf("expected 302, got %d", w.Code)
+	}
+	const want = "https://example.com/canonical"
+	if loc := w.Header().Get("Location"); loc != want {
+		t.Errorf("Location = %q, want %q", loc, want)
+	}
+}
+
+// TestAdvancedLinkAliasVar_ViaAlias verifies that .alias resolves to the alias
+// name (not the canonical name) when the link is reached through an alias.
+func TestAdvancedLinkAliasVar_ViaAlias(t *testing.T) {
+	handler, links := newTestServer(t)
+
+	canonical, err := links.Create(context.Background(), "canonical", "https://example.com/{{.alias}}", "owner@example.com", db.LinkTypeAdvanced, "", false)
+	if err != nil {
+		t.Fatalf("create canonical link: %v", err)
+	}
+
+	aliasLink, err := links.Create(context.Background(), "myalias", "", "owner@example.com", db.LinkTypeSimple, "", false)
+	if err != nil {
+		t.Fatalf("create alias placeholder: %v", err)
+	}
+	if _, err := links.SetAlias(context.Background(), aliasLink.ID, "myalias", canonical.NameLower, false, 10); err != nil {
+		t.Fatalf("SetAlias: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/myalias", nil)
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusFound {
+		t.Fatalf("expected 302, got %d", w.Code)
+	}
+	const want = "https://example.com/myalias"
+	if loc := w.Header().Get("Location"); loc != want {
+		t.Errorf("Location = %q, want %q", loc, want)
+	}
+}

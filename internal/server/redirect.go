@@ -100,7 +100,7 @@ func (s *Server) doRedirect(w http.ResponseWriter, r *http.Request, link *db.Lin
 			Args:  splitArgs(r.URL.RawQuery),
 			UA:    r.UserAgent(),
 			Email: email,
-			Alias: aliasName,
+			Alias: name,
 		}
 		targetURL, err = redirect.ResolveAdvanced(link.Target, vars)
 		if err == nil {

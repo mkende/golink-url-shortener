@@ -41,10 +41,15 @@ The following variables are available inside the template:
   (e.g. `PROJ-123` for `go/name/PROJ-123`).
 - **`.parts`** ([]string) — Path suffix split by `/`
   (e.g. `["foo", "bar"]` for `go/name/foo/bar`).
-- **`.args`** (string) — Raw query string (everything after `?`).
+- **`.args`** ([]string) — Query string split on `&`
+  (e.g. `["q=hello", "page=1"]` for `go/name?q=hello&page=1`).
 - **`.ua`** (string) — `User-Agent` header value.
 - **`.email`** (string) — Authenticated user's email address; empty for
   anonymous users.
+- **`.alias`** (string) — The short link name used in the request. When the
+  user visits via an alias this is the alias name; when visiting directly it is
+  the canonical link name. Useful to build templates that behave differently
+  depending on which name was used.
 
 ### Custom template functions
 
