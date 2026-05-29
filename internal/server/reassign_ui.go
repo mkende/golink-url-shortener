@@ -8,8 +8,8 @@ import (
 // reassignPageData is the template data for /reassign.
 type reassignPageData struct {
 	baseData
-	FromEmail  string
-	ToEmail    string
+	FromEmail string
+	ToEmail   string
 	// Done is true when a reassignment was successfully attempted.
 	Done       bool
 	Reassigned int64

@@ -20,11 +20,11 @@ import (
 )
 
 const (
-	sessionCookieName   = "golink_session"
-	sessionDuration     = 24 * time.Hour
-	stateCookieName     = "golink_oauth_state"
-	oidcVerifierCookie  = "golink_pkce_verifier"
-	oidcCookieMaxAge    = 600 // 10 minutes
+	sessionCookieName  = "golink_session"
+	sessionDuration    = 24 * time.Hour
+	stateCookieName    = "golink_oauth_state"
+	oidcVerifierCookie = "golink_pkce_verifier"
+	oidcCookieMaxAge   = 600 // 10 minutes
 )
 
 // OIDCHandler handles OIDC login, callback, and logout routes.
@@ -183,13 +183,26 @@ func (h *OIDCHandler) HandleCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Extract groups from the configured claim name
-	var groups []string
+	// Decode the raw claim set once for both the email-verification check and
+	// group extraction.
 	var rawClaims map[string]json.RawMessage
-	if err := idToken.Claims(&rawClaims); err == nil {
-		if gc, ok := rawClaims[h.cfg.OIDC.GroupsClaim]; ok {
-			_ = json.Unmarshal(gc, &groups)
+	_ = idToken.Claims(&rawClaims)
+
+	// Enforce email verification when a claim name is configured. The claim must
+	// be present and truthy; an absent or false claim rejects the login.
+	if claimName := h.cfg.OIDC.VerifiedEmailClaim; claimName != "" {
+		if !claimIsTrue(rawClaims[claimName]) {
+			slog.Default().Warn("oidc: rejecting login with unverified email",
+				"email", claims.Email, "claim", claimName)
+			http.Error(w, "email address is not verified", http.StatusForbidden)
+			return
 		}
+	}
+
+	// Extract groups from the configured claim name.
+	var groups []string
+	if gc, ok := rawClaims[h.cfg.OIDC.GroupsClaim]; ok {
+		_ = json.Unmarshal(gc, &groups)
 	}
 
 	id := &Identity{
@@ -319,6 +332,25 @@ func OIDCMiddleware(cfg *config.Config, logger *slog.Logger) func(http.Handler) 
 			next.ServeHTTP(w, r.WithContext(WithIdentity(r.Context(), id)))
 		})
 	}
+}
+
+// claimIsTrue reports whether a raw JSON claim value represents a truthy
+// verification flag. It accepts both the JSON boolean true and the string
+// "true" (case-insensitive), since some providers emit the value as a string.
+// A missing (nil) claim is treated as false.
+func claimIsTrue(raw json.RawMessage) bool {
+	if len(raw) == 0 {
+		return false
+	}
+	var b bool
+	if err := json.Unmarshal(raw, &b); err == nil {
+		return b
+	}
+	var s string
+	if err := json.Unmarshal(raw, &s); err == nil {
+		return strings.EqualFold(s, "true")
+	}
+	return false
 }
 
 // randomState generates a random base64-encoded state string for OAuth2 CSRF

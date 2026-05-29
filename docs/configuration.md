@@ -70,9 +70,17 @@ with your OIDC provider.
   additional security by using a code verifier and challenge, which is
   recommended for public clients and confidential clients that cannot securely
   store a client secret.
+- **`oidc.verified_email_claim`** (string, default: `""` — disabled) — Name of a
+  boolean ID-token claim that must be present and `true` for a login to be
+  accepted. Guards against impersonation through providers that issue tokens for
+  unverified or user-editable email addresses. Set it to `"email_verified"` (the
+  OIDC-standard name, correct for Google, Authelia, Keycloak, and most
+  providers) to enable the check; leave empty only for providers that do not
+  emit such a claim.
 - **`oidc.jwt_secret`** (string) — **Required when `oidc.enabled = true`.**
-  HMAC secret used to sign session JWT cookies. Use a long random string (at
-  least 32 bytes). Generate one with `openssl rand -base64 32`.
+  HMAC secret used to sign session JWT cookies. Must be at least 32 characters
+  (enforced); use a long random string. Generate one with
+  `openssl rand -base64 32`.
 
 #### Authelia
 

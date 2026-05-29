@@ -2,6 +2,7 @@ package server
 
 import (
 	"crypto/rand"
+	"crypto/subtle"
 	"encoding/base64"
 	"net/http"
 	"strings"
@@ -39,7 +40,8 @@ func validateCSRF(r *http.Request) bool {
 		return false
 	}
 	formToken := r.FormValue("csrf_token")
-	return formToken != "" && formToken == cookie.Value
+	return formToken != "" &&
+		subtle.ConstantTimeCompare([]byte(formToken), []byte(cookie.Value)) == 1
 }
 
 // requireCSRF validates the CSRF token and writes a 403 response if invalid.

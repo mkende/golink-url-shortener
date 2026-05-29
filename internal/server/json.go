@@ -3,12 +3,39 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/mkende/golink-url-shortener/internal/db"
 )
+
+// Request-body size limits, guarding against memory/disk exhaustion. Ordinary
+// API calls carry a single small record; imports may legitimately contain a
+// full backup, so they get a much larger cap.
+const (
+	maxAPIBodyBytes    = 1 << 20   // 1 MiB
+	maxImportBodyBytes = 256 << 20 // 256 MiB
+)
+
+// decodeJSONBody decodes the request body into v, enforcing maxBytes as an
+// upper bound. It writes a 413 response when the body exceeds the limit, a 400
+// when it is not valid JSON, and returns false in either case. On success it
+// returns true and v is populated.
+func decodeJSONBody(w http.ResponseWriter, r *http.Request, maxBytes int64, v any) bool {
+	r.Body = http.MaxBytesReader(w, r.Body, maxBytes)
+	if err := json.NewDecoder(r.Body).Decode(v); err != nil {
+		var maxErr *http.MaxBytesError
+		if errors.As(err, &maxErr) {
+			writeJSONError(w, http.StatusRequestEntityTooLarge, "request body too large")
+			return false
+		}
+		writeJSONError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
+		return false
+	}
+	return true
+}
 
 // LinkResponse is the JSON representation of a short link returned by the API.
 type LinkResponse struct {

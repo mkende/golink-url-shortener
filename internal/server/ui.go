@@ -275,8 +275,8 @@ func (s *Server) handleNew(w http.ResponseWriter, r *http.Request) {
 // detailsPageData is the template data for /details/{name}.
 type detailsPageData struct {
 	baseData
-	Link          *db.Link
-	CanEdit       bool
+	Link    *db.Link
+	CanEdit bool
 	// CanTransfer is true when the current user is the link owner or an admin.
 	// Shared-only users may edit but not transfer ownership.
 	CanTransfer   bool

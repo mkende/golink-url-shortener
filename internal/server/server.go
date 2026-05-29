@@ -102,10 +102,11 @@ func (s *Server) buildRouter() chi.Router {
 	r := chi.NewRouter()
 
 	// Standard middleware
-	// PreserveRemoteAddr must run before RealIP so that CIDR-based auth
-	// middlewares can inspect the actual TCP connection address.
+	// PreserveRemoteAddr must run before TrustedRealIP so that CIDR-based auth
+	// middlewares can inspect the actual TCP connection address, and so the
+	// trust decision in TrustedRealIP is based on the genuine peer address.
 	r.Use(serverMiddleware.PreserveRemoteAddr)
-	r.Use(middleware.RealIP)
+	r.Use(serverMiddleware.TrustedRealIP(s.trustedNets))
 	r.Use(middleware.Recoverer)
 	r.Use(serverMiddleware.RequestLogger(s.logger))
 	r.Use(serverMiddleware.SecurityHeaders(s.cfg))

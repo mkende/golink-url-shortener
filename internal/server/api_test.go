@@ -506,3 +506,19 @@ func TestAPIQuickName(t *testing.T) {
 		t.Errorf("expected HTML input element in response, got: %s", body)
 	}
 }
+
+// TestAPICreateLinkBodyTooLarge verifies that an oversized JSON body on the
+// create endpoint is rejected with 413 rather than being read into memory.
+func TestAPICreateLinkBodyTooLarge(t *testing.T) {
+	env := newAPITestEnv(t)
+	key := createTestAPIKey(t, env, "mykey")
+
+	huge := strings.Repeat("a", 2<<20) // 2 MiB, over the 1 MiB API limit
+	body := map[string]string{"name": "big", "target": "https://example.com/" + huge}
+
+	w := doJSON(t, env.handler, http.MethodPost, "/api/links", body, key)
+
+	if w.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("expected 413, got %d: %s", w.Code, w.Body.String())
+	}
+}

@@ -36,6 +36,29 @@ func newOIDCHandlerForTest(t *testing.T, m *mockoidc.MockOIDC) *auth.OIDCHandler
 	return h
 }
 
+// newOIDCHandlerWithVerify is like newOIDCHandlerForTest but enables the
+// email-verification check against the named claim.
+func newOIDCHandlerWithVerify(t *testing.T, m *mockoidc.MockOIDC, verifiedClaim string) *auth.OIDCHandler {
+	t.Helper()
+	cfg := &config.Config{
+		CanonicalAddress: "https://go.example.com",
+		JWTSecret:        testJWTSecret,
+		OIDC: config.OIDCConfig{
+			Enabled:            true,
+			Issuer:             m.Issuer(),
+			ClientID:           m.ClientID,
+			ClientSecret:       m.ClientSecret,
+			Scopes:             []string{"openid", "email"},
+			VerifiedEmailClaim: verifiedClaim,
+		},
+	}
+	h, err := auth.NewOIDCHandler(context.Background(), cfg, nil)
+	if err != nil {
+		t.Fatalf("NewOIDCHandler: %v", err)
+	}
+	return h
+}
+
 // TestHandleLogin_StateEncoding checks that the rd destination is embedded in
 // the OAuth2 state cookie so it survives the round-trip to the OIDC provider.
 func TestHandleLogin_StateEncoding(t *testing.T) {
@@ -193,6 +216,87 @@ func TestHandleCallback_RdPreserved(t *testing.T) {
 	}
 	if findCookie(cbRec.Result().Cookies(), "golink_session") == nil {
 		t.Error("session cookie not set after successful callback")
+	}
+}
+
+// completeOIDCFlow drives the full login → authorize → callback sequence
+// against the mock provider using h and returns the callback recorder.
+func completeOIDCFlow(t *testing.T, h *auth.OIDCHandler) *httptest.ResponseRecorder {
+	t.Helper()
+
+	loginReq := httptest.NewRequest(http.MethodGet, "/auth/login?rd=%2F", nil)
+	loginRec := httptest.NewRecorder()
+	h.HandleLogin(loginRec, loginReq)
+	if loginRec.Code != http.StatusFound {
+		t.Fatalf("login status: got %d, want %d", loginRec.Code, http.StatusFound)
+	}
+	stateCookie := findCookie(loginRec.Result().Cookies(), "golink_oauth_state")
+	if stateCookie == nil {
+		t.Fatal("state cookie not set by HandleLogin")
+	}
+
+	noFollow := &http.Client{
+		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
+	}
+	authResp, err := noFollow.Get(loginRec.Header().Get("Location"))
+	if err != nil {
+		t.Fatalf("GET authorize: %v", err)
+	}
+	authResp.Body.Close()
+	callbackURL, err := url.Parse(authResp.Header.Get("Location"))
+	if err != nil {
+		t.Fatalf("parse callback location: %v", err)
+	}
+	code := callbackURL.Query().Get("code")
+	state := callbackURL.Query().Get("state")
+	if code == "" || state == "" {
+		t.Fatalf("authorize redirect missing code or state: %s", callbackURL)
+	}
+
+	cbPath := "/auth/callback?code=" + url.QueryEscape(code) + "&state=" + url.QueryEscape(state)
+	cbReq := httptest.NewRequest(http.MethodGet, cbPath, nil)
+	cbReq.AddCookie(stateCookie)
+	cbRec := httptest.NewRecorder()
+	h.HandleCallback(cbRec, cbReq)
+	return cbRec
+}
+
+// TestHandleCallback_VerifiedEmailRequired checks that when a
+// verified_email_claim is configured, a login succeeds for a verified user and
+// is rejected for an unverified one.
+func TestHandleCallback_VerifiedEmailRequired(t *testing.T) {
+	cases := []struct {
+		name       string
+		verified   bool
+		wantStatus int
+		wantCookie bool
+	}{
+		{"verified email accepted", true, http.StatusFound, true},
+		{"unverified email rejected", false, http.StatusForbidden, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			m, err := mockoidc.Run()
+			if err != nil {
+				t.Fatalf("start mock OIDC: %v", err)
+			}
+			defer m.Shutdown()
+
+			h := newOIDCHandlerWithVerify(t, m, "email_verified")
+
+			user := mockoidc.DefaultUser()
+			user.EmailVerified = tc.verified
+			m.QueueUser(user)
+
+			rec := completeOIDCFlow(t, h)
+			if rec.Code != tc.wantStatus {
+				t.Errorf("callback status: got %d, want %d", rec.Code, tc.wantStatus)
+			}
+			gotCookie := findCookie(rec.Result().Cookies(), "golink_session") != nil
+			if gotCookie != tc.wantCookie {
+				t.Errorf("session cookie set = %v, want %v", gotCookie, tc.wantCookie)
+			}
+		})
 	}
 }
 

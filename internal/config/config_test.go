@@ -193,6 +193,12 @@ groups_claim = "roles"
 			errContains: "at least one authentication provider",
 		},
 		{
+			name:        "short jwt_secret with oidc returns error",
+			toml:        minimalHeader + "jwt_secret = \"too-short\"\n[oidc]\nenabled = true\nclient_id = \"id\"\nclient_secret = \"sec\"\n",
+			wantErr:     true,
+			errContains: "jwt_secret must be at least 32 characters",
+		},
+		{
 			name:        "bad TOML syntax returns error",
 			toml:        `canonical_address = [[[`,
 			wantErr:     true,
@@ -421,7 +427,7 @@ func TestLoadEnvVarSecrets(t *testing.T) {
 		},
 		{
 			name:  "oidc client_secret_env_var populates ClientSecret",
-			toml:  minimalHeader + "jwt_secret = \"s\"\n[oidc]\nenabled = true\nclient_id = \"id\"\nclient_secret_env_var = \"TEST_OIDC_SECRET\"\n",
+			toml:  minimalHeader + "jwt_secret = \"0123456789abcdef0123456789abcdef\"\n[oidc]\nenabled = true\nclient_id = \"id\"\nclient_secret_env_var = \"TEST_OIDC_SECRET\"\n",
 			setup: func(t *testing.T) { t.Helper(); t.Setenv("TEST_OIDC_SECRET", "oidc-from-env") },
 			check: func(t *testing.T, cfg *config.Config) {
 				t.Helper()

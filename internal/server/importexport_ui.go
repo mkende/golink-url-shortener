@@ -43,6 +43,9 @@ func (s *Server) handleImportUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Cap the total upload size so a malicious multipart body cannot exhaust
+	// memory or disk, while still allowing a full backup to be imported.
+	r.Body = http.MaxBytesReader(w, r.Body, maxImportBodyBytes)
 	if err := r.ParseMultipartForm(32 << 20); err != nil {
 		s.renderImportError(w, base, "Could not parse form: "+err.Error())
 		return

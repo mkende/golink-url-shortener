@@ -2,7 +2,6 @@ package server
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -121,8 +120,7 @@ func (s *Server) doImport(ctx context.Context, data ExportData) importResult {
 // returning a summary of created, updated, and skipped links.
 func (s *Server) handleImport(w http.ResponseWriter, r *http.Request) {
 	var data ExportData
-	if err := json.NewDecoder(r.Body).Decode(&data); err != nil {
-		writeJSONError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
+	if !decodeJSONBody(w, r, maxImportBodyBytes, &data) {
 		return
 	}
 

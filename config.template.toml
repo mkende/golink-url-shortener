@@ -125,8 +125,9 @@ max_aliases_per_link = 100
 
 # ─── Sessions ────────────────────────────────────────────────────────────────
 
-# HMAC secret used to sign session JWT cookies. Use a long random string
-# (at least 32 bytes). Generate one with: openssl rand -base64 32
+# HMAC secret used to sign session JWT cookies. Must be at least 32 characters
+# (enforced when oidc.enabled = true); use a long random string. Generate one
+# with: openssl rand -base64 32
 # REQUIRED when oidc.enabled = true (set exactly one of jwt_secret or
 # jwt_secret_env_var).
 # Default: "" (disabled)
@@ -261,6 +262,14 @@ groups_claim = "groups"
 # PKCE provides additional security for public clients by using a code verifier
 # and challenge. Default: false (standard authorization code flow).
 use_pkce = false
+
+# Name of a boolean ID-token claim that must be present and true for a login to
+# be accepted. This prevents impersonation through providers that issue tokens
+# for unverified or user-editable email addresses. Disabled by default (empty);
+# set it to enable the check. The OIDC-standard name is "email_verified" — use
+# that with Google, Authelia, Keycloak, and most providers. Leave empty only for
+# providers that do not emit such a claim.
+# verified_email_claim = "email_verified"
 
 # See the global jwt_secret setting — it is required when oidc.enabled = true.
 

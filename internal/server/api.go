@@ -3,7 +3,6 @@ package server
 import (
 	"crypto/rand"
 	"encoding/base64"
-	"encoding/json"
 	"errors"
 	"net/http"
 	"strconv"
@@ -124,8 +123,7 @@ func (s *Server) handleAPICreateLink(w http.ResponseWriter, r *http.Request) {
 	id := auth.FromContext(r.Context())
 
 	var req createLinkRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSONError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
+	if !decodeJSONBody(w, r, maxAPIBodyBytes, &req) {
 		return
 	}
 	req.Name = strings.TrimSpace(req.Name)
@@ -206,8 +204,7 @@ func (s *Server) handleAPIUpdateLink(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req updateLinkRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSONError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
+	if !decodeJSONBody(w, r, maxAPIBodyBytes, &req) {
 		return
 	}
 
@@ -337,8 +334,7 @@ func (s *Server) handleAPITransferLink(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		NewOwner string `json:"new_owner"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSONError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
+	if !decodeJSONBody(w, r, maxAPIBodyBytes, &req) {
 		return
 	}
 
@@ -428,8 +424,7 @@ func (s *Server) handleAPICreateAPIKey(w http.ResponseWriter, r *http.Request) {
 		Name     string `json:"name"`
 		ReadOnly *bool  `json:"read_only"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		writeJSONError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
+	if !decodeJSONBody(w, r, maxAPIBodyBytes, &body) {
 		return
 	}
 	body.Name = strings.TrimSpace(body.Name)

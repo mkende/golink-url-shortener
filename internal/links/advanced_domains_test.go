@@ -24,8 +24,8 @@ func TestValidateDomainPattern(t *testing.T) {
 		{"*.", true},
 		{"*.example.*", true},
 		{"example.*", true},
-		{"*example.com", true},  // star not followed by dot
-		{"exam_ple.com", true},  // underscore not allowed
+		{"*example.com", true}, // star not followed by dot
+		{"exam_ple.com", true}, // underscore not allowed
 		{"example.com/path", true},
 		{"*.*.example.com", true},
 	}
@@ -51,18 +51,18 @@ func TestMatchesDomainPattern(t *testing.T) {
 		want    bool
 	}{
 		{"example.com", "example.com", true},
-		{"EXAMPLE.COM", "example.com", true},           // case-insensitive
+		{"EXAMPLE.COM", "example.com", true}, // case-insensitive
 		{"example.com", "other.com", false},
-		{"sub.example.com", "example.com", false},       // sub-domain doesn't match exact
+		{"sub.example.com", "example.com", false}, // sub-domain doesn't match exact
 		{"sub.example.com", "*.example.com", true},
 		{"deep.sub.example.com", "*.example.com", true}, // multi-level sub-domain
 		{"example.com", "*.example.com", false},         // bare domain fails wildcard
 		{"sub.other.com", "*.example.com", false},
 		{"sub-name.example.com", "*.example.com", true},
-		{"a.b.c.example.com", "*.example.com", true},    // deep nesting
+		{"a.b.c.example.com", "*.example.com", true}, // deep nesting
 		// Defensive: unusual but possible host strings.
 		{"notexample.com", "example.com", false},
-		{"xexample.com", "*.example.com", false},        // doesn't end with .example.com
+		{"xexample.com", "*.example.com", false}, // doesn't end with .example.com
 	}
 
 	for _, tc := range tests {
@@ -119,10 +119,10 @@ func TestCheckAdvancedLinkDomain(t *testing.T) {
 		wantErr bool
 	}{
 		{"https://example.com/path", false},
-		{"https://example.com:8080/path", false},     // port stripped
+		{"https://example.com:8080/path", false}, // port stripped
 		{"https://sub.internal.com/path", false},
 		{"https://deep.sub.internal.com/path", false},
-		{"http://example.com/path", false},            // http is also fine
+		{"http://example.com/path", false}, // http is also fine
 		{"https://evil.com/path", true},
 		{"https://notexample.com/path", true},
 		{"://invalid", true},

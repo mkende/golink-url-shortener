@@ -82,6 +82,14 @@ type OIDCConfig struct {
 	// code_challenge are generated and used during the login flow.
 	// Defaults to false.
 	UsePKCE bool `toml:"use_pkce"`
+
+	// VerifiedEmailClaim is the name of a boolean ID-token claim that must be
+	// present and true for authentication to succeed. This guards against
+	// impersonation via providers that issue tokens for unverified or
+	// user-editable email addresses. It is empty (disabled) by default; set it
+	// to the claim name emitted by your provider to enable the check. The
+	// OIDC-standard name is "email_verified".
+	VerifiedEmailClaim string `toml:"verified_email_claim"`
 }
 
 // DBConfig holds database connection settings.
@@ -379,8 +387,13 @@ func validate(c *Config) error {
 	default:
 		return fmt.Errorf("db.driver must be \"sqlite\" or \"postgres\", got %q", c.DB.Driver)
 	}
-	if c.OIDC.Enabled && c.JWTSecret == "" {
-		return errors.New("jwt_secret is required when OIDC is enabled")
+	if c.OIDC.Enabled {
+		if c.JWTSecret == "" {
+			return errors.New("jwt_secret is required when OIDC is enabled")
+		}
+		if len(c.JWTSecret) < 32 {
+			return fmt.Errorf("jwt_secret must be at least 32 characters, got %d", len(c.JWTSecret))
+		}
 	}
 	if c.Tailscale.Enabled && len(c.TrustedProxy) == 0 {
 		return errors.New("trusted_proxy must be set when tailscale auth is enabled")
