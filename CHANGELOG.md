@@ -1,3 +1,8 @@
+# 1.0.0 – 2026-05-29
+
+-   Security improvements to authentication, request limits, and proxy IP handling.
+-   Add the `.alias` template variable for advanced links.
+
 # 0.9.8 – 2026-04-22
 
 -   Improvements to the UI layout and colors.
